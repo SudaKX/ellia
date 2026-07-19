@@ -1,6 +1,6 @@
 import { inject, shallowRef, type InjectionKey, type ShallowRef } from 'vue'
 
-import { filterRegistry, type FilterOptions, type FilterType } from '@/filters'
+import { filterRegistry, type FilterOptions, type FilterType } from '@/registries/filters'
 
 export interface FilterInstance {
   instanceId: string

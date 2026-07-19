@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
 
-import type { FilterType } from '@/filters'
+import type { FilterType } from '@/registries/filters'
 
 export type ApplicationId = 'files' | 'archive' | 'terminal' | 'sandbox'
 

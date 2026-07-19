@@ -76,7 +76,7 @@ function handleNetworkAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
 <style scoped>
 .status-bar {
   position: relative;
-  z-index: 20;
+  z-index: 1000;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;

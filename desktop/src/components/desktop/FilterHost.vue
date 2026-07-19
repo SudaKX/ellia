@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { filterRegistry } from '@/filters'
+import { filterRegistry } from '@/registries/filters'
 import type { FilterInstance } from '@/composables/useFilterService'
 
 defineProps<{

@@ -2,7 +2,7 @@
 import { Minus, X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import type { FilterType } from '@/filters'
+import type { FilterType } from '@/registries/filters'
 import type { WindowInstance } from '@/types/desktop'
 
 const props = defineProps<{

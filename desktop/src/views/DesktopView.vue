@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Archive, FileText, Info, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
+import { Info } from 'lucide-vue-next'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
@@ -9,14 +9,11 @@ import Launchpad from '@/components/desktop/Launchpad.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
-import FileExplorer from '@/components/applications/FileExplorer.vue'
-import ArchiveViewer from '@/components/applications/ArchiveViewer.vue'
-import Terminal from '@/components/applications/Terminal.vue'
-import SandboxControl from '@/components/applications/SandboxControl.vue'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
 import { useWindowService } from '@/composables/useWindowService'
-import type { FilterType } from '@/filters'
+import { applicationRegistry } from '@/registries/applications'
+import type { FilterType } from '@/registries/filters'
 import { useDesktopStore } from '@/stores/desktop'
 import type { ApplicationId } from '@/types/desktop'
 
@@ -38,13 +35,6 @@ const windowFilterIds: Partial<Record<FilterType, string>> = {
   glitch: windowGlitchFilter.filterId,
 }
 
-const applicationRegistry: Record<ApplicationId, { title: string }> = {
-  files: { title: 'File Explorer' },
-  archive: { title: 'Archive Viewer' },
-  terminal: { title: 'Command Terminal' },
-  sandbox: { title: 'Sandbox Control' },
-}
-
 type NetworkAction = 'disconnect' | 'edit-ip' | 'edit-dns'
 
 const networkMessages: Record<NetworkAction, { title: string }> = {
@@ -59,40 +49,8 @@ const networkMessages: Record<NetworkAction, { title: string }> = {
   },
 }
 
-windowService.registerApplication({
-  id: 'files',
-  title: applicationRegistry.files.title,
-  icon: FileText,
-  component: FileExplorer,
-  defaultWidth: 420,
-  defaultHeight: 280,
-})
-
-windowService.registerApplication({
-  id: 'archive',
-  title: applicationRegistry.archive.title,
-  icon: Archive,
-  component: ArchiveViewer,
-  defaultWidth: 460,
-  defaultHeight: 300,
-})
-
-windowService.registerApplication({
-  id: 'terminal',
-  title: applicationRegistry.terminal.title,
-  icon: TerminalSquare,
-  component: Terminal,
-  defaultWidth: 560,
-  defaultHeight: 340,
-})
-
-windowService.registerApplication({
-  id: 'sandbox',
-  title: applicationRegistry.sandbox.title,
-  icon: LockKeyhole,
-  component: SandboxControl,
-  defaultWidth: 400,
-  defaultHeight: 260,
+Object.values(applicationRegistry).forEach((descriptor) => {
+  windowService.registerApplication(descriptor)
 })
 
 const time = ref('00:00:00')

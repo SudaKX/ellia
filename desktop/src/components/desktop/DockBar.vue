@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Archive, ChevronUp, CircleDashed, FileText, LayoutGrid, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
+import { ChevronUp, CircleDashed, LayoutGrid } from 'lucide-vue-next'
 
 import DockApp from './DockApp.vue'
+import { applicationRegistry } from '@/registries/applications'
 import type { ApplicationId } from '@/types/desktop'
 
 export type DockAppState = 'minimized' | 'foreground' | 'focused'
@@ -21,15 +22,8 @@ const emit = defineEmits<{
   showAll: []
 }>()
 
-const applicationRegistry: Record<ApplicationId, typeof FileText> = {
-  files: FileText,
-  archive: Archive,
-  terminal: TerminalSquare,
-  sandbox: LockKeyhole,
-}
-
 function iconFor(applicationId: ApplicationId) {
-  return applicationRegistry[applicationId] ?? FileText
+  return applicationRegistry[applicationId].icon
 }
 </script>
 
