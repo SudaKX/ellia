@@ -1,10 +1,24 @@
-import { onBeforeUnmount, onMounted, reactive, readonly, ref, watchEffect } from 'vue'
+import {
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  readonly,
+  ref,
+  toValue,
+  watchEffect,
+  type MaybeRefOrGetter,
+  type Ref,
+} from 'vue'
 
 export interface GlitchOptions {
   seed?: number
   intensity?: number
   frequencyX?: number
   frequencyY?: number
+  enableHorizontalDisplacement?: boolean
+  enableVerticalDisplacement?: boolean
+  animate?: boolean
+  frameSkip?: number
 }
 
 export interface GlitchState {
@@ -12,18 +26,33 @@ export interface GlitchState {
   intensity: number
   frequencyX: number
   frequencyY: number
+  enableHorizontalDisplacement: boolean
+  enableVerticalDisplacement: boolean
 }
 
 const CANVAS_WIDTH = 640
 const CANVAS_HEIGHT = 360
+const DEFAULT_FRAME_SKIP = 24
 const DEFAULT_OPTIONS: Required<GlitchOptions> = {
   seed: 0,
   intensity: 30,
   frequencyX: 0.02,
   frequencyY: 0.15,
+  enableHorizontalDisplacement: true,
+  enableVerticalDisplacement: true,
+  animate: false,
+  frameSkip: DEFAULT_FRAME_SKIP,
 }
 
-export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
+export interface GlitchFilterElements {
+  mapImage: Ref<SVGFEImageElement | null>
+  displacement: Ref<SVGFEDisplacementMapElement | null>
+}
+
+export function useGlitchFilter(
+  initialOptions: MaybeRefOrGetter<GlitchOptions> = {},
+  elements: GlitchFilterElements,
+) {
   const state = reactive<GlitchState>({
     ...DEFAULT_OPTIONS,
     ...initialOptions,
@@ -36,6 +65,8 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
   let displacement: SVGFEDisplacementMapElement | null = null
   let currentUrl: string | null = null
   let mapVersion = 0
+  let animationFrameId: number | undefined
+  let animationFrameCount = 0
 
   function createRandom(seed: number) {
     return () => {
@@ -72,7 +103,9 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
 
     for (let y = 0; y < canvas.height;) {
       const height = Math.max(2, Math.round(bandHeight * (0.25 + random() * 1.7)))
-      context.fillStyle = `rgb(${channel(random, 170)}, ${channel(random, 28)}, 128)`
+      const red = state.enableHorizontalDisplacement ? channel(random, 170) : 128
+      const green = state.enableVerticalDisplacement ? channel(random, 28) : 128
+      context.fillStyle = `rgb(${red}, ${green}, 128)`
       context.fillRect(0, y, canvas.width, height)
 
       for (let index = 0; index < fragments; index++) {
@@ -80,7 +113,9 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
 
         const width = Math.round(canvas.width * (0.04 + random() * 0.24))
         const x = Math.round(random() * Math.max(0, canvas.width - width))
-        context.fillStyle = `rgb(${channel(random, 230)}, ${channel(random, 64)}, 128)`
+        const red = state.enableHorizontalDisplacement ? channel(random, 230) : 128
+        const green = state.enableVerticalDisplacement ? channel(random, 64) : 128
+        context.fillStyle = `rgb(${red}, ${green}, 128)`
         context.fillRect(x, y, width, height)
       }
 
@@ -119,17 +154,40 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
     writeMapUrl()
   }
 
-  function randomizeSeed() {
+  function updateSeed() {
     state.seed = Math.floor(Math.random() * 100_000)
   }
 
-  function setIntensity(value: number) {
-    state.intensity = value
+  function resolveFrameSkip() {
+    const frameSkip = toValue(initialOptions).frameSkip ?? DEFAULT_FRAME_SKIP
+    return Math.max(1, Math.round(frameSkip))
   }
 
-  function setFrequency(x: number, y: number) {
-    state.frequencyX = x
-    state.frequencyY = y
+  function animate() {
+    animationFrameCount += 1
+
+    if (animationFrameCount % resolveFrameSkip() === 0) {
+      updateSeed()
+    }
+
+    animationFrameId = window.requestAnimationFrame(animate)
+  }
+
+  function startAnimation() {
+    if (animationFrameId !== undefined) return
+
+    animationFrameCount = 0
+    updateSeed()
+    animationFrameId = window.requestAnimationFrame(animate)
+  }
+
+  function stopAnimation() {
+    if (animationFrameId !== undefined) {
+      window.cancelAnimationFrame(animationFrameId)
+      animationFrameId = undefined
+    }
+
+    animationFrameCount = 0
   }
 
   onMounted(() => {
@@ -137,9 +195,21 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
     canvas.width = CANVAS_WIDTH
     canvas.height = CANVAS_HEIGHT
     context = canvas.getContext('2d', { alpha: false })
-    mapImage = document.getElementById('glitch-canvas-map') as SVGFEImageElement | null
-    displacement = document.getElementById('glitch-displacement') as SVGFEDisplacementMapElement | null
+    mapImage = elements.mapImage.value
+    displacement = elements.displacement.value
     isReady.value = Boolean(context && mapImage && displacement)
+  })
+
+  watchEffect(() => {
+    const options = toValue(initialOptions)
+    state.seed = options.seed ?? DEFAULT_OPTIONS.seed
+    state.intensity = options.intensity ?? DEFAULT_OPTIONS.intensity
+    state.frequencyX = options.frequencyX ?? DEFAULT_OPTIONS.frequencyX
+    state.frequencyY = options.frequencyY ?? DEFAULT_OPTIONS.frequencyY
+    state.enableHorizontalDisplacement =
+      options.enableHorizontalDisplacement ?? DEFAULT_OPTIONS.enableHorizontalDisplacement
+    state.enableVerticalDisplacement =
+      options.enableVerticalDisplacement ?? DEFAULT_OPTIONS.enableVerticalDisplacement
   })
 
   watchEffect(() => {
@@ -147,7 +217,16 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
     syncToDOM()
   })
 
+  watchEffect(() => {
+    if (isReady.value && toValue(initialOptions).animate) {
+      startAnimation()
+    } else {
+      stopAnimation()
+    }
+  })
+
   onBeforeUnmount(() => {
+    stopAnimation()
     if (currentUrl) {
       URL.revokeObjectURL(currentUrl)
     }
@@ -155,10 +234,5 @@ export function useGlitchFilter(initialOptions: GlitchOptions = {}) {
 
   return {
     state: readonly(state),
-    randomizeSeed,
-    setIntensity,
-    setFrequency,
   }
 }
-
-export type GlitchFilterController = ReturnType<typeof useGlitchFilter>

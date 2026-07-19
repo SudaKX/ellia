@@ -11,25 +11,28 @@ import FileExplorer from '@/components/applications/FileExplorer.vue'
 import ArchiveViewer from '@/components/applications/ArchiveViewer.vue'
 import Terminal from '@/components/applications/Terminal.vue'
 import SandboxControl from '@/components/applications/SandboxControl.vue'
-import { useGlitchFilter } from '@/composables/useGlitchFilter'
+import { useFilterService } from '@/composables/useFilterService'
 import { useWindowService } from '@/composables/useWindowService'
 import { useDesktopStore } from '@/stores/desktop'
 import type { ApplicationId } from '@/types/desktop'
 
 const desktop = useDesktopStore()
 const windowService = useWindowService()
-const glitchFilter = useGlitchFilter({
-  intensity: 12,
+const filterService = useFilterService()
+const glitchFilter = filterService.create('glitch', {
+  intensity: 2,
   frequencyX: 0.002,
   frequencyY: 0.05,
+  enableHorizontalDisplacement: true,
+  enableVerticalDisplacement: false,
+  animate: false,
+  frameSkip: 24,
 })
 
 watch(
   () => desktop.isApplicationOverviewOpen,
   (isOpen) => {
-    if (isOpen) {
-      glitchFilter.randomizeSeed()
-    }
+    filterService.update(glitchFilter.instanceId, { animate: isOpen })
   },
 )
 
@@ -155,6 +158,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
+  filterService.destroy(glitchFilter.instanceId)
 })
 </script>
 
@@ -180,6 +184,7 @@ onBeforeUnmount(() => {
       <Launchpad
         v-if="desktop.isApplicationOverviewOpen"
         :applications="desktop.applications"
+        :filter-id="glitchFilter.filterId"
         @close="handleCloseOverview"
         @launch="handleLaunch"
       />

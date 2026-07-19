@@ -1,8 +1,24 @@
+<script setup lang="ts">
+import { ref, toRef } from 'vue'
+
+import { useGlitchFilter, type GlitchOptions } from '@/composables/useGlitchFilter'
+
+const props = defineProps<{
+  filterId: string
+  options: GlitchOptions
+}>()
+
+const mapImage = ref<SVGFEImageElement | null>(null)
+const displacement = ref<SVGFEDisplacementMapElement | null>(null)
+
+useGlitchFilter(toRef(props, 'options'), { mapImage, displacement })
+</script>
+
 <template>
   <svg width="0" height="0" aria-hidden="true" style="display: none">
     <defs>
       <filter
-        id="glitch-filter"
+        :id="filterId"
         x="-20%"
         y="-20%"
         width="140%"
@@ -12,7 +28,7 @@
         color-interpolation-filters="sRGB"
       >
         <feImage
-          id="glitch-canvas-map"
+          ref="mapImage"
           x="0"
           y="0"
           width="1"
@@ -22,7 +38,7 @@
         />
 
         <feDisplacementMap
-          id="glitch-displacement"
+          ref="displacement"
           in="SourceGraphic"
           in2="canvas-map"
           scale="0.045"

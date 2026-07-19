@@ -5,6 +5,7 @@ import type { ApplicationId, DesktopApplication } from '@/types/desktop'
 
 const props = defineProps<{
   applications: DesktopApplication[]
+  filterId: string
 }>()
 
 const emit = defineEmits<{
@@ -35,7 +36,17 @@ function handleBackdropClick(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="launchpad" role="dialog" aria-modal="true" aria-label="All applications" @click="handleBackdropClick">
+  <div
+    class="launchpad"
+    role="dialog"
+    aria-modal="true"
+    aria-label="All applications"
+    :style="{
+      backdropFilter: `url(#${props.filterId})`,
+      WebkitBackdropFilter: `url(#${props.filterId})`,
+    }"
+    @click="handleBackdropClick"
+  >
     <div class="launchpad__panel">
       <button
         class="launchpad__close"
@@ -76,8 +87,6 @@ function handleBackdropClick(event: MouseEvent) {
   justify-content: center;
   padding: 0 16px 88px;
   background: color-mix(in srgb, var(--canvas) 42%, transparent);
-  backdrop-filter: url(#glitch-filter);
-  -webkit-backdrop-filter: url(#glitch-filter);
 }
 
 .launchpad__panel {
@@ -135,13 +144,12 @@ function handleBackdropClick(event: MouseEvent) {
   color: var(--text-primary);
   background: transparent;
   text-align: center;
-  transition: border-color 0.12s, background-color 0.12s, transform 0.12s;
+  transition: border-color 0.12s, background-color 0.12s;
 }
 
 .launchpad__tile:hover:not(:disabled) {
   border-color: var(--line-default);
   background: var(--surface-hover);
-  transform: translateY(-2px);
 }
 
 .launchpad__tile:disabled {
