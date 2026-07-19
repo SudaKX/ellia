@@ -12,6 +12,6 @@ provide(FilterServiceKey, filterService)
 </script>
 
 <template>
-  <FilterHost :instances="filterInstances" />
+  <FilterHost :instances="filterInstances" @ready="filterService.markReady" />
   <RouterView />
 </template>

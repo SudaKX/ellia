@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { Minus, X } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import type { FilterType } from '@/filters'
 import type { WindowInstance } from '@/types/desktop'
 
 const props = defineProps<{
   window: WindowInstance
   isActive: boolean
+  filterIds: Partial<Record<FilterType, string>>
 }>()
 
 const emit = defineEmits<{
@@ -26,12 +28,41 @@ const height = ref(props.window.height)
 const isDragging = ref(false)
 const isResizing = ref(false)
 const isClosing = ref(false)
+const isEntering = ref(true)
+const rootRef = ref<HTMLElement | null>(null)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
 const windowStartX = ref(0)
 const windowStartY = ref(0)
 const windowStartWidth = ref(0)
 const windowStartHeight = ref(0)
+let entryFrameId: number | undefined
+
+const filterValue = computed(() => {
+  return (
+    (Object.entries(props.window.filters) as [FilterType, boolean][])
+      .filter(([, isEnabled]) => isEnabled)
+      .map(([filterType]) => {
+        const filterId = props.filterIds[filterType]
+        return filterId ? `url(#${filterId})` : null
+      })
+      .filter((value): value is string => value !== null)
+      .join(' ') || undefined
+  )
+})
+
+onMounted(() => {
+  rootRef.value?.getBoundingClientRect()
+  entryFrameId = window.requestAnimationFrame(() => {
+    isEntering.value = false
+  })
+})
+
+onBeforeUnmount(() => {
+  if (entryFrameId !== undefined) {
+    window.cancelAnimationFrame(entryFrameId)
+  }
+})
 
 function handleMouseDown() {
   if (props.window.isMinimized) return
@@ -40,6 +71,11 @@ function handleMouseDown() {
 
 function handleCloseClick(event: MouseEvent) {
   event.stopPropagation()
+  requestClose()
+}
+
+function requestClose() {
+  if (!props.window.controls.close) return
   isClosing.value = true
 }
 
@@ -52,6 +88,10 @@ function handleTransitionEnd(event: TransitionEvent) {
 function handleMinimizeClick(event: MouseEvent) {
   event.stopPropagation()
   emit('minimize')
+}
+
+function handleContentClose() {
+  requestClose()
 }
 
 function startDrag(event: MouseEvent) {
@@ -86,7 +126,7 @@ function stopDrag() {
 }
 
 function startResize(event: MouseEvent) {
-  if (props.window.isMinimized) return
+  if (props.window.isMinimized || !props.window.resizable) return
   event.preventDefault()
   event.stopPropagation()
   isResizing.value = true
@@ -118,9 +158,12 @@ function stopResize() {
 
 <template>
   <article
+    ref="rootRef"
     class="window-frame"
     :class="{
       'window-frame--active': isActive,
+      'window-frame--modal': window.mode === 'modal',
+      'window-frame--entering': isEntering,
       'window-frame--closing': isClosing,
       'window-frame--minimized': window.isMinimized,
       'window-frame--dragging': isDragging,
@@ -132,7 +175,10 @@ function stopResize() {
       width: `${width}px`,
       height: `${height}px`,
       zIndex: window.zIndex,
+      filter: filterValue,
     }"
+    :role="window.mode === 'modal' ? 'dialog' : undefined"
+    :aria-modal="window.mode === 'modal' ? 'true' : undefined"
     @mousedown="handleMouseDown"
     @transitionend="handleTransitionEnd"
   >
@@ -141,8 +187,9 @@ function stopResize() {
         <component :is="window.icon" :size="14" :stroke-width="1.8" />
         <span>{{ window.title }}</span>
       </span>
-      <span class="window-frame__controls">
+      <span v-if="window.controls.minimize || window.controls.close" class="window-frame__controls">
         <button
+          v-if="window.controls.minimize && window.mode === 'normal'"
           class="window-frame__control"
           type="button"
           aria-label="Minimize"
@@ -151,6 +198,7 @@ function stopResize() {
           <Minus :size="14" :stroke-width="1.8" />
         </button>
         <button
+          v-if="window.controls.close"
           class="window-frame__control window-frame__control--close"
           type="button"
           aria-label="Close"
@@ -161,9 +209,14 @@ function stopResize() {
       </span>
     </header>
     <div class="window-frame__body">
-      <component :is="window.component" />
+      <component :is="window.component" v-bind="window.componentProps" @close="handleContentClose" />
     </div>
-    <span class="window-frame__resize-handle" aria-hidden="true" @mousedown="startResize"></span>
+    <span
+      v-if="window.resizable"
+      class="window-frame__resize-handle"
+      aria-hidden="true"
+      @mousedown="startResize"
+    ></span>
   </article>
 </template>
 
@@ -190,6 +243,7 @@ function stopResize() {
   pointer-events: none;
 }
 
+.window-frame--entering,
 .window-frame--closing {
   transform: scale(0.4);
   opacity: 0;

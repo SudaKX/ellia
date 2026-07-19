@@ -1,46 +1,62 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Archive, FileText, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Archive, FileText, Info, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
 import type { DockApplicationState } from '@/components/desktop/DockBar.vue'
 import Launchpad from '@/components/desktop/Launchpad.vue'
+import MessageBox from '@/components/desktop/MessageBox.vue'
+import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import FileExplorer from '@/components/applications/FileExplorer.vue'
 import ArchiveViewer from '@/components/applications/ArchiveViewer.vue'
 import Terminal from '@/components/applications/Terminal.vue'
 import SandboxControl from '@/components/applications/SandboxControl.vue'
 import { useFilterService } from '@/composables/useFilterService'
+import type { GlitchOptions } from '@/composables/useGlitchFilter'
 import { useWindowService } from '@/composables/useWindowService'
+import type { FilterType } from '@/filters'
 import { useDesktopStore } from '@/stores/desktop'
 import type { ApplicationId } from '@/types/desktop'
 
 const desktop = useDesktopStore()
 const windowService = useWindowService()
 const filterService = useFilterService()
-const glitchFilter = filterService.create('glitch', {
-  intensity: 2,
+const windowGlitchOptions: GlitchOptions = {
+  intensity: 12,
   frequencyX: 0.002,
   frequencyY: 0.05,
   enableHorizontalDisplacement: true,
   enableVerticalDisplacement: false,
-  animate: false,
-  frameSkip: 24,
-})
-
-watch(
-  () => desktop.isApplicationOverviewOpen,
-  (isOpen) => {
-    filterService.update(glitchFilter.instanceId, { animate: isOpen })
-  },
-)
+  chromaticAberration: 0.002,
+  animate: true,
+  frameSkip: 8,
+}
+const windowGlitchFilter = filterService.create('glitch', windowGlitchOptions)
+const windowFilterIds: Partial<Record<FilterType, string>> = {
+  glitch: windowGlitchFilter.filterId,
+}
 
 const applicationRegistry: Record<ApplicationId, { title: string }> = {
   files: { title: 'File Explorer' },
   archive: { title: 'Archive Viewer' },
   terminal: { title: 'Command Terminal' },
   sandbox: { title: 'Sandbox Control' },
+}
+
+type NetworkAction = 'disconnect' | 'edit-ip' | 'edit-dns'
+
+const networkMessages: Record<NetworkAction, { title: string }> = {
+  disconnect: {
+    title: 'Disconnect network',
+  },
+  'edit-ip': {
+    title: 'IP assignment',
+  },
+  'edit-dns': {
+    title: 'DNS server assignment',
+  },
 }
 
 windowService.registerApplication({
@@ -104,6 +120,34 @@ function handleCloseOverview() {
   desktop.closeApplicationOverview()
 }
 
+function handleNetworkAction(action: NetworkAction) {
+  const message = networkMessages[action]
+
+  windowService.send({
+    type: 'create-window',
+    payload: {
+      title: message.title,
+      icon: Info,
+      component: MessageBox,
+      componentProps: {
+        contentComponent: PermissionDenied,
+      },
+      defaultWidth: 440,
+      defaultHeight: 220,
+      placement: 'center',
+      mode: 'modal',
+      resizable: false,
+      filters: {
+        glitch: true,
+      },
+      controls: {
+        minimize: false,
+        close: true,
+      },
+    },
+  })
+}
+
 const applicationStates = computed<DockApplicationState[]>(() => {
   return windowService.openApplicationIds.value.map((applicationId) => {
     const windows = windowService.windows.value.filter(
@@ -158,13 +202,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
-  filterService.destroy(glitchFilter.instanceId)
+  filterService.destroy(windowGlitchFilter.instanceId)
 })
 </script>
 
 <template>
   <main class="desktop-shell">
-    <DesktopStatusBar :time="time" />
+    <DesktopStatusBar :time="time" @network-action="handleNetworkAction" />
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
       <div class="workspace-grid" aria-hidden="true"></div>
@@ -174,17 +218,21 @@ onBeforeUnmount(() => {
         :key="window.id"
         :window="window"
         :is-active="windowService.activeWindowId.value === window.id"
-        @close="windowService.close(window.id)"
-        @focus="windowService.focus(window.id)"
-        @minimize="windowService.minimize(window.id)"
+        :filter-ids="windowFilterIds"
+        @close="windowService.send({ type: 'close-window', windowId: window.id })"
+        @focus="windowService.send({ type: 'focus-window', windowId: window.id })"
+        @minimize="windowService.send({ type: 'minimize-window', windowId: window.id })"
       />
     </section>
+
+    <Transition name="modal-overlay">
+      <div v-if="windowService.hasModalWindow.value" class="desktop-modal-overlay" aria-hidden="true"></div>
+    </Transition>
 
     <Transition name="launchpad">
       <Launchpad
         v-if="desktop.isApplicationOverviewOpen"
         :applications="desktop.applications"
-        :filter-id="glitchFilter.filterId"
         @close="handleCloseOverview"
         @launch="handleLaunch"
       />
@@ -221,6 +269,26 @@ onBeforeUnmount(() => {
   background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: linear-gradient(to bottom, transparent, black 14%, black 88%, transparent);
+}
+
+.desktop-modal-overlay {
+  position: fixed;
+  z-index: 1100;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgb(0 0 0 / 54%);
+}
+
+.modal-overlay-enter-active,
+.modal-overlay-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.modal-overlay-enter-from,
+.modal-overlay-leave-to {
+  opacity: 0;
 }
 
 .launchpad-enter-active,

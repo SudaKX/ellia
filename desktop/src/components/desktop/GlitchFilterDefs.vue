@@ -10,8 +10,23 @@ const props = defineProps<{
 
 const mapImage = ref<SVGFEImageElement | null>(null)
 const displacement = ref<SVGFEDisplacementMapElement | null>(null)
+const redOffset = ref<SVGFEOffsetElement | null>(null)
+const greenOffset = ref<SVGFEOffsetElement | null>(null)
 
-useGlitchFilter(toRef(props, 'options'), { mapImage, displacement })
+const emit = defineEmits<{
+  ready: []
+}>()
+
+const { ready } = useGlitchFilter(toRef(props, 'options'), {
+  mapImage,
+  displacement,
+  redOffset,
+  greenOffset,
+})
+
+void ready.then(() => {
+  emit('ready')
+})
 </script>
 
 <template>
@@ -59,7 +74,7 @@ useGlitchFilter(toRef(props, 'options'), { mapImage, displacement })
           result="red"
         />
 
-        <feOffset in="red" dx="-0.001" dy="0" result="red-shifted" />
+        <feOffset ref="redOffset" in="red" dx="-0.001" dy="0" result="red-shifted" />
 
         <feColorMatrix
           in="displaced"
@@ -73,7 +88,7 @@ useGlitchFilter(toRef(props, 'options'), { mapImage, displacement })
           result="green"
         />
 
-        <feOffset in="green" dx="0.001" dy="0" result="green-shifted" />
+        <feOffset ref="greenOffset" in="green" dx="0.001" dy="0" result="green-shifted" />
 
         <feColorMatrix
           in="displaced"

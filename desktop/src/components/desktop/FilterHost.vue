@@ -5,6 +5,14 @@ import type { FilterInstance } from '@/composables/useFilterService'
 defineProps<{
   instances: FilterInstance[]
 }>()
+
+const emit = defineEmits<{
+  ready: [instanceId: string]
+}>()
+
+function handleReady(instanceId: string) {
+  emit('ready', instanceId)
+}
 </script>
 
 <template>
@@ -14,5 +22,6 @@ defineProps<{
     :key="instance.instanceId"
     :filter-id="instance.filterId"
     :options="instance.options"
+    @ready="handleReady(instance.instanceId)"
   />
 </template>

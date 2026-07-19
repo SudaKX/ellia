@@ -17,6 +17,7 @@ export interface GlitchOptions {
   frequencyY?: number
   enableHorizontalDisplacement?: boolean
   enableVerticalDisplacement?: boolean
+  chromaticAberration?: number
   animate?: boolean
   frameSkip?: number
 }
@@ -28,10 +29,29 @@ export interface GlitchState {
   frequencyY: number
   enableHorizontalDisplacement: boolean
   enableVerticalDisplacement: boolean
+  chromaticAberration: number
 }
 
-const CANVAS_WIDTH = 640
-const CANVAS_HEIGHT = 360
+export interface GlitchFilterElements {
+  mapImage: Ref<SVGFEImageElement | null>
+  displacement: Ref<SVGFEDisplacementMapElement | null>
+  redOffset: Ref<SVGFEOffsetElement | null>
+  greenOffset: Ref<SVGFEOffsetElement | null>
+}
+
+interface GlitchFrame {
+  url: string
+  image: HTMLImageElement
+}
+
+type IdleCallbackWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  cancelIdleCallback?: (handle: number) => void
+}
+
+const CANVAS_WIDTH = 320
+const CANVAS_HEIGHT = 180
+const FRAME_COUNT = 64
 const DEFAULT_FRAME_SKIP = 24
 const DEFAULT_OPTIONS: Required<GlitchOptions> = {
   seed: 0,
@@ -40,13 +60,9 @@ const DEFAULT_OPTIONS: Required<GlitchOptions> = {
   frequencyY: 0.15,
   enableHorizontalDisplacement: true,
   enableVerticalDisplacement: true,
+  chromaticAberration: 0.001,
   animate: false,
   frameSkip: DEFAULT_FRAME_SKIP,
-}
-
-export interface GlitchFilterElements {
-  mapImage: Ref<SVGFEImageElement | null>
-  displacement: Ref<SVGFEDisplacementMapElement | null>
 }
 
 export function useGlitchFilter(
@@ -57,14 +73,26 @@ export function useGlitchFilter(
     ...DEFAULT_OPTIONS,
     ...initialOptions,
   })
-
   const isReady = ref(false)
+  const isPoolReady = ref(false)
+  let resolveReady: () => void = () => undefined
+  let hasResolvedReady = false
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
+
   let canvas: HTMLCanvasElement | null = null
   let context: CanvasRenderingContext2D | null = null
   let mapImage: SVGFEImageElement | null = null
   let displacement: SVGFEDisplacementMapElement | null = null
-  let currentUrl: string | null = null
-  let mapVersion = 0
+  let redOffset: SVGFEOffsetElement | null = null
+  let greenOffset: SVGFEOffsetElement | null = null
+  let framePool: GlitchFrame[] = []
+  let currentFrameIndex = 0
+  let poolVersion = 0
+  let idleCallbackId: number | undefined
+  let idleCallbackUsesIdleApi = false
+  let idleResolve: (() => void) | undefined
   let animationFrameId: number | undefined
   let animationFrameCount = 0
 
@@ -82,20 +110,20 @@ export function useGlitchFilter(
     return Math.max(0, Math.min(255, Math.round(128 + (random() - 0.5) * spread)))
   }
 
-  function resolveBandDensity() {
-    return Math.max(4, Math.min(96, Math.round(state.frequencyY * 280)))
+  function resolveBandDensity(options: GlitchState) {
+    return Math.max(4, Math.min(96, Math.round(options.frequencyY * 280)))
   }
 
-  function resolveFragmentCount() {
-    return Math.max(1, Math.min(24, Math.round(state.frequencyX * 2000)))
+  function resolveFragmentCount(options: GlitchState) {
+    return Math.max(1, Math.min(24, Math.round(options.frequencyX * 2000)))
   }
 
-  function drawMap() {
+  function drawMap(seed: number, options: GlitchState) {
     if (!canvas || !context) return
 
-    const random = createRandom(state.seed)
-    const density = resolveBandDensity()
-    const fragments = resolveFragmentCount()
+    const random = createRandom(seed)
+    const density = resolveBandDensity(options)
+    const fragments = resolveFragmentCount(options)
     const bandHeight = Math.max(2, Math.round(canvas.height / density))
 
     context.fillStyle = 'rgb(128, 128, 128)'
@@ -103,8 +131,8 @@ export function useGlitchFilter(
 
     for (let y = 0; y < canvas.height;) {
       const height = Math.max(2, Math.round(bandHeight * (0.25 + random() * 1.7)))
-      const red = state.enableHorizontalDisplacement ? channel(random, 170) : 128
-      const green = state.enableVerticalDisplacement ? channel(random, 28) : 128
+      const red = options.enableHorizontalDisplacement ? channel(random, 170) : 128
+      const green = options.enableVerticalDisplacement ? channel(random, 28) : 128
       context.fillStyle = `rgb(${red}, ${green}, 128)`
       context.fillRect(0, y, canvas.width, height)
 
@@ -113,9 +141,9 @@ export function useGlitchFilter(
 
         const width = Math.round(canvas.width * (0.04 + random() * 0.24))
         const x = Math.round(random() * Math.max(0, canvas.width - width))
-        const red = state.enableHorizontalDisplacement ? channel(random, 230) : 128
-        const green = state.enableVerticalDisplacement ? channel(random, 64) : 128
-        context.fillStyle = `rgb(${red}, ${green}, 128)`
+        const fragmentRed = options.enableHorizontalDisplacement ? channel(random, 230) : 128
+        const fragmentGreen = options.enableVerticalDisplacement ? channel(random, 64) : 128
+        context.fillStyle = `rgb(${fragmentRed}, ${fragmentGreen}, 128)`
         context.fillRect(x, y, width, height)
       }
 
@@ -123,39 +151,81 @@ export function useGlitchFilter(
     }
   }
 
-  function writeMapUrl() {
-    if (!canvas || !mapImage) return
+  function createMapBlob() {
+    if (!canvas) return Promise.resolve<Blob | null>(null)
 
-    const version = ++mapVersion
-    canvas.toBlob((blob) => {
-      if (!blob) return
-
-      const nextUrl = URL.createObjectURL(blob)
-      if (version !== mapVersion || !mapImage) {
-        URL.revokeObjectURL(nextUrl)
-        return
-      }
-
-      const previousUrl = currentUrl
-      mapImage.setAttribute('href', nextUrl)
-      currentUrl = nextUrl
-
-      if (previousUrl) {
-        window.setTimeout(() => URL.revokeObjectURL(previousUrl), 800)
-      }
-    }, 'image/png')
+    return new Promise<Blob | null>((resolve) => {
+      canvas?.toBlob(resolve, 'image/png')
+    })
   }
 
-  function syncToDOM() {
-    if (!displacement) return
+  async function preload(url: string) {
+    const image = new Image()
+    image.src = url
 
-    displacement.setAttribute('scale', (state.intensity * 0.0015).toFixed(3))
-    drawMap()
-    writeMapUrl()
+    try {
+      await image.decode()
+    } catch {
+      // Keep the image reference even when decode is unavailable.
+    }
+
+    return image
   }
 
-  function updateSeed() {
-    state.seed = Math.floor(Math.random() * 100_000)
+  function waitForIdle() {
+    return new Promise<void>((resolve) => {
+      const idleWindow = window as IdleCallbackWindow
+      const finish = () => {
+        idleCallbackId = undefined
+        idleCallbackUsesIdleApi = false
+        idleResolve = undefined
+        resolve()
+      }
+
+      idleResolve = finish
+      if (idleWindow.requestIdleCallback) {
+        idleCallbackUsesIdleApi = true
+        idleCallbackId = idleWindow.requestIdleCallback(finish, { timeout: 200 })
+      } else {
+        idleCallbackUsesIdleApi = false
+        idleCallbackId = window.setTimeout(finish, 0)
+      }
+    })
+  }
+
+  function cancelPendingIdleWork() {
+    if (idleCallbackId === undefined) return
+
+    const idleWindow = window as IdleCallbackWindow
+    if (idleCallbackUsesIdleApi) {
+      idleWindow.cancelIdleCallback?.(idleCallbackId)
+    } else {
+      window.clearTimeout(idleCallbackId)
+    }
+
+    idleCallbackId = undefined
+    idleCallbackUsesIdleApi = false
+    idleResolve?.()
+    idleResolve = undefined
+  }
+
+  function revokeFrames(frames: GlitchFrame[]) {
+    frames.forEach((frame) => URL.revokeObjectURL(frame.url))
+  }
+
+  function clearFramePool() {
+    mapImage?.removeAttribute('href')
+    revokeFrames(framePool)
+    framePool = []
+    currentFrameIndex = 0
+    isPoolReady.value = false
+  }
+
+  function displayFrame(index: number) {
+    if (!mapImage || framePool.length === 0) return
+
+    currentFrameIndex = index % framePool.length
+    mapImage.setAttribute('href', framePool[currentFrameIndex].url)
   }
 
   function resolveFrameSkip() {
@@ -163,11 +233,69 @@ export function useGlitchFilter(
     return Math.max(1, Math.round(frameSkip))
   }
 
+  async function buildFramePool(version: number, options: GlitchState) {
+    const frames: GlitchFrame[] = []
+
+    for (let index = 0; index < FRAME_COUNT; index++) {
+      await waitForIdle()
+      if (version !== poolVersion) {
+        revokeFrames(frames)
+        return
+      }
+
+      drawMap(options.seed + index * 0x9e3779b1, options)
+      const blob = await createMapBlob()
+      if (version !== poolVersion) {
+        revokeFrames(frames)
+        return
+      }
+      if (!blob) continue
+
+      const url = URL.createObjectURL(blob)
+      const image = await preload(url)
+      if (version !== poolVersion) {
+        URL.revokeObjectURL(url)
+        revokeFrames(frames)
+        return
+      }
+
+      frames.push({ url, image })
+    }
+
+    if (version !== poolVersion) {
+      revokeFrames(frames)
+      return
+    }
+
+    framePool = frames
+    displayFrame(0)
+    isPoolReady.value = framePool.length > 0
+
+    if (!hasResolvedReady) {
+      hasResolvedReady = true
+      resolveReady()
+    }
+  }
+
+  function rebuildFramePool() {
+    const version = ++poolVersion
+    cancelPendingIdleWork()
+    clearFramePool()
+    void buildFramePool(version, { ...state })
+  }
+
+  function syncToDOM() {
+    if (!displacement) return
+    displacement.setAttribute('scale', (state.intensity * 0.0015).toFixed(3))
+    redOffset?.setAttribute('dx', (-state.chromaticAberration).toFixed(4))
+    greenOffset?.setAttribute('dx', state.chromaticAberration.toFixed(4))
+  }
+
   function animate() {
     animationFrameCount += 1
 
     if (animationFrameCount % resolveFrameSkip() === 0) {
-      updateSeed()
+      displayFrame(currentFrameIndex + 1)
     }
 
     animationFrameId = window.requestAnimationFrame(animate)
@@ -177,7 +305,6 @@ export function useGlitchFilter(
     if (animationFrameId !== undefined) return
 
     animationFrameCount = 0
-    updateSeed()
     animationFrameId = window.requestAnimationFrame(animate)
   }
 
@@ -197,7 +324,14 @@ export function useGlitchFilter(
     context = canvas.getContext('2d', { alpha: false })
     mapImage = elements.mapImage.value
     displacement = elements.displacement.value
+    redOffset = elements.redOffset.value
+    greenOffset = elements.greenOffset.value
     isReady.value = Boolean(context && mapImage && displacement)
+
+    if (!isReady.value && !hasResolvedReady) {
+      hasResolvedReady = true
+      resolveReady()
+    }
   })
 
   watchEffect(() => {
@@ -210,15 +344,17 @@ export function useGlitchFilter(
       options.enableHorizontalDisplacement ?? DEFAULT_OPTIONS.enableHorizontalDisplacement
     state.enableVerticalDisplacement =
       options.enableVerticalDisplacement ?? DEFAULT_OPTIONS.enableVerticalDisplacement
+    state.chromaticAberration = options.chromaticAberration ?? DEFAULT_OPTIONS.chromaticAberration
   })
 
   watchEffect(() => {
     if (!isReady.value) return
     syncToDOM()
+    rebuildFramePool()
   })
 
   watchEffect(() => {
-    if (isReady.value && toValue(initialOptions).animate) {
+    if (isReady.value && isPoolReady.value && toValue(initialOptions).animate) {
       startAnimation()
     } else {
       stopAnimation()
@@ -226,13 +362,19 @@ export function useGlitchFilter(
   })
 
   onBeforeUnmount(() => {
+    poolVersion += 1
+    cancelPendingIdleWork()
     stopAnimation()
-    if (currentUrl) {
-      URL.revokeObjectURL(currentUrl)
+    clearFramePool()
+
+    if (!hasResolvedReady) {
+      hasResolvedReady = true
+      resolveReady()
     }
   })
 
   return {
     state: readonly(state),
+    ready,
   }
 }

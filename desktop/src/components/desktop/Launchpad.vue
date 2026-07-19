@@ -3,9 +3,8 @@ import { Archive, FileText, LockKeyhole, TerminalSquare, X } from 'lucide-vue-ne
 
 import type { ApplicationId, DesktopApplication } from '@/types/desktop'
 
-const props = defineProps<{
+defineProps<{
   applications: DesktopApplication[]
-  filterId: string
 }>()
 
 const emit = defineEmits<{
@@ -36,17 +35,7 @@ function handleBackdropClick(event: MouseEvent) {
 </script>
 
 <template>
-  <div
-    class="launchpad"
-    role="dialog"
-    aria-modal="true"
-    aria-label="All applications"
-    :style="{
-      backdropFilter: `url(#${props.filterId})`,
-      WebkitBackdropFilter: `url(#${props.filterId})`,
-    }"
-    @click="handleBackdropClick"
-  >
+  <div class="launchpad" role="dialog" aria-modal="true" aria-label="All applications" @click="handleBackdropClick">
     <div class="launchpad__panel">
       <button
         class="launchpad__close"
