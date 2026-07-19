@@ -1,8 +1,83 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { Activity, CircleAlert, HardDrive, Terminal } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Archive, FileText, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
+import DockBar from '@/components/desktop/DockBar.vue'
+import type { DockApplicationState } from '@/components/desktop/DockBar.vue'
+import Launchpad from '@/components/desktop/Launchpad.vue'
+import WindowFrame from '@/components/desktop/WindowFrame.vue'
+import FileExplorer from '@/components/applications/FileExplorer.vue'
+import ArchiveViewer from '@/components/applications/ArchiveViewer.vue'
+import Terminal from '@/components/applications/Terminal.vue'
+import SandboxControl from '@/components/applications/SandboxControl.vue'
+import { useFilterService } from '@/composables/useFilterService'
+import { useWindowService } from '@/composables/useWindowService'
+import { useDesktopStore } from '@/stores/desktop'
+import type { ApplicationId } from '@/types/desktop'
+
+const desktop = useDesktopStore()
+const windowService = useWindowService()
+const filterService = useFilterService()
+const glitchFilter = filterService.create('glitch', {
+  intensity: 2,
+  frequencyX: 0.002,
+  frequencyY: 0.05,
+  enableHorizontalDisplacement: true,
+  enableVerticalDisplacement: false,
+  animate: false,
+  frameSkip: 24,
+})
+
+watch(
+  () => desktop.isApplicationOverviewOpen,
+  (isOpen) => {
+    filterService.update(glitchFilter.instanceId, { animate: isOpen })
+  },
+)
+
+const applicationRegistry: Record<ApplicationId, { title: string }> = {
+  files: { title: 'File Explorer' },
+  archive: { title: 'Archive Viewer' },
+  terminal: { title: 'Command Terminal' },
+  sandbox: { title: 'Sandbox Control' },
+}
+
+windowService.registerApplication({
+  id: 'files',
+  title: applicationRegistry.files.title,
+  icon: FileText,
+  component: FileExplorer,
+  defaultWidth: 420,
+  defaultHeight: 280,
+})
+
+windowService.registerApplication({
+  id: 'archive',
+  title: applicationRegistry.archive.title,
+  icon: Archive,
+  component: ArchiveViewer,
+  defaultWidth: 460,
+  defaultHeight: 300,
+})
+
+windowService.registerApplication({
+  id: 'terminal',
+  title: applicationRegistry.terminal.title,
+  icon: TerminalSquare,
+  component: Terminal,
+  defaultWidth: 560,
+  defaultHeight: 340,
+})
+
+windowService.registerApplication({
+  id: 'sandbox',
+  title: applicationRegistry.sandbox.title,
+  icon: LockKeyhole,
+  component: SandboxControl,
+  defaultWidth: 400,
+  defaultHeight: 260,
+})
 
 const time = ref('00:00:00')
 let clockTimer: number | undefined
@@ -16,6 +91,66 @@ function updateTime() {
   }).format(new Date())
 }
 
+function handleLaunch(applicationId: ApplicationId) {
+  windowService.open(applicationId)
+  desktop.closeApplicationOverview()
+}
+
+function handleShowAll() {
+  desktop.toggleApplicationOverview()
+}
+
+function handleCloseOverview() {
+  desktop.closeApplicationOverview()
+}
+
+const applicationStates = computed<DockApplicationState[]>(() => {
+  return windowService.openApplicationIds.value.map((applicationId) => {
+    const windows = windowService.windows.value.filter(
+      (window) => window.applicationId === applicationId,
+    )
+    const hasFocused = windows.some((window) => window.id === windowService.activeWindowId.value)
+    const hasForeground = windows.some((window) => !window.isMinimized)
+
+    let state: DockApplicationState['state']
+    if (hasFocused && hasForeground) {
+      state = 'focused'
+    } else if (hasForeground) {
+      state = 'foreground'
+    } else {
+      state = 'minimized'
+    }
+
+    return {
+      applicationId,
+      name: applicationRegistry[applicationId].title,
+      state,
+    }
+  })
+})
+
+function handleDockAppClick(applicationId: ApplicationId) {
+  const windows = windowService.windows.value.filter(
+    (window) => window.applicationId === applicationId,
+  )
+  const hasFocused = windows.some((window) => window.id === windowService.activeWindowId.value)
+  const hasForeground = windows.some((window) => !window.isMinimized)
+
+  if (hasFocused && hasForeground) {
+    const focusedWindow = windows.find((window) => window.id === windowService.activeWindowId.value)
+    if (focusedWindow) {
+      windowService.minimize(focusedWindow.id)
+    }
+  } else if (hasForeground) {
+    const topWindow = windows.slice().sort((a, b) => b.zIndex - a.zIndex)[0]
+    if (topWindow) {
+      windowService.focus(topWindow.id)
+    }
+  } else {
+    windowService.open(applicationId)
+  }
+}
+
 onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
@@ -23,6 +158,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
+  filterService.destroy(glitchFilter.instanceId)
 })
 </script>
 
@@ -32,43 +168,33 @@ onBeforeUnmount(() => {
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
       <div class="workspace-grid" aria-hidden="true"></div>
-      <div class="signal-trace signal-trace--one" aria-hidden="true"></div>
-      <div class="signal-trace signal-trace--two" aria-hidden="true"></div>
 
-      <div class="workspace-status">
-        <span class="workspace-status__line"></span>
-        <span>CONSOLE READY</span>
-      </div>
-
-      <div class="session-readout">
-        <p class="session-readout__eyebrow">Session</p>
-        <p class="session-readout__account">PLAYER</p>
-        <p class="session-readout__detail">Privilege class: LIMITED</p>
-      </div>
-
-      <aside class="system-strip" aria-label="System status">
-        <div class="system-strip__item">
-          <Activity :size="15" :stroke-width="1.8" />
-          <span class="system-strip__label">Kernel</span>
-          <strong>Stable</strong>
-        </div>
-        <div class="system-strip__item">
-          <HardDrive :size="15" :stroke-width="1.8" />
-          <span class="system-strip__label">Volume</span>
-          <strong>SYS_01</strong>
-        </div>
-        <div class="system-strip__item system-strip__item--attention">
-          <CircleAlert :size="15" :stroke-width="1.8" />
-          <span class="system-strip__label">Queue</span>
-          <strong>01 Event</strong>
-        </div>
-      </aside>
-
-      <div class="command-hint">
-        <Terminal :size="15" :stroke-width="1.8" />
-        <span>Awaiting authorized process</span>
-      </div>
+      <WindowFrame
+        v-for="window in windowService.windows.value"
+        :key="window.id"
+        :window="window"
+        :is-active="windowService.activeWindowId.value === window.id"
+        @close="windowService.close(window.id)"
+        @focus="windowService.focus(window.id)"
+        @minimize="windowService.minimize(window.id)"
+      />
     </section>
+
+    <Transition name="launchpad">
+      <Launchpad
+        v-if="desktop.isApplicationOverviewOpen"
+        :applications="desktop.applications"
+        :filter-id="glitchFilter.filterId"
+        @close="handleCloseOverview"
+        @launch="handleLaunch"
+      />
+    </Transition>
+
+    <DockBar
+      :application-states="applicationStates"
+      @click="handleDockAppClick"
+      @show-all="handleShowAll"
+    />
   </main>
 </template>
 
@@ -97,171 +223,17 @@ onBeforeUnmount(() => {
   mask-image: linear-gradient(to bottom, transparent, black 14%, black 88%, transparent);
 }
 
-.signal-trace {
-  position: absolute;
-  height: 1px;
-  background: var(--signal-red);
-  opacity: 0.78;
+.launchpad-enter-active,
+.launchpad-leave-active {
+  transition: opacity 0.22s ease;
 }
 
-.signal-trace::after {
-  position: absolute;
-  top: -2px;
-  right: 0;
-  width: 5px;
-  height: 5px;
-  background: var(--signal-red);
-  content: '';
-}
-
-.signal-trace--one {
-  top: 25%;
-  left: 0;
-  width: 18%;
-}
-
-.signal-trace--two {
-  right: 0;
-  bottom: 19%;
-  width: 12%;
-  opacity: 0.34;
-}
-
-.workspace-status {
-  position: absolute;
-  top: 40px;
-  left: 42px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--text-muted);
-  font: 10px var(--font-mono);
-}
-
-.workspace-status__line {
-  width: 20px;
-  height: 1px;
-  background: var(--signal-red);
-}
-
-.session-readout {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(420px, calc(100% - 64px));
-  transform: translate(-50%, -50%);
-  border-left: 2px solid var(--signal-red);
-  padding: 20px 24px;
-  background: var(--surface-quiet);
-}
-
-.session-readout__eyebrow,
-.session-readout__detail {
-  margin: 0;
-  color: var(--text-muted);
-  font: 11px var(--font-mono);
-}
-
-.session-readout__account {
-  margin: 7px 0 8px;
-  color: var(--text-primary);
-  font: 600 32px var(--font-ui);
-  letter-spacing: 0;
-}
-
-.system-strip {
-  position: absolute;
-  right: 42px;
-  bottom: 35px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 1fr));
-  border: 1px solid var(--line-subtle);
-  background: var(--surface-raised);
-}
-
-.system-strip__item {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 8px;
-  align-items: center;
-  min-width: 120px;
-  padding: 12px 14px;
-  border-right: 1px solid var(--line-subtle);
-  color: var(--signal-mint);
-}
-
-.system-strip__item:last-child {
-  border-right: 0;
-}
-
-.system-strip__label {
-  color: var(--text-muted);
-  font: 10px var(--font-mono);
-  text-transform: uppercase;
-}
-
-.system-strip strong {
-  grid-column: 2;
-  color: var(--text-secondary);
-  font: 600 11px var(--font-ui);
-}
-
-.system-strip__item--attention {
-  color: var(--signal-red-soft);
-}
-
-.command-hint {
-  position: absolute;
-  bottom: 40px;
-  left: 42px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-muted);
-  font: 11px var(--font-mono);
-}
-
-@media (max-width: 780px) {
-  .workspace-status {
-    top: 28px;
-    left: 24px;
-  }
-
-  .system-strip {
-    right: 24px;
-    bottom: 24px;
-  }
-
-  .command-hint {
-    bottom: auto;
-    top: 64px;
-    left: 24px;
-  }
+.launchpad-enter-from,
+.launchpad-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 560px) {
-  .session-readout {
-    top: 44%;
-    width: calc(100% - 48px);
-  }
-
-  .system-strip {
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-    grid-template-columns: 1fr;
-  }
-
-  .system-strip__item {
-    min-width: 0;
-    border-right: 0;
-    border-bottom: 1px solid var(--line-subtle);
-  }
-
-  .system-strip__item:last-child {
-    border-bottom: 0;
-  }
-
   .workspace-grid {
     background-size: 36px 36px;
   }
