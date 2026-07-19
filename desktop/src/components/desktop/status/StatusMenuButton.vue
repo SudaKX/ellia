@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
   height: 30px;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--text-secondary);
   background: transparent;
   transition: border-color 0.12s, color 0.12s, background-color 0.12s;
