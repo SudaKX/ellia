@@ -1,3 +1,5 @@
 .opencode/
 openspec.patch
 /.demo/
+.trae/
+.vscode/
