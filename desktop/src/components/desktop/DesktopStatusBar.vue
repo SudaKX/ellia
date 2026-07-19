@@ -12,11 +12,20 @@ defineProps<{
   time: string
 }>()
 
+const emit = defineEmits<{
+  networkAction: [action: 'disconnect' | 'edit-ip' | 'edit-dns']
+}>()
+
 const desktop = useDesktopStore()
 const activeMenuId = ref<string | null>(null)
 
 function setActiveMenu(menuId: string | null) {
   activeMenuId.value = menuId
+}
+
+function handleNetworkAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
+  setActiveMenu(null)
+  emit('networkAction', action)
 }
 </script>
 
@@ -40,7 +49,7 @@ function setActiveMenu(menuId: string | null) {
         :active-menu-id="activeMenuId"
         @set-active="setActiveMenu"
       >
-        <NetworkMenu />
+        <NetworkMenu @action="handleNetworkAction" />
       </StatusMenuButton>
       <StatusMenuButton
         menu-id="sound"
@@ -67,7 +76,7 @@ function setActiveMenu(menuId: string | null) {
 <style scoped>
 .status-bar {
   position: relative;
-  z-index: 20;
+  z-index: 1000;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
