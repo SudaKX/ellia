@@ -18,7 +18,7 @@ const audio = useAudioStore()
 
 /**
  * 将全局音量同步到页面中所有 <audio> / <video> 元素。
- * 音效走 Web Audio API（useAudio composable），不经过此函数。
+ * 音效走 Web Audio API（useAudioService），不经过此函数。
  */
 function syncMediaVolume() {
   const els = document.querySelectorAll<HTMLMediaElement>('audio, video')
