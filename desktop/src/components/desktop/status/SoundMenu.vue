@@ -49,7 +49,8 @@ function previewVolume(event: Event) {
 
 <style scoped>
 .sound-menu {
-  padding: 12px;
+  width: min(420px, calc(100vw - 24px));
+  padding: 16px;
 }
 
 .menu-header {

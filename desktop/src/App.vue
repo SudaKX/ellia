@@ -3,11 +3,13 @@ import { onMounted, provide, watch } from 'vue'
 import { RouterView } from 'vue-router'
 
 import FilterHost from '@/components/desktop/FilterHost.vue'
+import { AudioServiceKey, createAudioService } from '@/composables/useAudioService'
 import { createFilterService, FilterServiceKey } from '@/composables/useFilterService'
 import { useAudioStore } from '@/stores/audio'
 
 const filterService = createFilterService()
 const filterInstances = filterService.instances
+const audioService = createAudioService()
 
 provide(FilterServiceKey, filterService)
 

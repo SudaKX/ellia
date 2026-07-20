@@ -19,11 +19,14 @@
  */
 
 import type { Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface MessageBoxAction {
-  label: string
+  labelKey: string
   tone?: 'default' | 'danger'
 }
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = withDefaults(
   defineProps<{
@@ -35,7 +38,7 @@ const props = withDefaults(
   {
     message: '',
     contentProps: () => ({}),
-    actions: () => [{ label: 'Close' }],
+    actions: () => [{ labelKey: 'common.close' }],
   },
 )
 
@@ -58,13 +61,13 @@ function handleAction() {
     <footer class="message-box__actions">
       <button
         v-for="action in props.actions"
-        :key="action.label"
+        :key="action.labelKey"
         class="message-box__action"
         :class="{ 'message-box__action--danger': action.tone === 'danger' }"
         type="button"
         @click="handleAction"
       >
-        {{ action.label }}
+        {{ t(action.labelKey) }}
       </button>
     </footer>
   </section>

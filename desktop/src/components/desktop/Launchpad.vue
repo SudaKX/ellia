@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { Archive, FileText, LockKeyhole, TerminalSquare, X } from 'lucide-vue-next'
+import { Archive, FileText, LockKeyhole, Settings, TerminalSquare, X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 import type { ApplicationId, DesktopApplication } from '@/types/desktop'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   applications: DesktopApplication[]
@@ -17,6 +20,7 @@ const applicationIconMap: Record<ApplicationId, typeof FileText> = {
   archive: Archive,
   terminal: TerminalSquare,
   sandbox: LockKeyhole,
+  settings: Settings,
 }
 
 function iconFor(applicationId: ApplicationId) {
@@ -35,12 +39,12 @@ function handleBackdropClick(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="launchpad" role="dialog" aria-modal="true" aria-label="All applications" @click="handleBackdropClick">
+  <div class="launchpad" role="dialog" aria-modal="true" :aria-label="t('launchpad.allApplications')" @click="handleBackdropClick">
     <div class="launchpad__panel">
       <button
         class="launchpad__close"
         type="button"
-        aria-label="Close launchpad"
+        :aria-label="t('launchpad.close')"
         @click="emit('close')"
       >
         <X :size="18" :stroke-width="1.8" />
@@ -57,8 +61,8 @@ function handleBackdropClick(event: MouseEvent) {
             <span class="launchpad__tile-icon" aria-hidden="true">
               <component :is="iconFor(application.id)" :size="32" :stroke-width="1.6" />
             </span>
-            <span class="launchpad__tile-name">{{ application.name }}</span>
-            <span v-if="application.availability === 'locked'" class="launchpad__tile-badge">Locked</span>
+            <span class="launchpad__tile-name">{{ t(application.nameKey) }}</span>
+            <span v-if="application.availability === 'locked'" class="launchpad__tile-badge">{{ t('common.locked') }}</span>
           </button>
         </li>
       </ul>

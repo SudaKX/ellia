@@ -46,6 +46,7 @@
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
@@ -54,6 +55,7 @@ import Launchpad from '@/components/desktop/Launchpad.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
+import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
 import { useWindowService } from '@/composables/useWindowService'
@@ -64,7 +66,9 @@ import type { ApplicationId } from '@/types/desktop'
 
 const desktop = useDesktopStore()
 const windowService = useWindowService()
+const audioService = useAudioService()
 const filterService = useFilterService()
+const { t } = useI18n({ useScope: 'global' })
 
 /** 窗口 Glitch 滤镜的默认参数 */
 const windowGlitchOptions: GlitchOptions = {
@@ -87,16 +91,16 @@ const windowFilterIds: Partial<Record<FilterType, string>> = {
 /** 网络菜单的动作类型 */
 type NetworkAction = 'disconnect' | 'edit-ip' | 'edit-dns'
 
-/** 每个网络动作对应的模态弹窗标题 */
-const networkMessages: Record<NetworkAction, { title: string }> = {
+/** 每个网络动作对应的模态弹窗标题（i18n key） */
+const networkMessages: Record<NetworkAction, { titleKey: string }> = {
   disconnect: {
-    title: 'Disconnect network',
+    titleKey: 'network.dialogs.disconnect',
   },
   'edit-ip': {
-    title: 'IP assignment',
+    titleKey: 'network.dialogs.editIp',
   },
   'edit-dns': {
-    title: 'DNS server assignment',
+    titleKey: 'network.dialogs.editDns',
   },
 }
 
@@ -118,12 +122,21 @@ function updateTime() {
 }
 
 function handleLaunch(applicationId: ApplicationId) {
-  windowService.open(applicationId)
+  const hasWindow = windowService.windows.value.some((window) => window.applicationId === applicationId)
+  const window = windowService.open(applicationId)
+  if (window) {
+    playCue(hasWindow ? 'window-focus' : 'window-open')
+  }
   desktop.closeApplicationOverview()
+}
+
+function playCue(cue: AudioCue) {
+  audioService.play(cue)
 }
 
 function handleShowAll() {
   desktop.toggleApplicationOverview()
+  playCue('window-focus')
 }
 
 function handleCloseOverview() {
@@ -136,7 +149,7 @@ function handleNetworkAction(action: NetworkAction) {
   windowService.send({
     type: 'create-window',
     payload: {
-      title: message.title,
+      titleKey: message.titleKey,
       icon: Info,
       component: MessageBox,
       componentProps: {
@@ -156,6 +169,24 @@ function handleNetworkAction(action: NetworkAction) {
       },
     },
   })
+  playCue('system-alert')
+}
+
+function handleWindowClose(windowId: string) {
+  windowService.send({ type: 'close-window', windowId })
+  playCue('window-close')
+}
+
+function handleWindowFocus(windowId: string) {
+  if (windowService.activeWindowId.value !== windowId) {
+    playCue('window-focus')
+  }
+  windowService.send({ type: 'focus-window', windowId })
+}
+
+function handleWindowMinimize(windowId: string) {
+  windowService.send({ type: 'minimize-window', windowId })
+  playCue('window-minimize')
 }
 
 const applicationStates = computed<DockApplicationState[]>(() => {
@@ -177,7 +208,7 @@ const applicationStates = computed<DockApplicationState[]>(() => {
 
     return {
       applicationId,
-      name: applicationRegistry[applicationId].title,
+      name: t(applicationRegistry[applicationId].titleKey),
       state,
     }
   })
@@ -193,15 +224,15 @@ function handleDockAppClick(applicationId: ApplicationId) {
   if (hasFocused && hasForeground) {
     const focusedWindow = windows.find((window) => window.id === windowService.activeWindowId.value)
     if (focusedWindow) {
-      windowService.minimize(focusedWindow.id)
+      handleWindowMinimize(focusedWindow.id)
     }
   } else if (hasForeground) {
     const topWindow = windows.slice().sort((a, b) => b.zIndex - a.zIndex)[0]
     if (topWindow) {
-      windowService.focus(topWindow.id)
+      handleWindowFocus(topWindow.id)
     }
   } else {
-    windowService.open(applicationId)
+    handleLaunch(applicationId)
   }
 }
 
@@ -229,9 +260,9 @@ onBeforeUnmount(() => {
         :window="window"
         :is-active="windowService.activeWindowId.value === window.id"
         :filter-ids="windowFilterIds"
-        @close="windowService.send({ type: 'close-window', windowId: window.id })"
-        @focus="windowService.send({ type: 'focus-window', windowId: window.id })"
-        @minimize="windowService.send({ type: 'minimize-window', windowId: window.id })"
+        @close="handleWindowClose(window.id)"
+        @focus="handleWindowFocus(window.id)"
+        @minimize="handleWindowMinimize(window.id)"
       />
     </section>
 
