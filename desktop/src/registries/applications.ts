@@ -1,12 +1,12 @@
 import { defineAsyncComponent } from 'vue'
-import { Archive, FileText, LockKeyhole, TerminalSquare } from 'lucide-vue-next'
+import { Archive, FileText, LockKeyhole, Settings, TerminalSquare } from 'lucide-vue-next'
 
 import type { ApplicationDescriptor, ApplicationId } from '@/types/desktop'
 
 export const applicationRegistry: Record<ApplicationId, ApplicationDescriptor> = {
   files: {
     id: 'files',
-    title: 'File Explorer',
+    titleKey: 'applications.files.title',
     icon: FileText,
     component: defineAsyncComponent(() => import('@/components/applications/FileExplorer.vue')),
     defaultWidth: 420,
@@ -14,7 +14,7 @@ export const applicationRegistry: Record<ApplicationId, ApplicationDescriptor> =
   },
   archive: {
     id: 'archive',
-    title: 'Archive Viewer',
+    titleKey: 'applications.archive.title',
     icon: Archive,
     component: defineAsyncComponent(() => import('@/components/applications/ArchiveViewer.vue')),
     defaultWidth: 460,
@@ -22,7 +22,7 @@ export const applicationRegistry: Record<ApplicationId, ApplicationDescriptor> =
   },
   terminal: {
     id: 'terminal',
-    title: 'Command Terminal',
+    titleKey: 'applications.terminal.title',
     icon: TerminalSquare,
     component: defineAsyncComponent(() => import('@/components/applications/Terminal.vue')),
     defaultWidth: 560,
@@ -30,10 +30,18 @@ export const applicationRegistry: Record<ApplicationId, ApplicationDescriptor> =
   },
   sandbox: {
     id: 'sandbox',
-    title: 'Sandbox Control',
+    titleKey: 'applications.sandbox.title',
     icon: LockKeyhole,
     component: defineAsyncComponent(() => import('@/components/applications/SandboxControl.vue')),
     defaultWidth: 400,
     defaultHeight: 260,
+  },
+  settings: {
+    id: 'settings',
+    titleKey: 'applications.settings.title',
+    icon: Settings,
+    component: defineAsyncComponent(() => import('@/components/applications/Settings.vue')),
+    defaultWidth: 440,
+    defaultHeight: 300,
   },
 }

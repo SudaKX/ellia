@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { Archive, ChevronRight, FileText, LockKeyhole, TerminalSquare, X } from 'lucide-vue-next'
+import { Archive, ChevronRight, FileText, LockKeyhole, Settings, TerminalSquare, X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 import type { ApplicationId, DesktopApplication } from '@/types/desktop'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   applications: DesktopApplication[]
@@ -16,6 +19,7 @@ const applicationIcons = {
   archive: Archive,
   terminal: TerminalSquare,
   sandbox: LockKeyhole,
+  settings: Settings,
 } as const
 
 function iconFor(applicationId: ApplicationId) {
@@ -46,10 +50,10 @@ function iconFor(applicationId: ApplicationId) {
       >
         <component :is="iconFor(application.id)" class="application-row__icon" :size="19" :stroke-width="1.7" />
         <span class="application-row__content">
-          <span class="application-row__title">{{ application.name }}</span>
-          <span class="application-row__description">{{ application.description }}</span>
+          <span class="application-row__title">{{ t(application.nameKey) }}</span>
+          <span class="application-row__description">{{ t(application.descriptionKey) }}</span>
         </span>
-        <span class="application-row__group">{{ application.group }}</span>
+        <span class="application-row__group">{{ t(application.groupKey) }}</span>
         <ChevronRight class="application-row__arrow" :size="17" :stroke-width="1.7" />
       </button>
     </div>

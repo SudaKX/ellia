@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Minus, X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import type { FilterType } from '@/registries/filters'
 import type { WindowInstance } from '@/types/desktop'
@@ -10,6 +11,8 @@ const props = defineProps<{
   isActive: boolean
   filterIds: Partial<Record<FilterType, string>>
 }>()
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   close: []
@@ -185,7 +188,7 @@ function stopResize() {
     <header class="window-frame__titlebar" @mousedown="startDrag">
       <span class="window-frame__title">
         <component :is="window.icon" :size="14" :stroke-width="1.8" />
-        <span>{{ window.title }}</span>
+        <span>{{ t(window.titleKey) }}</span>
       </span>
       <span v-if="window.controls.minimize || window.controls.close" class="window-frame__controls">
         <button

@@ -2,13 +2,13 @@ import type { Component } from 'vue'
 
 import type { FilterType } from '@/registries/filters'
 
-export type ApplicationId = 'files' | 'archive' | 'terminal' | 'sandbox'
+export type ApplicationId = 'files' | 'archive' | 'terminal' | 'sandbox' | 'settings'
 
 export interface DesktopApplication {
   id: ApplicationId
-  name: string
-  description: string
-  group: string
+  nameKey: string
+  descriptionKey: string
+  groupKey: string
   availability: 'available' | 'locked'
 }
 
@@ -22,7 +22,7 @@ export interface WindowControls {
 }
 
 export interface WindowDefinition {
-  title: string
+  titleKey: string
   icon: Component
   component: Component
   defaultWidth: number
@@ -52,7 +52,7 @@ export type WindowMessage =
 export interface WindowInstance {
   id: string
   applicationId: ApplicationId | null
-  title: string
+  titleKey: string
   icon: Component
   component: Component
   componentProps: Record<string, unknown>
