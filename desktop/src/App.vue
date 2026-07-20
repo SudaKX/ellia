@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { onMounted, provide, watch } from 'vue'
+import { onBeforeUnmount, onMounted, provide, watch } from 'vue'
 import { RouterView } from 'vue-router'
 
 import FilterHost from '@/components/desktop/FilterHost.vue'
+import { AudioServiceKey, createAudioService } from '@/composables/useAudioService'
 import { createFilterService, FilterServiceKey } from '@/composables/useFilterService'
 import { useAudioStore } from '@/stores/audio'
 
 const filterService = createFilterService()
 const filterInstances = filterService.instances
+const audioService = createAudioService()
 
 provide(FilterServiceKey, filterService)
+provide(AudioServiceKey, audioService)
 
 const audio = useAudioStore()
 
@@ -26,10 +29,30 @@ function syncMediaVolume() {
 
 watch(() => audio.masterVolume, syncMediaVolume)
 
+function unlockAudio() {
+  void audioService.unlock()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    void audioService.suspend()
+  }
+}
+
 // 存在动态插入 <video> 的可能性（尽管很少），用 MutationObserver 兜底。
 onMounted(() => {
   const observer = new MutationObserver(() => syncMediaVolume())
   observer.observe(document.body, { childList: true, subtree: true })
+  window.addEventListener('pointerdown', unlockAudio, { capture: true })
+  window.addEventListener('keydown', unlockAudio, { capture: true })
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', unlockAudio, { capture: true })
+  window.removeEventListener('keydown', unlockAudio, { capture: true })
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  void audioService.dispose()
 })
 </script>
 

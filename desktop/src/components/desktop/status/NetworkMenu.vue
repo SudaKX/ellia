@@ -25,6 +25,9 @@
  */
 
 import { Monitor } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   action: [action: 'disconnect' | 'edit-ip' | 'edit-dns']
@@ -36,26 +39,32 @@ function performAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
 </script>
 
 <template>
-  <section class="network-menu" aria-label="Network status">
+  <section class="network-menu" :aria-label="t('network.status.ariaLabel')">
     <div class="network-menu__connection">
       <Monitor :size="28" :stroke-width="1.7" aria-hidden="true" />
       <div class="network-menu__connection-details">
         <span class="network-menu__ssid">SUDA_WIFI_5G</span>
-        <span class="network-menu__state">Connected</span>
+        <span class="network-menu__state">{{ t('network.status.connected') }}</span>
       </div>
-      <button class="network-menu__action" type="button" @click="performAction('disconnect')">Disconnect</button>
+      <button class="network-menu__action" type="button" @click="performAction('disconnect')">
+        {{ t('network.status.disconnect') }}
+      </button>
     </div>
 
     <dl class="network-menu__settings">
       <div class="network-menu__setting">
-        <dt>IP assignment</dt>
-        <dd>Automatic (DHCP)</dd>
-        <button class="network-menu__edit" type="button" @click="performAction('edit-ip')">Edit</button>
+        <dt>{{ t('network.status.ipAssignment') }}</dt>
+        <dd>{{ t('network.status.automaticDhcp') }}</dd>
+        <button class="network-menu__edit" type="button" @click="performAction('edit-ip')">
+          {{ t('network.status.edit') }}
+        </button>
       </div>
       <div class="network-menu__setting">
-        <dt>DNS server assignment</dt>
-        <dd>Automatic (DHCP)</dd>
-        <button class="network-menu__edit" type="button" @click="performAction('edit-dns')">Edit</button>
+        <dt>{{ t('network.status.dnsAssignment') }}</dt>
+        <dd>{{ t('network.status.automaticDhcp') }}</dd>
+        <button class="network-menu__edit" type="button" @click="performAction('edit-dns')">
+          {{ t('network.status.edit') }}
+        </button>
       </div>
     </dl>
   </section>

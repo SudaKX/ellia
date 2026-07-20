@@ -177,7 +177,7 @@ export function useWindowService() {
     const windowInstance: WindowInstance = {
       id,
       applicationId: payload.applicationId ?? null,
-      title: payload.title,
+      titleKey: payload.titleKey,
       icon: markRaw(payload.icon),
       component: markRaw(payload.component),
       componentProps: payload.componentProps ?? {},

@@ -1,61 +1,115 @@
 <script setup lang="ts">
-import { Volume2 } from 'lucide-vue-next'
-import { useAudioStore } from '@/stores/audio'
-import { useAudio } from '@/composables/useAudio'
+import { Volume2, VolumeX } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
-const audio = useAudioStore()
-const { playTone } = useAudio()
+import AudioSpectrum from './AudioSpectrum.vue'
+import { useAudioService } from '@/composables/useAudioService'
 
-/** 滑块松手时播放提示音，频率随音量升高（200Hz → 800Hz），柔和反馈当前音量大小。 */
-function previewVolume(event: Event) {
-  const target = event.target as HTMLInputElement
-  const vol = target.valueAsNumber
-  const freq = 200 + vol * 600 // 0%→200Hz, 100%→800Hz
-  playTone(freq, 180, 0.1)
+const audio = useAudioService()
+const { t } = useI18n({ useScope: 'global' })
+
+/** 彩蛋：0% → "(已将Ellia禁言)"，100% → "(捏哈哈哈)"，其他 → i18n "Sound" */
+function titleText(): string {
+  const vol = audio.masterVolume.value
+  if (vol === 0) return '已将Ellia禁言'
+  if (vol === 1) return '捏哈哈哈'
+  return t('sound.title')
+}
+
+function setMasterVolume(event: Event) {
+  audio.setMasterVolume(Number((event.target as HTMLInputElement).value) / 100)
+}
+
+function setBusVolume(bus: 'ui' | 'system', event: Event) {
+  audio.setBusVolume(bus, Number((event.target as HTMLInputElement).value) / 100)
+}
+
+function playVolumePreview() {
+  audio.play('window-focus')
 }
 </script>
 
 <template>
   <div class="sound-menu">
     <div class="menu-header">
-      <Volume2 :size="14" :stroke-width="1.8" />
       <span
         class="menu-title"
         :class="{
-          'menu-title--muted': audio.masterVolume === 0,
-          'menu-title--max': audio.masterVolume === 1,
+          'menu-title--muted': audio.masterVolume.value === 0,
+          'menu-title--max': audio.masterVolume.value === 1,
         }"
-      >
-        {{ audio.masterVolume === 0 ? '已将Ellia禁言' : audio.masterVolume === 1 ? '捏哈哈哈' : 'Sound' }}
+      >{{ titleText() }}</span>
+      <span class="sound-menu__controls">
+        <button
+          class="sound-menu__icon-button"
+          type="button"
+          :aria-label="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
+          :title="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
+          :disabled="!audio.isSupported"
+          @click="audio.setMuted(!audio.isMuted.value)"
+        >
+          <VolumeX v-if="audio.isMuted.value" :size="15" :stroke-width="1.8" />
+          <Volume2 v-else :size="15" :stroke-width="1.8" />
+        </button>
       </span>
     </div>
-    <div class="menu-body">
-      <div class="volume-row">
+
+    <p v-if="!audio.isSupported" class="sound-unavailable">{{ t('sound.unavailable') }}</p>
+    <div v-else class="menu-body">
+      <AudioSpectrum />
+      <label class="volume-control">
+        <span>{{ t('sound.master') }}</span>
         <input
           type="range"
-          class="volume-slider"
           min="0"
-          max="1"
-          step="0.01"
-          :value="audio.masterVolume"
-          @input="audio.setVolume(($event.target as HTMLInputElement).valueAsNumber)"
-          @change="previewVolume"
+          max="100"
+          step="1"
+          :value="Math.round(audio.masterVolume.value * 100)"
+          :aria-label="t('sound.masterVolume')"
+          @input="setMasterVolume"
+          @change="playVolumePreview"
         />
-        <span class="volume-value">{{ Math.round(audio.masterVolume * 100) }}%</span>
-      </div>
+      </label>
+      <label class="volume-control">
+        <span>{{ t('sound.interface') }}</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          :value="Math.round(audio.busVolumes.value.ui * 100)"
+          :aria-label="t('sound.interfaceVolume')"
+          @input="setBusVolume('ui', $event)"
+          @change="playVolumePreview"
+        />
+      </label>
+      <label class="volume-control">
+        <span>{{ t('sound.system') }}</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          :value="Math.round(audio.busVolumes.value.system * 100)"
+          :aria-label="t('sound.systemVolume')"
+          @input="setBusVolume('system', $event)"
+          @change="playVolumePreview"
+        />
+      </label>
     </div>
   </div>
 </template>
 
 <style scoped>
 .sound-menu {
-  padding: 12px;
+  width: min(420px, calc(100vw - 24px));
+  padding: 16px;
 }
 
 .menu-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line-subtle);
@@ -75,42 +129,50 @@ function previewVolume(event: Event) {
   color: #f08dac;
 }
 
-.volume-row {
+.sound-menu__controls {
   display: flex;
+  gap: 4px;
+}
+
+.sound-menu__icon-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.sound-menu__icon-button:hover:not(:disabled) {
+  border-color: var(--line-default);
+  color: var(--signal-red-soft);
+  background: var(--surface-hover);
+}
+
+.menu-body {
+  display: grid;
+  gap: 14px;
+}
+
+.volume-control {
+  display: grid;
+  grid-template-columns: 62px 1fr;
   align-items: center;
   gap: 10px;
+  color: var(--text-secondary);
+  font: 12px var(--font-ui);
 }
 
-.volume-slider {
-  flex: 1;
-  height: 4px;
-  appearance: none;
-  border-radius: 2px;
-  background: var(--line-default);
-  outline: none;
+.volume-control input {
+  width: 100%;
+  accent-color: var(--signal-red-soft);
 }
 
-.volume-slider::-webkit-slider-thumb {
-  width: 12px;
-  height: 12px;
-  appearance: none;
-  border-radius: 50%;
-  background: var(--signal-red-soft);
-  cursor: pointer;
-}
-
-.volume-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 50%;
-  background: var(--signal-red-soft);
-  cursor: pointer;
-}
-
-.volume-value {
-  min-width: 36px;
-  text-align: right;
+.sound-unavailable {
+  margin: 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 12px;
