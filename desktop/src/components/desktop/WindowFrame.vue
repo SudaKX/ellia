@@ -1,4 +1,44 @@
 <script setup lang="ts">
+/**
+ * # 窗口框架组件
+ *
+ * FakeOS 窗口的视觉外壳，提供标题栏、拖拽、缩放、最小化、关闭等功能。
+ *
+ * ## 窗口状态
+ *
+ * - **entering**：初始挂载时的入场缩放动画（scale 0.4 → 1.0）
+ * - **closing**：关闭动画（scale 1.0 → 0.4 + opacity → 0），transitionend 后 emit('close')
+ * - **minimized**：最小化（scaleY(0) + opacity: 0）
+ * - **dragging**：拖拽中（mousedown → mousemove → mouseup）
+ * - **resizing**：缩放中（右下角 handle mousedown → mousemove → mouseup）
+ * - **active**：聚焦状态（边框变红、阴影加深）
+ * - **modal**：模态窗口（role="dialog", aria-modal="true"）
+ *
+ * ## 滤镜系统
+ *
+ * 通过 `filterIds` prop 接收 FilterType → SVG filter ID 的映射。
+ * computed `filterValue` 遍历 `window.filters`，拼接成 CSS `url(#glitch-xxx)`。
+ *
+ * ## 生命周期
+ *
+ * ```
+ * onMounted → getBoundingClientRect()（强制回流）
+ *   → requestAnimationFrame → isEntering = false（入场动画完成）
+ * onBeforeUnmount → cancelAnimationFrame（清理）
+ * ```
+ *
+ * ## 拖拽与缩放
+ *
+ * 拖拽：titlebar mousedown → document mousemove → 更新 x/y → mouseup 回写 window
+ * 缩放：resize-handle mousedown → document mousemove → 更新 width/height → mouseup 回写 window
+ * 最小宽度 260px，最小高度 160px
+ *
+ * ## 与 darksky 分支区别
+ *
+ * 本分支支持 modal 模式（独立的 role/aria 属性）、
+ * 窗口滤镜渲染、以及 `controls.close`/`controls.minimize` 开关。
+ */
+
 import { Minus, X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 

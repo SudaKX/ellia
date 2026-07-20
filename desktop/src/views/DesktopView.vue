@@ -1,4 +1,49 @@
 <script setup lang="ts">
+/**
+ * # DesktopView — FakeOS 桌面主视图
+ *
+ * 本组件是 FakeOS 的根视图，负责组织所有桌面子组件并协调它们之间的交互。
+ *
+ * ## 组件树
+ *
+ * ```
+ * DesktopView
+ *  ├─ DesktopStatusBar        顶部状态栏（用户标识 + 时钟 + 系统菜单）
+ *  │    ├─ NetworkMenu         网络状态菜单 → emit('action') → 创建模态弹窗
+ *  │    ├─ SoundMenu           音量控制菜单 → Pinia audioStore
+ *  │    └─ PowerMenu           电源控制菜单 → 切换账户 / 重启 / 关机
+ *  │
+ *  ├─ desktop-workspace        工作区（网格背景 + 窗口层）
+ *  │    └─ WindowFrame[]        窗口实例列表（由 windowService 驱动）
+ *  │
+ *  ├─ desktop-modal-overlay    模态遮罩（有 modal 窗口时显示）
+ *  │
+ *  ├─ Launchpad                应用启动器（快捷键 / Dock 唤起）
+ *  │
+ *  └─ DockBar                  底部停靠栏（已打开应用 + 全局入口）
+ * ```
+ *
+ * ## 事件流
+ *
+ * ```
+ * NetworkMenu → emit('action', 'disconnect')
+ *   → DesktopStatusBar → emit('networkAction', 'disconnect')
+ *     → DesktopView.handleNetworkAction()
+ *       → windowService.send({ type: 'create-window', mode: 'modal' })
+ *         → MessageBox + PermissionDenied（模态弹窗）
+ *
+ * DockBar → emit('click', appId)
+ *   → DesktopView.handleDockAppClick()
+ *     → windowService.open(appId) 或 focus() 或 minimize()
+ * ```
+ *
+ * ## 滤镜系统
+ *
+ * 每个应用窗口共享一个 `windowGlitchFilter` 实例（SVG 滤镜）。
+ * `windowFilterIds` 映射 FilterType → filterId，通过 props 传递给 WindowFrame。
+ * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
+ */
+
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 
@@ -20,6 +65,8 @@ import type { ApplicationId } from '@/types/desktop'
 const desktop = useDesktopStore()
 const windowService = useWindowService()
 const filterService = useFilterService()
+
+/** 窗口 Glitch 滤镜的默认参数 */
 const windowGlitchOptions: GlitchOptions = {
   intensity: 12,
   frequencyX: 0.002,
@@ -31,12 +78,16 @@ const windowGlitchOptions: GlitchOptions = {
   frameSkip: 8,
 }
 const windowGlitchFilter = filterService.create('glitch', windowGlitchOptions)
+
+/** 滤镜 ID 映射，供 WindowFrame 读取对应滤镜的 SVG filter id */
 const windowFilterIds: Partial<Record<FilterType, string>> = {
   glitch: windowGlitchFilter.filterId,
 }
 
+/** 网络菜单的动作类型 */
 type NetworkAction = 'disconnect' | 'edit-ip' | 'edit-dns'
 
+/** 每个网络动作对应的模态弹窗标题 */
 const networkMessages: Record<NetworkAction, { title: string }> = {
   disconnect: {
     title: 'Disconnect network',
@@ -49,6 +100,7 @@ const networkMessages: Record<NetworkAction, { title: string }> = {
   },
 }
 
+/** 启动时注册所有应用 */
 Object.values(applicationRegistry).forEach((descriptor) => {
   windowService.registerApplication(descriptor)
 })

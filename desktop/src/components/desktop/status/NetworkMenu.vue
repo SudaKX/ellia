@@ -1,4 +1,29 @@
 <script setup lang="ts">
+/**
+ * # 网络状态菜单
+ *
+ * 模拟 OS 的网络设置面板，显示当前连接状态和 IP/DNS 配置。
+ *
+ * ## 交互设计
+ *
+ * 三个操作按钮：
+ * - **Disconnect**：断开当前网络连接
+ * - **Edit (IP)**：修改 IP 分配方式
+ * - **Edit (DNS)**：修改 DNS 服务器
+ *
+ * 所有操作均通过 `emit('action', ...)` 向父组件报告，
+ * 由 DesktopStatusBar → DesktopView 逐层传递，
+ * 最终创建模态弹窗（"PERMISSION DENIED"）。
+ *
+ * 这是因为 FakeOS 的设定中，玩家没有修改网络配置的权限。
+ * 按钮是真实存在的，但点击后会触发"权限拒绝"叙事。
+ *
+ * ## 样式
+ *
+ * 独立于 SoundMenu/PowerMenu 的样式体系，使用更大的面板宽度（420px）
+ * 和网格布局，以容纳更多信息。
+ */
+
 import { Monitor } from 'lucide-vue-next'
 
 const emit = defineEmits<{

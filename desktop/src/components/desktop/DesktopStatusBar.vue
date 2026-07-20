@@ -1,4 +1,26 @@
 <script setup lang="ts">
+/**
+ * # 桌面状态栏
+ *
+ * 顶部系统栏，三栏布局：
+ * - **左侧**：用户标识（`privilegeClass:currentUser`，来自 desktopStore）
+ * - **中间**：实时时钟
+ * - **右侧**：系统状态菜单（网络、声音、电源）
+ *
+ * ## 菜单管理模式
+ *
+ * 使用 `activeMenuId` 单例模式，同一时间只有一个菜单展开。
+ * 点击同一菜单的触发按钮会关闭它，点击不同菜单会切换。
+ * 点击菜单外部区域（通过 StatusMenuButton 的 click-outside 检测）也会关闭。
+ *
+ * ## 事件转发
+ *
+ * NetworkMenu 的 `@action` 事件通过 emit 转发给 DesktopView：
+ * `NetworkMenu → @action → handleNetworkAction → emit('networkAction') → DesktopView`
+ *
+ * SoundMenu 和 PowerMenu 通过 Pinia Store 直接操作状态，不需要转发。
+ */
+
 import { ref } from 'vue'
 import { Power, Volume2, Wifi } from 'lucide-vue-next'
 

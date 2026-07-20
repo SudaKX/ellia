@@ -1,3 +1,60 @@
+/**
+ * # 窗口管理服务 (WindowService)
+ *
+ * FakeOS 的核心服务，管理桌面窗口的完整生命周期。
+ *
+ * ## 架构
+ *
+ * ```
+ * WindowService
+ *  │
+ *  ├─ registry: Map<ApplicationId, ApplicationDescriptor>
+ *  │     └─ 按需注册的应用模板（通过 registerApplication()）
+ *  │
+ *  ├─ windows: WindowInstance[]
+ *  │     └─ 当前所有窗口实例（响应式 shallowRef）
+ *  │
+ *  ├─ normalWindowOrder: string[]    (普通窗口层级栈)
+ *  ├─ modalWindowOrder: string[]     (模态窗口层级栈)
+ *  │     └─ 双层 z-index 管理，模态窗口永远在普通窗口之上
+ *  │
+ *  └─ activeWindowId / activeWindow  (当前聚焦窗口)
+ * ```
+ *
+ * ## 双层 z-index 设计
+ *
+ * - **普通窗口**：z-index 从 `NORMAL_Z_INDEX_BASE(200)` 递增
+ * - **模态窗口**：z-index 从 `MODAL_Z_INDEX_BASE(1200)` 递增
+ * - 存在模态窗口时，普通窗口的 focus 操作被忽略
+ * - 模态窗口关闭后，自动回退焦点到最顶层的普通窗口
+ *
+ * ## 消息总线 (WindowMessage)
+ *
+ * `send()` 方法提供统一的消息入口，支持四种操作：
+ * - `create-window`：根据 `CreateWindowPayload` 创建窗口
+ * - `close-window`：关闭窗口
+ * - `minimize-window`：最小化窗口
+ * - `focus-window`：聚焦窗口
+ *
+ * 消息总线的好处：组件通过 emit 事件传递消息字符串即可，
+ * 无需直接依赖 WindowService 实例，降低耦合。
+ *
+ * ## 使用方式
+ *
+ * ```ts
+ * const ws = useWindowService()
+ *
+ * // 1. 注册应用
+ * ws.registerApplication({ id: 'terminal', title: 'Terminal', ... })
+ *
+ * // 2. 打开应用（单例）
+ * ws.open('terminal')
+ *
+ * // 3. 创建自定义窗口（如网络断开弹窗）
+ * ws.send({ type: 'create-window', payload: { mode: 'modal', ... } })
+ * ```
+ */
+
 import { computed, markRaw, ref, shallowRef, triggerRef } from 'vue'
 
 import type {
@@ -8,11 +65,17 @@ import type {
   WindowMessage,
 } from '@/types/desktop'
 
+/** 普通窗口 z-index 起点，低于模态窗口但高于桌面元素（如 DockBar 100） */
 const NORMAL_Z_INDEX_BASE = 200
+/** 模态窗口 z-index 起点，高于普通窗口和 overlay(1100)，确保弹窗不被遮挡 */
 const MODAL_Z_INDEX_BASE = 1200
+/** 顶部状态栏高度，用于居中计算时扣除偏移 */
 const STATUS_BAR_HEIGHT = 40
+/** 默认窗口模式 */
 const DEFAULT_WINDOW_MODE = 'normal'
+/** 默认窗口可调整大小 */
 const DEFAULT_WINDOW_RESIZABLE = true
+/** 默认窗口控件配置 */
 const DEFAULT_WINDOW_CONTROLS = {
   minimize: true,
   close: true,

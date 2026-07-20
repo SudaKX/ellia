@@ -1,4 +1,23 @@
 <script setup lang="ts">
+/**
+ * # 消息弹窗组件（模态窗口内容）
+ *
+ * 通用的模态弹窗内容容器。支持两种内容模式：
+ * - **文本模式**：传入 `message` 字符串
+ * - **组件模式**：传入 `contentComponent`（如 PermissionDenied），可带 `contentProps`
+ *
+ * ## 使用场景
+ *
+ * 当前主要用于网络菜单操作后的"权限拒绝"反馈。
+ * DesktopView.handleNetworkAction() 通过 windowService.send 创建模态窗口，
+ * 其内容组件为此 MessageBox + PermissionDenied。
+ *
+ * ## 与 darksky 分支区别
+ *
+ * darksky 分支移除了此组件。保留它是因为模态弹窗
+ * 是 FakeOS 叙事表达的核心载体——"看起来能用但实际没权限"的体验。
+ */
+
 import type { Component } from 'vue'
 
 interface MessageBoxAction {

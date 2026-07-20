@@ -1,3 +1,62 @@
+/**
+ * # Glitch 故障滤镜引擎
+ *
+ * 通过 SVG feDisplacementMap + feColorMatrix 实现色差故障效果。
+ *
+ * ## 渲染管线
+ *
+ * ```
+ * Canvas (320×180 噪声图)
+ *   → toBlob → ObjectURL → HTMLImageElement (预加载)
+ *   → feImage 注入 SVG 滤镜
+ *   → feDisplacementMap (用噪声图 R/G 通道偏移 SourceGraphic)
+ *   → feColorMatrix (分离 R/G/B 三通道)
+ *   → feOffset (红通道左移、绿通道右移，产生色差)
+ *   → feBlend (screen 混合，重组三通道)
+ * ```
+ *
+ * ## 关键设计决策
+ *
+ * ### 帧池 (Frame Pool)
+ * 预生成 64 帧噪声图（FRAME_COUNT），按 frameSkip 间隔切换。
+ * 而非每帧实时渲染——因为 Canvas → Blob → Image 的异步链路在 60fps 下无法完成。
+ *
+ * ### idleCallback 调度
+ * 帧池构建使用 `requestIdleCallback`（降级到 setTimeout(0)），
+ * 确保生成过程不影响 UI 交互响应。
+ * 当参数变化时，`poolVersion` 自增使旧构建任务主动废弃。
+ *
+ * ### 色差偏移 (Chromatic Aberration)
+ * 通过 `feOffset` 的 dx 参数控制红/绿通道水平偏移量：
+ * - redOffset.dx 设为 -chromaticAberration
+ * - greenOffset.dx 设为 +chromaticAberration
+ * 蓝通道不偏移，视觉上产生 CRT 显示器的色散效果。
+ *
+ * ### ready Promise
+ * 返回 `ready: Promise<void>`，在帧池构建完毕后 resolve。
+ * 父组件可以 `await ready` 确保滤镜初始帧就绪后再展示内容。
+ *
+ * ## 使用方式
+ *
+ * ```ts
+ * const { state, ready } = useGlitchFilter(options, {
+ *   mapImage: ref<SVGFEImageElement>(),
+ *   displacement: ref<SVGFEDisplacementMapElement>(),
+ *   redOffset: ref<SVGFEOffsetElement>(),
+ *   greenOffset: ref<SVGFEOffsetElement>(),
+ * })
+ *
+ * // 运行时修改参数
+ * filterService.update(instanceId, { intensity: 20, animate: true })
+ * ```
+ *
+ * ## 与 darksky 分支区别
+ *
+ * 本分支保留了色差偏移 (chromaticAberration) 和帧池 (frame pool)。
+ * darksky 分支移除了这些，仅保留基础位移效果。
+ * 保留完整版因为色差是 Glitch 美学的核心视觉特征。
+ */
+
 import {
   onBeforeUnmount,
   onMounted,
