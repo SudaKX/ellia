@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { Volume2, VolumeX } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
+import AudioSpectrum from './AudioSpectrum.vue'
 import { useAudioService } from '@/composables/useAudioService'
 
 const audio = useAudioService()
+const { t } = useI18n({ useScope: 'global' })
 
 function setMasterVolume(event: Event) {
   audio.setMasterVolume(Number((event.target as HTMLInputElement).value) / 100)
@@ -12,61 +15,71 @@ function setMasterVolume(event: Event) {
 function setBusVolume(bus: 'ui' | 'system', event: Event) {
   audio.setBusVolume(bus, Number((event.target as HTMLInputElement).value) / 100)
 }
+
+function playVolumePreview() {
+  audio.play('window-focus')
+}
 </script>
 
 <template>
   <div class="sound-menu">
     <div class="menu-header">
-      <span class="menu-title">Sound</span>
-      <button
-        class="mute-button"
-        type="button"
-        :aria-label="audio.isMuted.value ? 'Unmute audio' : 'Mute audio'"
-        :title="audio.isMuted.value ? 'Unmute audio' : 'Mute audio'"
-        :disabled="!audio.isSupported"
-        @click="audio.setMuted(!audio.isMuted.value)"
-      >
-        <VolumeX v-if="audio.isMuted.value" :size="15" :stroke-width="1.8" />
-        <Volume2 v-else :size="15" :stroke-width="1.8" />
-      </button>
+      <span class="menu-title">{{ t('sound.title') }}</span>
+      <span class="sound-menu__controls">
+        <button
+          class="sound-menu__icon-button"
+          type="button"
+          :aria-label="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
+          :title="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
+          :disabled="!audio.isSupported"
+          @click="audio.setMuted(!audio.isMuted.value)"
+        >
+          <VolumeX v-if="audio.isMuted.value" :size="15" :stroke-width="1.8" />
+          <Volume2 v-else :size="15" :stroke-width="1.8" />
+        </button>
+      </span>
     </div>
 
-    <p v-if="!audio.isSupported" class="sound-unavailable">Audio is unavailable in this browser.</p>
+    <p v-if="!audio.isSupported" class="sound-unavailable">{{ t('sound.unavailable') }}</p>
     <div v-else class="menu-body">
+      <AudioSpectrum />
       <label class="volume-control">
-        <span>Master</span>
+        <span>{{ t('sound.master') }}</span>
         <input
           type="range"
           min="0"
           max="100"
           step="1"
           :value="Math.round(audio.masterVolume.value * 100)"
-          aria-label="Master volume"
+          :aria-label="t('sound.masterVolume')"
           @input="setMasterVolume"
+          @change="playVolumePreview"
         />
       </label>
       <label class="volume-control">
-        <span>Interface</span>
+        <span>{{ t('sound.interface') }}</span>
         <input
           type="range"
           min="0"
           max="100"
           step="1"
           :value="Math.round(audio.busVolumes.value.ui * 100)"
-          aria-label="Interface volume"
+          :aria-label="t('sound.interfaceVolume')"
           @input="setBusVolume('ui', $event)"
+          @change="playVolumePreview"
         />
       </label>
       <label class="volume-control">
-        <span>System</span>
+        <span>{{ t('sound.system') }}</span>
         <input
           type="range"
           min="0"
           max="100"
           step="1"
           :value="Math.round(audio.busVolumes.value.system * 100)"
-          aria-label="System volume"
+          :aria-label="t('sound.systemVolume')"
           @input="setBusVolume('system', $event)"
+          @change="playVolumePreview"
         />
       </label>
     </div>
@@ -75,7 +88,8 @@ function setBusVolume(bus: 'ui' | 'system', event: Event) {
 
 <style scoped>
 .sound-menu {
-  padding: 12px;
+  width: min(420px, calc(100vw - 24px));
+  padding: 16px;
 }
 
 .menu-header {
@@ -92,7 +106,12 @@ function setBusVolume(bus: 'ui' | 'system', event: Event) {
   font: 600 12px var(--font-ui);
 }
 
-.mute-button {
+.sound-menu__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.sound-menu__icon-button {
   display: grid;
   width: 26px;
   height: 26px;
@@ -104,7 +123,7 @@ function setBusVolume(bus: 'ui' | 'system', event: Event) {
   background: transparent;
 }
 
-.mute-button:hover:not(:disabled) {
+.sound-menu__icon-button:hover:not(:disabled) {
   border-color: var(--line-default);
   color: var(--signal-red-soft);
   background: var(--surface-hover);
@@ -112,7 +131,7 @@ function setBusVolume(bus: 'ui' | 'system', event: Event) {
 
 .menu-body {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .volume-control {

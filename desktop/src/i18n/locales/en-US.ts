@@ -59,6 +59,19 @@ export const enUS = {
       editDns: 'DNS server assignment',
     },
   },
+  sound: {
+    title: 'Sound',
+    mute: 'Mute audio',
+    unmute: 'Unmute audio',
+    unavailable: 'Audio is unavailable in this browser.',
+    master: 'Master',
+    interface: 'Interface',
+    system: 'System',
+    masterVolume: 'Master volume',
+    interfaceVolume: 'Interface volume',
+    systemVolume: 'System volume',
+    spectrumLabel: 'Audio output frequency spectrum',
+  },
 } as const
 
 type DeepString<T> = {

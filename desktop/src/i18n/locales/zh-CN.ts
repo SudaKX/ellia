@@ -61,4 +61,17 @@ export const zhCN = {
       editDns: 'DNS 服务器分配',
     },
   },
+  sound: {
+    title: '声音',
+    mute: '静音',
+    unmute: '取消静音',
+    unavailable: '此浏览器不支持音频。',
+    master: '主音量',
+    interface: '界面',
+    system: '系统',
+    masterVolume: '主音量',
+    interfaceVolume: '界面音量',
+    systemVolume: '系统音量',
+    spectrumLabel: '音频输出频率频谱',
+  },
 } as const satisfies LocaleMessages

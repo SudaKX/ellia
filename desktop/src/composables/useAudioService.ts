@@ -3,6 +3,8 @@ import { computed, inject, ref, type ComputedRef, type InjectionKey, type Ref } 
 export type AudioBus = 'ui' | 'system'
 export type AudioCue = 'window-open' | 'window-focus' | 'window-minimize' | 'window-close' | 'system-alert'
 
+const ANALYSER_FFT_SIZE = 512
+
 type AudioContextStatus = 'idle' | 'unavailable' | AudioContextState
 
 interface CueDefinition {
@@ -64,8 +66,10 @@ export interface AudioService {
   masterVolume: Ref<number>
   busVolumes: Ref<Record<AudioBus, number>>
   isReady: ComputedRef<boolean>
+  spectrumSize: number
   unlock: () => Promise<boolean>
   play: (cue: AudioCue) => void
+  readSpectrumData: (samples: Uint8Array<ArrayBuffer>) => boolean
   setMuted: (muted: boolean) => void
   setMasterVolume: (volume: number) => void
   setBusVolume: (bus: AudioBus, volume: number) => void
@@ -93,6 +97,7 @@ export function createAudioService(): AudioService {
   let context: AudioContext | null = null
   let masterGain: GainNode | null = null
   let compressor: DynamicsCompressorNode | null = null
+  let analyser: AnalyserNode | null = null
   let unlockPromise: Promise<boolean> | null = null
   const busGains = new Map<AudioBus, GainNode>()
 
@@ -128,6 +133,9 @@ export function createAudioService(): AudioService {
     compressor.ratio.value = 8
     compressor.attack.value = 0.003
     compressor.release.value = 0.14
+    analyser = context.createAnalyser()
+    analyser.fftSize = ANALYSER_FFT_SIZE
+    analyser.smoothingTimeConstant = 0.78
 
     for (const bus of ['ui', 'system'] as const) {
       const gain = context.createGain()
@@ -138,7 +146,8 @@ export function createAudioService(): AudioService {
 
     masterGain.gain.value = isMuted.value ? 0 : masterVolume.value
     masterGain.connect(compressor)
-    compressor.connect(context.destination)
+    compressor.connect(analyser)
+    analyser.connect(context.destination)
     return context
   }
 
@@ -188,6 +197,15 @@ export function createAudioService(): AudioService {
     })
   }
 
+  function readSpectrumData(samples: Uint8Array<ArrayBuffer>) {
+    if (!analyser || !context || context.state !== 'running' || samples.length !== analyser.frequencyBinCount) {
+      return false
+    }
+
+    analyser.getByteFrequencyData(samples)
+    return true
+  }
+
   function setMuted(muted: boolean) {
     isMuted.value = muted
     updateMasterGain()
@@ -217,6 +235,7 @@ export function createAudioService(): AudioService {
     busGains.clear()
     masterGain = null
     compressor = null
+    analyser = null
 
     if (context && context.state !== 'closed') {
       await context.close()
@@ -233,8 +252,10 @@ export function createAudioService(): AudioService {
     masterVolume,
     busVolumes,
     isReady,
+    spectrumSize: ANALYSER_FFT_SIZE / 2,
     unlock,
     play,
+    readSpectrumData,
     setMuted,
     setMasterVolume,
     setBusVolume,
