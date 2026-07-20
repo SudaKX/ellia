@@ -8,6 +8,41 @@ import { useAudioService } from '@/composables/useAudioService'
 const audio = useAudioService()
 const { t } = useI18n({ useScope: 'global' })
 
+/** 静音前保存的音量，用于取消静音时恢复。 */
+let savedVolume = 0.55
+
+/** 彩蛋计数器：点击静音按钮 6 次后播放 koyuki.ogg，每次页面刷新仅触发一次。 */
+let muteClickCount = 0
+let eggTriggered = false
+
+/** 静音 / 取消静音切换。静音时保存当前主音量并调为 0，取消时恢复。 */
+function toggleMute() {
+  if (audio.isMuted.value) {
+    audio.setMasterVolume(savedVolume)
+    audio.setMuted(false)
+  } else {
+    savedVolume = audio.masterVolume.value
+    audio.setMasterVolume(0)
+    audio.setMuted(true)
+  }
+
+  muteClickCount++
+  if (muteClickCount === 6 && audio.masterVolume.value > 0.95 && !eggTriggered) {
+    eggTriggered = true
+    playEgg()
+  }
+}
+
+function playEgg() {
+  const egg = new Audio(`${import.meta.env.BASE_URL}sounds/koyuki.ogg`)
+  egg.volume = 1
+  egg.play().then(() => {
+    // console.log('[SoundMenu] 彩蛋触发成功')
+  }).catch((err) => {
+    // console.warn('[SoundMenu] 彩蛋播放失败:', err.name, err.message)
+  })
+}
+
 /** 彩蛋：0% → "(已将Ellia禁言)"，100% → "(捏哈哈哈)"，其他 → i18n "Sound" */
 function titleText(): string {
   const vol = audio.masterVolume.value
@@ -46,7 +81,7 @@ function playVolumePreview() {
           :aria-label="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
           :title="audio.isMuted.value ? t('sound.unmute') : t('sound.mute')"
           :disabled="!audio.isSupported"
-          @click="audio.setMuted(!audio.isMuted.value)"
+          @click="toggleMute"
         >
           <VolumeX v-if="audio.isMuted.value" :size="15" :stroke-width="1.8" />
           <Volume2 v-else :size="15" :stroke-width="1.8" />
