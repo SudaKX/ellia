@@ -47,6 +47,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
@@ -69,6 +70,7 @@ const windowService = useWindowService()
 const audioService = useAudioService()
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 
 /** 窗口 Glitch 滤镜的默认参数 */
 const windowGlitchOptions: GlitchOptions = {
@@ -141,6 +143,11 @@ function handleShowAll() {
 
 function handleCloseOverview() {
   desktop.closeApplicationOverview()
+}
+
+/** 电源菜单 → 更改账户 → 跳转登录页 */
+function handleSwitchUser() {
+  router.push({ name: 'login' })
 }
 
 function handleNetworkAction(action: NetworkAction) {
@@ -249,7 +256,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="desktop-shell">
-    <DesktopStatusBar :time="time" @network-action="handleNetworkAction" />
+    <DesktopStatusBar :time="time" @network-action="handleNetworkAction" @switch-user="handleSwitchUser" />
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
       <div class="workspace-grid" aria-hidden="true"></div>

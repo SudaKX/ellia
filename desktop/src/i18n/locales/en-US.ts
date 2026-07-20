@@ -72,6 +72,19 @@ export const enUS = {
     systemVolume: 'System volume',
     spectrumLabel: 'Audio output frequency spectrum',
   },
+  /** Login page */
+  login: {
+    windowTitle: 'FakeOS Login',
+    openButton: 'Open login window',
+    username: 'Username',
+    usernamePlaceholder: 'Enter username',
+    password: 'Password',
+    passwordPlaceholder: 'Enter password',
+    submit: 'Login',
+    tokenSubmit: 'Key Login',
+    errorUsername: 'Please enter a username',
+    errorPassword: 'Please enter a password',
+  },
 } as const
 
 type DeepString<T> = {

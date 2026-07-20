@@ -36,6 +36,7 @@ defineProps<{
 
 const emit = defineEmits<{
   networkAction: [action: 'disconnect' | 'edit-ip' | 'edit-dns']
+  switchUser: []
 }>()
 
 const desktop = useDesktopStore()
@@ -48,6 +49,11 @@ function setActiveMenu(menuId: string | null) {
 function handleNetworkAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
   setActiveMenu(null)
   emit('networkAction', action)
+}
+
+function handleSwitchUser() {
+  setActiveMenu(null)
+  emit('switchUser')
 }
 </script>
 
@@ -89,7 +95,7 @@ function handleNetworkAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
         :active-menu-id="activeMenuId"
         @set-active="setActiveMenu"
       >
-        <PowerMenu />
+        <PowerMenu @switch-user="handleSwitchUser" />
       </StatusMenuButton>
     </div>
   </header>

@@ -74,4 +74,17 @@ export const zhCN = {
     systemVolume: '系统音量',
     spectrumLabel: '音频输出频率频谱',
   },
+  /** 登录页面 */
+  login: {
+    windowTitle: 'FakeOS 登录',
+    openButton: '打开登录窗口',
+    username: '用户名',
+    usernamePlaceholder: '输入用户名',
+    password: '密码',
+    passwordPlaceholder: '输入密码',
+    submit: '登录',
+    tokenSubmit: '密钥登录',
+    errorUsername: '请输入用户名',
+    errorPassword: '请输入密码',
+  },
 } as const satisfies LocaleMessages
