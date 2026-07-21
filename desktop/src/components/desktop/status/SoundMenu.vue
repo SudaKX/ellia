@@ -34,13 +34,7 @@ function toggleMute() {
 }
 
 function playEgg() {
-  const egg = new Audio(`${import.meta.env.BASE_URL}sounds/koyuki/koyuki.ogg`)
-  egg.volume = 1
-  egg.play().then(() => {
-    // console.log('[SoundMenu] 彩蛋触发成功')
-  }).catch((err) => {
-    // console.warn('[SoundMenu] 彩蛋播放失败:', err.name, err.message)
-  })
+  audio.playFile(`${import.meta.env.BASE_URL}sounds/koyuki/koyuki.ogg`)
 }
 
 /** 彩蛋：0% → "(已将Ellia禁言)"，100% → "(捏哈哈哈)"，其他 → i18n "Sound" */

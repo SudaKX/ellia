@@ -69,6 +69,8 @@ export interface AudioService {
   spectrumSize: number
   unlock: () => Promise<boolean>
   play: (cue: AudioCue) => void
+  /** 播放音频文件，通过 Web Audio 图输出（会显示在频谱上），音量受主音量和静音控制 */
+  playFile: (url: string, bus?: AudioBus) => void
   readSpectrumData: (samples: Uint8Array<ArrayBuffer>) => boolean
   setMuted: (muted: boolean) => void
   setMasterVolume: (volume: number) => void
@@ -100,6 +102,8 @@ export function createAudioService(): AudioService {
   let analyser: AnalyserNode | null = null
   let unlockPromise: Promise<boolean> | null = null
   const busGains = new Map<AudioBus, GainNode>()
+  /** 当前正在播放的文件音频元素，用于打断前一个 */
+  let activeFileAudio: HTMLAudioElement | null = null
 
   function updateGain(gain: GainNode | null, value: number) {
     if (!gain || !context) return
@@ -224,6 +228,43 @@ export function createAudioService(): AudioService {
     updateBusGain(bus)
   }
 
+  /**
+   * 播放音频文件，通过 Web Audio 图输出。
+   * 音频走 busGain → masterGain → compressor → analyser → destination，
+   * 因此会显示在频谱上，且受主音量/静音/总线音量控制。
+   *
+   * @param url - 音频文件 URL
+   * @param bus - 总线（'ui' | 'system'），默认 'ui'
+   */
+  function playFile(url: string, bus: AudioBus = 'ui') {
+    void unlock().then((ready) => {
+      if (!ready || !context || isMuted.value || masterVolume.value === 0) return
+
+      // 打断前一个文件播放
+      if (activeFileAudio) {
+        activeFileAudio.pause()
+        activeFileAudio.remove()
+        activeFileAudio = null
+      }
+
+      const audioEl = new Audio(url)
+      activeFileAudio = audioEl
+      const source = context.createMediaElementSource(audioEl)
+      source.connect(busGains.get(bus)!)
+
+      audioEl.play().catch(() => {
+        source.disconnect()
+        activeFileAudio = null
+      })
+
+      audioEl.addEventListener('ended', () => {
+        source.disconnect()
+        audioEl.remove()
+        activeFileAudio = null
+      }, { once: true })
+    })
+  }
+
   async function suspend() {
     if (context?.state === 'running') {
       await context.suspend()
@@ -255,6 +296,7 @@ export function createAudioService(): AudioService {
     spectrumSize: ANALYSER_FFT_SIZE / 2,
     unlock,
     play,
+    playFile,
     readSpectrumData,
     setMuted,
     setMasterVolume,
