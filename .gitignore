@@ -6,3 +6,6 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+/mythos/.env
+/mythos/data/*.sqlite3
+/mythos/data/*.sqlite3-*

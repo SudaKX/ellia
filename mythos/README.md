@@ -11,12 +11,12 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 - 建立 `src/mythos` 包结构与领域目录。
 - 声明 FastAPI、SQLAlchemy、Alembic、认证和测试基础依赖。
 - 提供最小 FastAPI 应用与 `GET /health` 健康检查。
-- 建立迁移、私有资源和测试目录，并覆盖健康检查。
+- 建立异步 SQLite 数据库基础设施、初始 Alembic 迁移与玩家认证模型。
+- 实现平台注册、登录、JWT 刷新、Refresh Cookie 轮换和登出端点。
+- 覆盖健康检查和完整认证生命周期测试。
 
 尚未实现：
 
-- 配置、数据库连接、SQLAlchemy 模型和 Alembic 迁移。
-- 平台账户注册、登录、JWT 和 Refresh Cookie。
 - 玩家服务、文件与演出注册服务、模块注册表和回调端点派发。
 - 具体谜题模块、前端 API 接入及活动管理统计。
 
@@ -32,4 +32,10 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest mythos/tests
+```
+
+首次运行前，将 `.env.example` 复制为 `.env` 并替换认证密钥；随后执行迁移：
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic -c mythos/alembic.ini upgrade head
 ```

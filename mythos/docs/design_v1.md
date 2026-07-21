@@ -24,7 +24,7 @@ mythos/
     auth/                 # 平台玩家注册、登录、JWT、Refresh Cookie
     persistence/          # SQLAlchemy 模型与仓储
     players/              # 玩家数据服务
-    global_services/      # 文件、演出、统计等全局注册服务
+    services/             # 文件、演出、统计等全局注册服务
     endpoints/            # 固定端点、回调派发器、请求响应模型
     registry/             # 模块契约、注册器、启动校验、总目录
     puzzle_modules/       # 所有谜题模块，显式导入
@@ -33,7 +33,7 @@ mythos/
   tests/
 ```
 
-技术基线：Python 3.13、FastAPI、SQLAlchemy 2、Alembic、Pydantic Settings、SQLite、Argon2id、pytest。包管理与虚拟环境工具在实现阶段确定，不作为本设计的约束。
+技术基线：Python 3.13、FastAPI、异步 SQLAlchemy 2、Alembic、Pydantic Settings、SQLite、Argon2id、pytest。包管理与虚拟环境工具在实现阶段确定，不作为本设计的约束。
 
 ## 3. 框架与模块边界
 
