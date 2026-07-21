@@ -264,8 +264,6 @@ function startResize(event: MouseEvent, corner: ResizeCorner) {
 
 function startResizeBR(event: MouseEvent) { startResize(event, 'br') }
 function startResizeBL(event: MouseEvent) { startResize(event, 'bl') }
-function startResizeTR(event: MouseEvent) { startResize(event, 'tr') }
-function startResizeTL(event: MouseEvent) { startResize(event, 'tl') }
 
 function onResize(event: MouseEvent) {
   if (!isResizing.value) return
@@ -398,18 +396,6 @@ function stopResize() {
       aria-hidden="true"
       @mousedown="startResizeBL"
     ></span>
-    <span
-      v-if="window.resizable"
-      class="window-frame__resize-handle window-frame__resize-handle--tr"
-      aria-hidden="true"
-      @mousedown="startResizeTR"
-    ></span>
-    <span
-      v-if="window.resizable"
-      class="window-frame__resize-handle window-frame__resize-handle--tl"
-      aria-hidden="true"
-      @mousedown="startResizeTL"
-    ></span>
   </article>
 </template>
 
@@ -528,20 +514,7 @@ function stopResize() {
   cursor: sw-resize;
 }
 
-.window-frame__resize-handle--tr {
-  right: 0;
-  top: 0;
-  cursor: ne-resize;
-}
-
-.window-frame__resize-handle--tl {
-  left: 0;
-  top: 0;
-  cursor: nw-resize;
-}
-
-.window-frame__resize-handle--br::after,
-.window-frame__resize-handle--tr::after {
+.window-frame__resize-handle--br::after {
   position: absolute;
   right: 3px;
   width: 5px;
@@ -550,8 +523,7 @@ function stopResize() {
   content: '';
 }
 
-.window-frame__resize-handle--bl::after,
-.window-frame__resize-handle--tl::after {
+.window-frame__resize-handle--bl::after {
   position: absolute;
   left: 3px;
   width: 5px;
@@ -564,11 +536,5 @@ function stopResize() {
 .window-frame__resize-handle--bl::after {
   bottom: 3px;
   border-bottom: 1px solid var(--text-muted);
-}
-
-.window-frame__resize-handle--tr::after,
-.window-frame__resize-handle--tl::after {
-  top: 3px;
-  border-top: 1px solid var(--text-muted);
 }
 </style>
