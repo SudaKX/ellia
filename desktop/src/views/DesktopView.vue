@@ -44,8 +44,8 @@
  * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
  */
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Info } from 'lucide-vue-next'
+import { computed, markRaw, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -56,6 +56,7 @@ import Launchpad from '@/components/desktop/Launchpad.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
+import AiAssistant from '@/components/applications/AiAssistant.vue'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
@@ -148,6 +149,133 @@ function handleCloseOverview() {
 /** 电源菜单 → 更改账户 → 跳转登录页 */
 function handleSwitchUser() {
   router.push({ name: 'login' })
+}
+
+/**
+ * AI 助手窗口的运行时 ID。
+ * 暂未用于拦截关闭逻辑（关闭由 AiAssistant 组件内部 onCloseRequest 处理），
+ * 保留此引用以便后续可能的窗口操作（如聚焦、最小化等）。
+ */
+const aiWindowId = ref<string | null>(null)
+
+/** AI 窗口的最小尺寸：屏幕长边的 10% */
+const aiMinSize = ref(0)
+/** AI 窗口的最大尺寸：屏幕短边的 80% */
+const aiMaxSize = ref(0)
+/** AI 窗口标题栏文本（聊天消息），由 AiAssistant 通过 onSetTitle 更新 */
+const aiTitle = ref('')
+
+/** kei 表情图片列表：点击图片时轮换 */
+const KEI_IMAGES = [
+  '/console/images/kei/kei_normal1.webp',
+  '/console/images/kei/kei_smile1.webp',
+  '/console/images/kei/kei_speak1.webp',
+  '/console/images/kei/kei_happy2.webp',
+  '/console/images/kei/kei_happy3.webp',
+  '/console/images/kei/kei_awkward.webp',
+  '/console/images/kei/kei_annoy1.webp',
+  '/console/images/kei/kei_shock1.webp',
+  '/console/images/kei/kei_shock2.webp',
+  '/console/images/kei/kei_happy_to_tear.webp',
+  '/console/images/kei/kei_veryawkward.webp',
+  '/console/images/kei/kei_小急.webp',
+  '/console/images/kei/kei_大急.webp',
+  '/console/images/kei/kei_急眼的不得了.webp',
+  '/console/images/kei/kei_睁眼大急.webp',
+  '/console/images/kei/kei_睁眼小急.webp',
+  '/console/images/kei/kei_小悲.webp',
+  '/console/images/kei/kei_大悲.webp',
+  '/console/images/kei/kei_超大悲_tear.webp',
+  '/console/images/kei/kei_毁灭模式启动.webp',
+  '/console/images/kei/kei_让我看看!(脸红).webp',
+  '/console/images/kei/kei_哟,你脸红了.webp',
+]
+
+/** 标题栏轮换台词：点击图片时同步切换 */
+const KEI_TITLES = [
+  '我，我才不会觉得痒什么的！',
+  '痒这种程度的，才不会……',
+  '唔嗯~！看招，挠痒痒攻击！！',
+]
+
+/**
+ * 初始化 AI 助手窗口。
+ *
+ * 为什么在 onMounted 中调用而不是在 <template> 中声明？
+ * - AI 窗口不是响应式列表驱动的，只需创建一次
+ * - 不通过 applicationRegistry 注册，因为不需要出现在 Launchpad 和 DockBar 中
+ * - 窗口定位到右下角需要在运行时获取 viewport 尺寸
+ *
+ * 为什么 controls.close: false？
+ * - 关闭行为由 WindowFrame 的 closeAction prop 接管（标题栏 X 按钮→权限拒绝弹窗）
+ */
+function initAiWindow() {
+  // 等比缩放约束：图片 550x550 为 1:1 正方形
+  // 最小尺寸 = 屏幕长边的 10%，最大尺寸 = 屏幕短边的 80%
+  aiMinSize.value = Math.round(Math.max(window.innerWidth, window.innerHeight) * 0.1)
+  aiMaxSize.value = Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.8)
+  // 窗口高度含标题栏：550 + 34(titlebar) + 2(border) = 586
+  const windowWidth = 552
+  const windowHeight = 586
+  const padding = 16
+
+  const result = windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: 'aiAssistant.title',
+      icon: markRaw(Bot),
+      component: markRaw(AiAssistant),
+      componentProps: {
+        images: KEI_IMAGES,
+        titles: KEI_TITLES,
+        onSetTitle: (text: string) => { aiTitle.value = text },
+      },
+      defaultWidth: windowWidth,
+      defaultHeight: windowHeight,
+      placement: 'center',   // WindowService.createWindow 仅支持 cascade/center，
+      resizable: true,        // 可等比缩放，约束由 WindowFrame 的 aspectRatio/min/max prop 控制
+      controls: {
+        minimize: false,      // 由 WindowFrame closeAction 在标题栏显示 X（controls.close 保持 false）
+        close: false,
+      },
+    },
+  })
+
+  if (result) {
+    aiWindowId.value = result.id
+    // 覆写 placement 计算结果，定位到右下角
+    result.x = Math.max(0, window.innerWidth - windowWidth - padding)
+    result.y = Math.max(0, window.innerHeight - windowHeight - 90) // 90px 留给 DockBar（~46px 高度 + 间距）
+  }
+}
+
+/**
+ * 处理 AI 助手的关闭请求：弹出权限拒绝模态弹窗。
+ *
+ * 复用 DesktopView 已有的 handleNetworkAction 模式——
+ * 创建带 glitch 滤镜的模态 MessageBox + PermissionDenied 弹窗。
+ * AI 窗口本身不会被关闭。
+ */
+function handleAiCloseRequest() {
+  windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: 'aiAssistant.errorTitle',
+      icon: Bot,
+      component: MessageBox,
+      componentProps: {
+        contentComponent: PermissionDenied,
+      },
+      defaultWidth: 440,
+      defaultHeight: 220,
+      placement: 'center',
+      mode: 'modal',          // 模态窗口阻断普通窗口交互
+      resizable: false,
+      filters: { glitch: true },
+      controls: { minimize: false, close: true },
+    },
+  })
+  playCue('system-alert')
 }
 
 function handleNetworkAction(action: NetworkAction) {
@@ -246,6 +374,7 @@ function handleDockAppClick(applicationId: ApplicationId) {
 onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
+  initAiWindow()
 })
 
 onBeforeUnmount(() => {
@@ -267,6 +396,13 @@ onBeforeUnmount(() => {
         :window="window"
         :is-active="windowService.activeWindowId.value === window.id"
         :filter-ids="windowFilterIds"
+        :aspect-ratio="window.id === aiWindowId ? 1 : undefined"
+        :min-width="window.id === aiWindowId ? aiMinSize : undefined"
+        :min-height="window.id === aiWindowId ? aiMinSize : undefined"
+        :max-width="window.id === aiWindowId ? aiMaxSize : undefined"
+        :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
+        :title="window.id === aiWindowId ? aiTitle : undefined"
+        :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

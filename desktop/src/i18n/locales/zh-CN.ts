@@ -87,4 +87,10 @@ export const zhCN = {
     errorUsername: '请输入用户名',
     errorPassword: '请输入密码',
   },
+  /** AI 助手浮动窗口 */
+  aiAssistant: {
+    title: 'AI 助手',
+    errorTitle: '关闭 AI 助手',
+    closeButton: '关闭 AI 助手',
+  },
 } as const satisfies LocaleMessages

@@ -85,6 +85,12 @@ export const enUS = {
     errorUsername: 'Please enter a username',
     errorPassword: 'Please enter a password',
   },
+  /** AI Assistant floating window */
+  aiAssistant: {
+    title: 'AI Assistant',
+    errorTitle: 'Close AI Assistant',
+    closeButton: 'Close AI Assistant',
+  },
 } as const
 
 type DeepString<T> = {
