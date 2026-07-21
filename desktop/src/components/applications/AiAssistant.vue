@@ -35,29 +35,48 @@
 
 import { computed, ref } from 'vue'
 
+import { useAudioService } from '@/composables/useAudioService'
+
 const props = defineProps<{
   /** kei 表情图片 URL 数组，点击轮换 */
   images: string[]
   /** 标题栏台词数组，与图片同步轮换 */
   titles: string[]
+  /** kei 语音文件 URL 数组，点击时按顺序循环播放 */
+  voices: string[]
   /** 更新标题栏文本的回调 */
   onSetTitle?: (text: string) => void
 }>()
 
+const audioService = useAudioService()
+
 /** 当前图片索引 */
 const currentIndex = ref(0)
+/** 当前正在播放的音频实例，用于打断先前的播放 */
+let currentAudio: HTMLAudioElement | null = null
 const currentImage = computed(() => props.images[currentIndex.value] || props.images[0])
 
 /**
- * 点击图片：轮换到下一张 + 更新标题栏台词。
- * 图片和台词独立循环，各自 wraparound。
+ * 点击图片：轮换到下一张 + 更新标题栏台词 + 播放对应语音。
+ * 语音与台词按相同顺序一一对应（ogg1→台词1, ogg2→台词2, ogg3→台词3）。
+ * 播放新语音前先停止前一段，防止重叠。
  */
 function handleClick() {
   currentIndex.value = (currentIndex.value + 1) % props.images.length
-  // 标题台词与图片同步轮换（使用同一索引，确保一一对应）
+  // 语音和台词共用同一个映射索引（0/1/2 对应 ogg1/2/3 和台词1/2/3）
+  const mapIndex = currentIndex.value % Math.min(props.titles.length, props.voices.length || 1)
+  // 标题台词
   if (props.titles.length > 0) {
-    const titleIndex = currentIndex.value % props.titles.length
-    props.onSetTitle?.(props.titles[titleIndex])
+    props.onSetTitle?.(props.titles[mapIndex])
+  }
+  // 语音：先停旧再播新，音量受 SoundMenu 的主音量和静音控制
+  if (props.voices.length > 0) {
+    currentAudio?.pause()
+    currentAudio = new Audio(props.voices[mapIndex])
+    // 静音或主音量为 0 时直接不播放
+    if (audioService.isMuted.value || audioService.masterVolume.value === 0) return
+    currentAudio.volume = audioService.masterVolume.value * 0.8
+    currentAudio.play().catch(() => { /* 浏览器自动播放策略阻止时静默忽略 */ })
   }
 }
 </script>

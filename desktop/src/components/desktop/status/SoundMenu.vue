@@ -34,7 +34,7 @@ function toggleMute() {
 }
 
 function playEgg() {
-  const egg = new Audio(`${import.meta.env.BASE_URL}sounds/koyuki.ogg`)
+  const egg = new Audio(`${import.meta.env.BASE_URL}sounds/koyuki/koyuki.ogg`)
   egg.volume = 1
   egg.play().then(() => {
     // console.log('[SoundMenu] 彩蛋触发成功')

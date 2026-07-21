@@ -165,30 +165,11 @@ const aiMaxSize = ref(0)
 /** AI 窗口标题栏文本（聊天消息），由 AiAssistant 通过 onSetTitle 更新 */
 const aiTitle = ref('')
 
-/** kei 表情图片列表：点击图片时轮换 */
+/** kei 表情图片列表：与语音/台词一一对应 */
 const KEI_IMAGES = [
-  '/console/images/kei/kei_normal1.webp',
-  '/console/images/kei/kei_smile1.webp',
-  '/console/images/kei/kei_speak1.webp',
-  '/console/images/kei/kei_happy2.webp',
-  '/console/images/kei/kei_happy3.webp',
-  '/console/images/kei/kei_awkward.webp',
-  '/console/images/kei/kei_annoy1.webp',
-  '/console/images/kei/kei_shock1.webp',
-  '/console/images/kei/kei_shock2.webp',
-  '/console/images/kei/kei_happy_to_tear.webp',
-  '/console/images/kei/kei_veryawkward.webp',
-  '/console/images/kei/kei_小急.webp',
-  '/console/images/kei/kei_大急.webp',
-  '/console/images/kei/kei_急眼的不得了.webp',
-  '/console/images/kei/kei_睁眼大急.webp',
-  '/console/images/kei/kei_睁眼小急.webp',
-  '/console/images/kei/kei_小悲.webp',
-  '/console/images/kei/kei_大悲.webp',
-  '/console/images/kei/kei_超大悲_tear.webp',
-  '/console/images/kei/kei_毁灭模式启动.webp',
-  '/console/images/kei/kei_让我看看!(脸红).webp',
-  '/console/images/kei/kei_哟,你脸红了.webp',
+  '/console/images/kei/kei_awkward2.webp',    // 对应 ogg1 + 台词1
+  '/console/images/kei/kei_veryawkward.webp', // 对应 ogg2 + 台词2
+  '/console/images/kei/kei_大急.webp',         // 对应 ogg3 + 台词3
 ]
 
 /** 标题栏轮换台词：点击图片时同步切换 */
@@ -196,6 +177,13 @@ const KEI_TITLES = [
   '我，我才不会觉得痒什么的！',
   '痒这种程度的，才不会……',
   '唔嗯~！看招，挠痒痒攻击！！',
+]
+
+/** kei 语音文件：点击图片时按 1→2→3→1 循环播放 */
+const KEI_VOICES = [
+  '/console/sounds/kei/kei_eventmission_2_1.ogg',
+  '/console/sounds/kei/kei_eventmission_2_2.ogg',
+  '/console/sounds/kei/kei_eventmission_2_3.ogg',
 ]
 
 /**
@@ -228,6 +216,7 @@ function initAiWindow() {
       componentProps: {
         images: KEI_IMAGES,
         titles: KEI_TITLES,
+        voices: KEI_VOICES,
         onSetTitle: (text: string) => { aiTitle.value = text },
       },
       defaultWidth: windowWidth,
