@@ -19,4 +19,13 @@ const router = createRouter({
   ],
 })
 
+// 访问根路径时自动跳转到登录页，但从登录页跳转过来的放行
+router.beforeEach((to, from, next) => {
+  if (to.name === 'desktop' && from.name !== 'login') {
+    next({ name: 'login' })
+  } else {
+    next()
+  }
+})
+
 export default router
