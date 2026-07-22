@@ -129,6 +129,51 @@ export const enUS = {
       denied: 'sudo: PERMISSION DENIED — administrator privileges required',
     },
   },
+  /** Player archive viewer */
+  archive: {
+    label: 'RECOVERED DATA',
+    loading: 'Loading player archive...',
+    error: 'Failed to load archive data.',
+    retry: 'Retry',
+    profile: 'Profile',
+    userId: 'User ID',
+    privilege: 'Privilege Level',
+    registered: 'Registered',
+    lastLogin: 'Last Login',
+    loginCount: 'Total Logins',
+    playtime: 'Play Time',
+    playtimeMinutes: '{minutes} minutes',
+    playtimeHours: '{hours}h {minutes}m',
+    stats: 'Statistics',
+    puzzlesCompleted: 'Puzzles Completed',
+    puzzlesCompletedText: 'You have completed {count} puzzle(s).',
+    noPuzzles: 'No puzzles completed yet.',
+    puzzleRecord: '· "{id}" — solved after {attempts} attempt(s), {hints} hint(s) used.',
+    achievements: 'Achievements',
+    achievementsUnlocked: '{unlocked}/{total} unlocked',
+    noAchievements: 'No achievements yet.',
+    locked: 'LOCKED',
+    unlockedAt: 'Unlocked on {date}',
+    /** Achievement definitions */
+    achievementList: {
+      firstLogin: {
+        name: 'First Contact',
+        description: 'Log in to the system for the first time.',
+      },
+      firstPuzzle: {
+        name: 'Code Breaker',
+        description: 'Solve your first puzzle.',
+      },
+      threeLogins: {
+        name: 'Regular Visitor',
+        description: 'Log in 3 times.',
+      },
+      persistent: {
+        name: 'Persistent',
+        description: 'Solve 5 puzzles. Keep going!',
+      },
+    },
+  },
   /** Puzzle windows */
   puzzles: {
     label: 'PUZZLE',

@@ -131,6 +131,51 @@ export const zhCN = {
       denied: 'sudo: 权限不足 — 需要管理员权限',
     },
   },
+  /** 玩家档案查看器 */
+  archive: {
+    label: '已恢复数据',
+    loading: '正在加载玩家档案...',
+    error: '档案数据加载失败。',
+    retry: '重试',
+    profile: '档案信息',
+    userId: '用户 ID',
+    privilege: '权限等级',
+    registered: '注册时间',
+    lastLogin: '最后登录',
+    loginCount: '登录次数',
+    playtime: '游玩时间',
+    playtimeMinutes: '{minutes} 分钟',
+    playtimeHours: '{hours} 小时 {minutes} 分钟',
+    stats: '统计数据',
+    puzzlesCompleted: '已完成谜题',
+    puzzlesCompletedText: '你已完成 {count} 个谜题。',
+    noPuzzles: '尚未完成任何谜题。',
+    puzzleRecord: '· "{id}" — {attempts} 次尝试后解出，使用了 {hints} 个提示。',
+    achievements: '成就',
+    achievementsUnlocked: '{unlocked}/{total} 已解锁',
+    noAchievements: '暂未获得成就。',
+    locked: '未解锁',
+    unlockedAt: '解锁于 {date}',
+    /** 成就定义 */
+    achievementList: {
+      firstLogin: {
+        name: '初次接触',
+        description: '首次登录系统。',
+      },
+      firstPuzzle: {
+        name: '密码破解者',
+        description: '解决第一个谜题。',
+      },
+      threeLogins: {
+        name: '常客',
+        description: '登录 3 次。',
+      },
+      persistent: {
+        name: '持之以恒',
+        description: '解决 5 个谜题。继续加油！',
+      },
+    },
+  },
   /** 谜题窗口 */
   puzzles: {
     label: '谜题',

@@ -115,3 +115,42 @@ export interface WindowInstance {
   zIndex: number
   isMinimized: boolean
 }
+
+// ─── 玩家档案数据（Archive Viewer 使用） ──────────
+
+/** 成就定义 */
+export interface Achievement {
+  id: string
+  nameKey: string
+  descriptionKey: string
+  /** 解锁时间（ISO 字符串），null = 未解锁 */
+  unlockedAt: string | null
+}
+
+/** 谜题完成记录 */
+export interface PuzzleCompletion {
+  puzzleId: string
+  completedAt: string
+  attempts: number
+  hintsUsed: number
+}
+
+/** 玩家档案——从后端拉取的完整 JSON */
+export interface PlayerArchive {
+  /** 玩家标识 */
+  userId: string
+  /** 权限等级 */
+  privilegeClass: string
+  /** 注册时间 */
+  createdAt: string
+  /** 最后登录时间 */
+  lastLoginAt: string
+  /** 登录总次数 */
+  loginCount: number
+  /** 谜题完成列表 */
+  puzzleCompletions: PuzzleCompletion[]
+  /** 成就列表 */
+  achievements: Achievement[]
+  /** 总游玩时间（秒） */
+  totalPlaytimeSeconds: number
+}
