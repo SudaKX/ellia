@@ -1,3 +1,4 @@
+<script setup lang="ts">
 /**
  * # ExampleCipher — 凯撒密码谜题（示例）
  *
