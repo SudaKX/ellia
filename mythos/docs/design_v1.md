@@ -24,10 +24,10 @@ mythos/
     auth/                 # 平台玩家注册、登录、JWT、Refresh Cookie
     persistence/          # SQLAlchemy 模型与仓储
     players/              # 玩家数据服务
-    services/             # 文件、演出、统计等全局注册服务
+    resources/            # 文件、演出、统计等全局资源目录
     endpoints/            # 固定端点、回调派发器、请求响应模型
     registry/             # 模块契约、注册器、启动校验、总目录
-    puzzle_modules/       # 所有谜题模块，显式导入
+    puzzles/              # 所有谜题模块，显式导入
     assets/               # 后端私有静态资源
   migrations/
   tests/

@@ -11,7 +11,7 @@ from sqlalchemy.types import Uuid
 from mythos.persistence.base import Base, utcnow
 
 if TYPE_CHECKING:
-    from mythos.persistence.models.player import Player
+    from mythos.persistence.models.player import PlayerRecord
 
 
 class PlayerProgress(Base):
@@ -33,4 +33,4 @@ class PlayerProgress(Base):
         nullable=False,
     )
 
-    player: Mapped[Player] = relationship(back_populates="progress")
+    player: Mapped[PlayerRecord] = relationship(back_populates="progress")

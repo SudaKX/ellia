@@ -25,7 +25,7 @@ class RefreshCredential:
 
 
 @dataclass(frozen=True)
-class PlayerContext:
+class PlayerIdentity:
     player_id: UUID
 
 
@@ -68,7 +68,7 @@ def issue_access_token(player_id: UUID, settings: Settings) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
-def decode_access_token(token: str, settings: Settings) -> PlayerContext:
+def decode_access_token(token: str, settings: Settings) -> PlayerIdentity:
     try:
         payload = jwt.decode(
             token,
@@ -80,6 +80,6 @@ def decode_access_token(token: str, settings: Settings) -> PlayerContext:
         )
         if payload["typ"] != "access":
             raise InvalidTokenError("Unexpected token type.")
-        return PlayerContext(player_id=UUID(payload["sub"]))
+        return PlayerIdentity(player_id=UUID(payload["sub"]))
     except (InvalidTokenError, KeyError, ValueError) as error:
         raise ValueError("Invalid or expired access token.") from error

@@ -11,7 +11,7 @@ from sqlalchemy.types import Uuid
 from mythos.persistence.base import Base
 
 if TYPE_CHECKING:
-    from mythos.persistence.models.player import Player
+    from mythos.persistence.models.player import PlayerRecord
 
 
 class PlayerAuth(Base):
@@ -28,4 +28,4 @@ class PlayerAuth(Base):
     refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     refresh_rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    player: Mapped[Player] = relationship(back_populates="auth")
+    player: Mapped[PlayerRecord] = relationship(back_populates="auth")

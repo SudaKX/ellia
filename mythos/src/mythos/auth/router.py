@@ -8,8 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import (
     get_current_player,
-    get_session,
-    get_settings_from_request,
 )
 from mythos.auth.schemas import AccessTokenResponse, CredentialsRequest
 from mythos.auth.service import (
@@ -18,8 +16,9 @@ from mythos.auth.service import (
     InvalidRefreshCredentialError,
     UsernameAlreadyExistsError,
 )
-from mythos.auth.tokens import PlayerContext, RefreshCredential
+from mythos.auth.tokens import PlayerIdentity, RefreshCredential
 from mythos.core.config import Settings
+from mythos.core.dependencies import get_session, get_settings_from_request
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -127,7 +126,7 @@ async def refresh(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
-    player: Annotated[PlayerContext, Depends(get_current_player)],
+    player: Annotated[PlayerIdentity, Depends(get_current_player)],
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_request)],
 ) -> Response:

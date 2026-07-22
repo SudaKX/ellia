@@ -21,7 +21,7 @@ from mythos.auth.tokens import (
 )
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
-from mythos.persistence.models import Player, PlayerAuth, PlayerProgress
+from mythos.persistence.models import PlayerAuth, PlayerProgress, PlayerRecord
 
 password_hasher = PasswordHash.recommended()
 
@@ -64,7 +64,7 @@ class AuthService:
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
         password_hash = await asyncio.to_thread(password_hasher.hash, password)
-        player = Player(id=uuid4(), username=username, username_normalized=normalize_username(username))
+        player = PlayerRecord(id=uuid4(), username=username, username_normalized=normalize_username(username))
         credential = create_refresh_credential()
         now = utcnow()
         auth = PlayerAuth(
@@ -92,9 +92,9 @@ class AuthService:
         normalized_username = normalize_username(username)
         async with self.session.begin():
             result = await self.session.execute(
-                select(Player, PlayerAuth)
-                .join(PlayerAuth, PlayerAuth.player_id == Player.id)
-                .where(Player.username_normalized == normalized_username)
+                select(PlayerRecord, PlayerAuth)
+                .join(PlayerAuth, PlayerAuth.player_id == PlayerRecord.id)
+                .where(PlayerRecord.username_normalized == normalized_username)
             )
             row = result.one_or_none()
             if row is None:
@@ -155,8 +155,8 @@ class AuthService:
             if update_result.rowcount != 1:
                 raise InvalidRefreshCredentialError
             await self.session.execute(
-                update(Player)
-                .where(Player.id == auth.player_id)
+                update(PlayerRecord)
+                .where(PlayerRecord.id == auth.player_id)
                 .values(last_accessed_at=now)
             )
 

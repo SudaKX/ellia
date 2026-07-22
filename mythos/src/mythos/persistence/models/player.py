@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from mythos.persistence.models.progress import PlayerProgress
 
 
-class Player(Base):
+class PlayerRecord(Base):
     __tablename__ = "players"
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)

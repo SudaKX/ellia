@@ -1,1 +1,3 @@
-"""Globally registered files, performances, statistics, and endpoint callbacks."""
+from mythos.services.container import ServiceContainer
+
+__all__ = ["ServiceContainer"]

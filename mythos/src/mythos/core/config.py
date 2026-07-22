@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     refresh_token_ttl_seconds: int = 2_592_000
     refresh_cookie_name: str = "mythos_refresh"
     refresh_cookie_secure: bool | None = None
+    request_cache_ttl_seconds: int = 30
+    request_cache_maxsize: int = 1_000
 
     @model_validator(mode="after")
     def configure_auth_secrets(self) -> Settings:
@@ -48,6 +50,10 @@ class Settings(BaseSettings):
             raise ValueError("JWT signing key must be at least 32 bytes.")
         if len(self.refresh_pepper.encode()) < 32:
             raise ValueError("Refresh token pepper must be at least 32 bytes.")
+        if self.request_cache_ttl_seconds < 1:
+            raise ValueError("Request cache TTL must be at least one second.")
+        if self.request_cache_maxsize < 1:
+            raise ValueError("Request cache size must be at least one entry.")
         return self
 
     @property

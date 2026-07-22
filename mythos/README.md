@@ -2,7 +2,7 @@
 
 Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认证、玩家进度、虚拟文件、谜题验证、ElLInA 演出和活动统计；前端不持有这些领域的权威状态。
 
-后端按“框架 + 谜题模块”组织：框架提供玩家数据服务、全局资源注册服务和固定 API 端点；谜题模块提供文件、演出脚本、验证规则、checkpoint、统计项和端点回调。完整设计见 [docs/design_v1.md](docs/design_v1.md)。
+后端按“框架 + 谜题模块”组织：框架提供请求级 Player Interface、全局 Service、动态内容注册器和固定 API 端点；谜题模块提供文件、演出脚本、验证规则、checkpoint、统计项和端点回调。当前设计见 [docs/design_v2.md](docs/design_v2.md)。
 
 ## 当前进度
 
@@ -13,12 +13,13 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 - 提供最小 FastAPI 应用与 `GET /health` 健康检查。
 - 建立异步 SQLite 数据库基础设施、初始 Alembic 迁移与玩家认证模型。
 - 实现平台注册、登录、JWT 刷新、Refresh Cookie 轮换和登出端点。
-- 覆盖健康检查和完整认证生命周期测试。
+- 实现请求级 `Player`、`ProgressInterface`、PendingEffectPlan 和事务内 Effect 执行。
+- 实现模块、文件和脚本注册器，以及全局 FileService、ScriptService 和固定 Router。
+- 覆盖认证、端点派发、短时重复请求、Player Effect 和 Service 生命周期测试。
 
 尚未实现：
 
-- 玩家服务、文件与演出注册服务、模块注册表和回调端点派发。
-- 具体谜题模块、前端 API 接入及活动管理统计。
+- 具体谜题模块、动态产物、演出状态、统计、审计和活动管理 API。
 
 ## 本地开发
 
