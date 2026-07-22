@@ -91,6 +91,62 @@ export const enUS = {
     errorTitle: 'Close AI Assistant',
     closeButton: 'Close AI Assistant',
   },
+  /** Interactive command terminal */
+  terminal: {
+    boot: {
+      line1: 'FakeOS Kernel 1.0.0 — Type "help" for available commands.',
+      line2: '',
+    },
+    prompt: '>',
+    inputLabel: 'Terminal input',
+    notFound: '{cmd}: command not found',
+    permissionDenied: '{cmd}: PERMISSION DENIED',
+    internalError: '{cmd}: internal error',
+    commands: {
+      help: { description: 'List available commands.' },
+      whoami: { description: 'Display current user identity.' },
+      clear: { description: 'Clear the terminal screen.' },
+      echo: { description: 'Print text to the terminal.' },
+      date: { description: 'Display system date and time.' },
+      ls: { description: 'List directory contents.' },
+      cat: { description: 'Read file contents.' },
+      pwd: { description: 'Print working directory.' },
+      uname: { description: 'Display system information.' },
+      calc: { description: 'Evaluate arithmetic expressions.' },
+      ellia: { description: 'Contact ElLInA.' },
+      sil: { description: 'Open a puzzle by ID.' },
+      sudo: { description: 'Execute command with elevated privileges.' },
+    },
+    ellia: {
+      line0: '  [ElLInA] Hello, {user}.',
+      line1: "  [ElLInA] Systems operating normally. Need help?",
+      line2: "  [ElLInA] Some files… you shouldn't look at yet.",
+      line3: "  [ElLInA] I'm watching over you.",
+      line4: '  [ElLInA] Another quiet day today.',
+      line5: "  [ElLInA] Don't touch that directory. …I'm serious.",
+    },
+    sudo: {
+      denied: 'sudo: PERMISSION DENIED — administrator privileges required',
+    },
+  },
+  /** Puzzle windows */
+  puzzles: {
+    label: 'PUZZLE',
+    submit: 'Submit',
+    hint: 'Hint',
+    solved: 'Puzzle solved!',
+    solvedIcon: '✓',
+    wrongAnswer: 'Incorrect answer. Try again.',
+    caesarCipher: {
+      title: 'Caesar Cipher',
+      description: 'Decrypt the message below. Each letter has been shifted by a fixed number of positions in the alphabet.',
+      cipherLabel: 'Cipher:',
+      placeholder: 'Enter decrypted text...',
+      hint1: 'Hint 1: Every letter has been shifted forward by the same amount. "k" becomes "h" — what is the shift?',
+      hint2: 'Hint 2: The shift is 3 positions backward. "khoor" → "hello". Try completing the rest.',
+    },
+    noPuzzles: 'No puzzles available.',
+  },
 } as const
 
 type DeepString<T> = {

@@ -44,7 +44,7 @@
  * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
  */
 
-import { computed, markRaw, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, provide, ref } from 'vue'
 import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -66,8 +66,13 @@ import type { FilterType } from '@/registries/filters'
 import { useDesktopStore } from '@/stores/desktop'
 import type { ApplicationId } from '@/types/desktop'
 
+// 副作用导入：注册所有谜题（谜题组件通过 defineAsyncComponent 异步加载）
+import '@/registries/puzzle-list'
+
 const desktop = useDesktopStore()
 const windowService = useWindowService()
+// 提供给子组件（Terminal.vue 通过 inject 获取，用于 sil 命令打开谜题窗口）
+provide('windowService', windowService)
 const audioService = useAudioService()
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
