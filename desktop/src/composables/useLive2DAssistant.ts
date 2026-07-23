@@ -160,6 +160,8 @@ export function useLive2DAssistant(options: UseLive2DAssistantOptions) {
         backgroundAlpha: 0,
         height: Math.max(options.container.clientHeight, 1),
         preference: 'webgl',
+        /** 生产环境下纹理 alpha 预乘会导致模型边缘白边 */
+        premultipliedAlpha: false,
         resolution: Math.max(window.devicePixelRatio, 1),
         width: Math.max(options.container.clientWidth, 1),
         /** 防止 WebGL 上下文在窗口失焦/缩放时被销毁导致纹理引用失效 */
