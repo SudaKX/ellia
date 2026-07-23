@@ -15,6 +15,36 @@ def test_production_rejects_short_auth_secrets() -> None:
             environment="production",
             jwt_signing_key=SecretStr("too-short"),
             refresh_token_pepper=SecretStr("also-too-short"),
+            file_id_signing_key=SecretStr("file-id-signing-key-with-at-least-32-bytes"),
+        )
+
+
+def test_object_store_tls_setting_must_match_endpoint_scheme() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="test",
+            jwt_signing_key=SecretStr("test-jwt-signing-key-with-at-least-32-bytes"),
+            refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
+            file_id_signing_key=SecretStr("test-file-id-signing-key-with-at-least-32-bytes"),
+            object_store_endpoint="http://127.0.0.1:9000",
+            object_store_bucket="mythos",
+            object_store_access_key=SecretStr("test-object-store-access-key"),
+            object_store_secret_key=SecretStr("test-object-store-secret-key"),
+            object_store_use_tls=True,
+        )
+
+
+def test_object_store_endpoint_rejects_path_prefix() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="test",
+            jwt_signing_key=SecretStr("test-jwt-signing-key-with-at-least-32-bytes"),
+            refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
+            file_id_signing_key=SecretStr("test-file-id-signing-key-with-at-least-32-bytes"),
+            object_store_endpoint="https://objects.example/api",
+            object_store_bucket="mythos",
+            object_store_access_key=SecretStr("test-object-store-access-key"),
+            object_store_secret_key=SecretStr("test-object-store-secret-key"),
         )
 
 

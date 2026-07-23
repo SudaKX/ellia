@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from mythos.registry.files import FileCatalog
 from mythos.registry.scripts import ScriptCatalog
 from mythos.services.files.service import FileService
+from mythos.services.object_store.service import ObjectStore
 from mythos.services.scripts.service import ScriptService
 
 
@@ -14,5 +15,14 @@ class ServiceContainer:
     scripts: ScriptService
 
     @classmethod
-    def create(cls, file_catalog: FileCatalog, script_catalog: ScriptCatalog) -> ServiceContainer:
-        return cls(files=FileService(file_catalog), scripts=ScriptService(script_catalog))
+    def create(
+        cls,
+        file_catalog: FileCatalog,
+        script_catalog: ScriptCatalog,
+        object_store: ObjectStore,
+        file_download_url_ttl_seconds: int,
+    ) -> ServiceContainer:
+        return cls(
+            files=FileService(file_catalog, object_store, file_download_url_ttl_seconds),
+            scripts=ScriptService(script_catalog),
+        )

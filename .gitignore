@@ -7,5 +7,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 /mythos/.env
+/mythos/credentials.json
+/refs/
 /mythos/data/*.sqlite3
 /mythos/data/*.sqlite3-*

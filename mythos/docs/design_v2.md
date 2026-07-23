@@ -52,6 +52,8 @@ services/scripts/  # ScriptService 与演出脚本 API
 
 Service 通过请求级 Player 判断内容可见性。当前 GET Router 使用 `writable=False`；未来需要写入的 Service Router 必须使用 `writable=True`，并复用命令事务、Request-ID 和 EffectAction，不能直接提交 Session。
 
+FileService 的静态对象存储、公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
+
 ## 6. Registry
 
 - `registry/modules/`：模块注册、视图回调和命令回调。
