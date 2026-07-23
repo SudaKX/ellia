@@ -10,8 +10,10 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@jannchie/pixi-live2d-display": "^1.4.0",
     "lucide-vue-next": "^0.468.0",
     "pinia": "^3.0.4",
+    "pixi.js": "^8.19.0",
     "vue": "^3.5.38",
     "vue-i18n": "^11.4.6",
     "vue-router": "^5.1.0"

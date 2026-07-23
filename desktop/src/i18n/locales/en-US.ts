@@ -91,6 +91,10 @@ export const enUS = {
     errorTitle: 'Close AI Assistant',
     closeButton: 'Close AI Assistant',
   },
+  /** Live2D assistant */
+  live2d: {
+    title: 'Live2D Assistant',
+  },
   /** Interactive command terminal */
   terminal: {
     boot: {

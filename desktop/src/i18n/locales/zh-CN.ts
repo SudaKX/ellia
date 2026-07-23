@@ -93,6 +93,10 @@ export const zhCN = {
     errorTitle: '关闭 AI 助手',
     closeButton: '关闭 AI 助手',
   },
+  /** Live2D 助手 */
+  live2d: {
+    title: 'Live2D 助手',
+  },
   /** 交互式命令终端 */
   terminal: {
     boot: {
