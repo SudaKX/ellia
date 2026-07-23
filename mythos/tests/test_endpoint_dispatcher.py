@@ -8,7 +8,7 @@ from mythos.core.config import Settings
 from mythos.endpoints import EffectAction, FollowupAction, PendingEffectPlan, RejectAction, ResponseAction
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.registry.modules import ModuleRegistry
+from mythos.registry.bundle import RegistryBundle
 
 
 def test_framework_endpoints_execute_and_deduplicate(tmp_path) -> None:
@@ -16,7 +16,8 @@ def test_framework_endpoints_execute_and_deduplicate(tmp_path) -> None:
         started = asyncio.Event()
         release = asyncio.Event()
         calls = {"checkpoint": 0, "retry": 0}
-        catalog = ModuleRegistry()
+        registries = RegistryBundle()
+        catalog = registries.modules
 
         async def checkpoint_callback(context, payload):
             calls["checkpoint"] += 1
@@ -60,7 +61,7 @@ def test_framework_endpoints_execute_and_deduplicate(tmp_path) -> None:
             refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
             refresh_cookie_secure=False,
         )
-        app = create_app(settings, module_registry=catalog)
+        app = create_app(settings, registries=registries)
 
         async with app.router.lifespan_context(app):
             async with app.state.database.engine.begin() as connection:

@@ -7,12 +7,12 @@ from fastapi import FastAPI
 from mythos.auth.router import router as auth_router
 from mythos.core.config import Settings, get_settings
 from mythos.core.database import Database
+from mythos.core.runtime import ApplicationRuntime
 from mythos.endpoints.cache import RequestCache
 from mythos.endpoints.dispatcher import EndpointDispatcher
 from mythos.endpoints.router import router as endpoint_router
-from mythos.registry.files import FileRegistry
-from mythos.registry.modules import ModuleRegistry, build_module_registry
-from mythos.registry.scripts import ScriptRegistry
+from mythos.registry.bundle import RegistryBundle
+from mythos.players.factory import PlayerFactory
 from mythos.services.container import ServiceContainer
 from mythos.services.files.router import router as files_router
 from mythos.services.scripts.router import router as scripts_router
@@ -20,31 +20,30 @@ from mythos.services.scripts.router import router as scripts_router
 
 def create_app(
     settings: Settings | None = None,
-    module_registry: ModuleRegistry | None = None,
-    file_registry: FileRegistry | None = None,
-    script_registry: ScriptRegistry | None = None,
+    registries: RegistryBundle | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
-    modules = module_registry or build_module_registry()
-    files = file_registry or FileRegistry()
-    scripts = script_registry or ScriptRegistry()
+    registered_content = registries or RegistryBundle()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
+        catalogs = registered_content.freeze()
         database = Database(resolved_settings.database_url)
-        modules.freeze()
-        files.freeze()
-        scripts.freeze()
-        application.state.settings = resolved_settings
-        application.state.database = database
-        application.state.module_registry = modules
-        application.state.services = ServiceContainer.create(files, scripts)
-        application.state.endpoint_dispatcher = EndpointDispatcher(
-            modules,
+        player_factory = PlayerFactory()
+        endpoint_dispatcher = EndpointDispatcher(
+            catalogs.modules,
             RequestCache(
                 maxsize=resolved_settings.request_cache_maxsize,
                 ttl_seconds=resolved_settings.request_cache_ttl_seconds,
             ),
+        )
+        application.state.settings = resolved_settings
+        application.state.database = database
+        application.state.runtime = ApplicationRuntime(
+            catalogs=catalogs,
+            player_factory=player_factory,
+            services=ServiceContainer.create(catalogs.files, catalogs.scripts),
+            endpoint_dispatcher=endpoint_dispatcher,
         )
         try:
             yield

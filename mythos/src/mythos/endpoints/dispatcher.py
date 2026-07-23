@@ -19,11 +19,11 @@ from mythos.endpoints.execution import ActionRuntime, ResponseBodyBuilder, execu
 from mythos.endpoints.models import ActionExecutionResult
 from mythos.players.context import PlayerRequestContext
 from mythos.players.factory import PlayerFactory
-from mythos.registry.modules import ModuleRegistry
+from mythos.registry.modules import ModuleCatalog
 
 
 class EndpointDispatcher:
-    def __init__(self, catalog: ModuleRegistry, request_cache: RequestCache) -> None:
+    def __init__(self, catalog: ModuleCatalog, request_cache: RequestCache) -> None:
         self._catalog = catalog
         self._request_cache = request_cache
 

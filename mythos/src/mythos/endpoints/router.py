@@ -15,13 +15,13 @@ from mythos.endpoints.cache import RequestInProgressError, RequestReplayForbidde
 from mythos.endpoints.dispatcher import EndpointDispatcher
 from mythos.endpoints.models import ActionExecutionResult, CommandRequest
 from mythos.players.factory import PlayerNotFoundError
-from mythos.registry.modules import CallbackNotFoundError, EndpointNotFoundError
+from mythos.registry.errors import CallbackNotFoundError, EndpointNotFoundError
 
 router = APIRouter(tags=["endpoints"])
 
 
 def _dispatcher_from_request(request: Request) -> EndpointDispatcher:
-    return request.app.state.endpoint_dispatcher
+    return request.app.state.runtime.endpoint_dispatcher
 
 
 def _command_response(result: ActionExecutionResult) -> JSONResponse:

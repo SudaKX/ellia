@@ -6,11 +6,23 @@
 
 - `persistence/` 保存 SQLAlchemy 记录模型。`PlayerRecord` 是数据库记录，不向业务模块暴露。
 - `players/` 提供请求级 `Player` 聚合对象及其数据库访问 Interface。
-- `services/` 保存应用级全局 Service。Service 仅读取 Player 和冻结后的注册内容，不保存请求、Session 或玩家状态。
-- `registry/` 按动态内容类型维护注册和冻结逻辑。
+- `services/` 保存应用级全局 Service。Service 接收请求级 Player 和冻结后的 Catalog，不保存请求、Session 或玩家状态。
+- `registry/` 按动态内容类型维护注册期对象，并冻结为运行期 Catalog。
 - `endpoints/` 负责 HTTP、Action、事务、RequestCache 和模块回调派发。
 
-## 2. Player 与 Interface
+## 2. Registry 与 Runtime
+
+`RegistryBundle` 组合 modules、files 和 scripts 三类注册期对象。模块在应用启动前显式调用 `register(registries)`；`RegistryBundle.freeze()` 生成不可变的 `RuntimeCatalogs`。
+
+```text
+RegistryBundle -> RuntimeCatalogs -> ApplicationRuntime
+```
+
+`ApplicationRuntime` 保存运行期 Catalog、PlayerFactory、全局 Service 和 EndpointDispatcher，并通过 `app.state.runtime` 提供给 Router。Service 使用具体 `Player` 调用模块注册的纯 Read 权限函数；Registry 不创建或保存 Player。
+
+ProgressGraph、模块进度 DAG、多进度线持久化和 checkpoint 回退尚未实现，继续使用现有单一 `PlayerProgress` 状态字段。
+
+## 3. Player 与 Interface
 
 `PlayerFactory` 在每个请求中以 `AsyncSession` 和 JWT 身份创建一个 `Player`。`Player` 组合多个 Interface；V2 初始仅实现 `ProgressInterface`。
 
@@ -21,7 +33,7 @@ Player
 
 Interface 的读取方法返回当前数据库快照。写入方法不直接写数据库，而是返回框架创建的 `PendingEffect`。只读 Player 不能构造写入 Effect，供视图回调和 Service 路由使用。
 
-## 3. Effect 与事务
+## 4. Effect 与事务
 
 模块回调先通过 Player 读取前置条件，再按业务顺序组织 `PendingEffectPlan` 并返回 `EffectAction`。Plan 仅收集和冻结 Effect，不使用 preview 或内存状态投影。
 
@@ -29,7 +41,7 @@ Interface 的读取方法返回当前数据库快照。写入方法不直接写�
 
 V2 暂不提供统一的乐观锁或并发版本保护。具体 Interface 在出现真实并发约束时，于其 Effect 执行回调中定义条件更新、唯一约束或其他保护机制。
 
-## 4. Service
+## 5. Service
 
 每个 Service 是启动期创建一次的全局对象，并拥有自己的 FastAPI Router：
 
@@ -38,12 +50,12 @@ services/files/    # FileService 与文件 API
 services/scripts/  # ScriptService 与演出脚本 API
 ```
 
-Service 通过请求级只读 Player 判断内容可见性。需要写入玩家状态的操作必须使用命令回调和 EffectAction，而不能在 Service 的 GET 路由中直接执行。
+Service 通过请求级 Player 判断内容可见性。当前 GET Router 使用 `writable=False`；未来需要写入的 Service Router 必须使用 `writable=True`，并复用命令事务、Request-ID 和 EffectAction，不能直接提交 Session。
 
-## 5. Registry
+## 6. Registry
 
-- `registry/modules.py`：模块注册、视图回调和命令回调。
-- `registry/files.py`：虚拟文件、路径、revision、内容和访问规则。
-- `registry/scripts.py`：演出脚本、revision 和访问规则。
+- `registry/modules/`：模块注册、视图回调和命令回调。
+- `registry/files/`：虚拟文件、路径、revision、内容和访问规则。
+- `registry/scripts/`：演出脚本、revision 和访问规则。
 
-`main.py` 显式导入谜题模块并调用其 `register(registrar)`。所有 Registry 在应用启动时冻结；V2 当前允许显式注册列表为空。
+`main.py` 显式导入谜题模块并调用其 `register(registries)`。所有 Registry 在应用启动时冻结；V2 当前允许显式注册列表为空。

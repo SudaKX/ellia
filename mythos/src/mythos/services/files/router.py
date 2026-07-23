@@ -9,28 +9,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
 from mythos.core.dependencies import get_session
-from mythos.players.factory import PlayerFactory, PlayerNotFoundError
-from mythos.registry.modules import RegistryError
+from mythos.core.runtime import ApplicationRuntime
+from mythos.players.factory import PlayerNotFoundError
+from mythos.registry.errors import RegistryError
 from mythos.services.files.service import FileAccessDeniedError, FileService
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-def _service(request: Request) -> FileService:
-    return request.app.state.services.files
+def _runtime(request: Request) -> ApplicationRuntime:
+    return request.app.state.runtime
 
 
 @router.get("")
 async def list_files(
     identity: Annotated[PlayerIdentity, Depends(get_current_player)],
     session: Annotated[AsyncSession, Depends(get_session)],
-    service: Annotated[FileService, Depends(_service)],
+    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
 ) -> dict[str, object]:
     try:
-        player = await PlayerFactory.load(session, identity.player_id, writable=False)
+        player = await runtime.player_factory.load(session, identity.player_id, writable=False)
     except PlayerNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
-    return {"items": [{"stable_id": file.stable_id, "path": file.path, "revision": file.revision} for file in service.list_files(player)]}
+    return {"items": [{"stable_id": file.stable_id, "path": file.path, "revision": file.revision} for file in runtime.services.files.list_files(player)]}
 
 
 @router.get("/{stable_id}")
@@ -38,11 +39,11 @@ async def read_file(
     stable_id: str,
     identity: Annotated[PlayerIdentity, Depends(get_current_player)],
     session: Annotated[AsyncSession, Depends(get_session)],
-    service: Annotated[FileService, Depends(_service)],
+    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
 ) -> Response:
     try:
-        player = await PlayerFactory.load(session, identity.player_id, writable=False)
-        file = service.read(player, stable_id)
+        player = await runtime.player_factory.load(session, identity.player_id, writable=False)
+        file = runtime.services.files.read(player, stable_id)
     except PlayerNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
     except FileAccessDeniedError as error:

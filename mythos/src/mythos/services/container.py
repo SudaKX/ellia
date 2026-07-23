@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mythos.registry.files import FileRegistry
-from mythos.registry.scripts import ScriptRegistry
+from mythos.registry.files import FileCatalog
+from mythos.registry.scripts import ScriptCatalog
 from mythos.services.files.service import FileService
 from mythos.services.scripts.service import ScriptService
 
@@ -14,5 +14,5 @@ class ServiceContainer:
     scripts: ScriptService
 
     @classmethod
-    def create(cls, file_registry: FileRegistry, script_registry: ScriptRegistry) -> ServiceContainer:
-        return cls(files=FileService(file_registry), scripts=ScriptService(script_registry))
+    def create(cls, file_catalog: FileCatalog, script_catalog: ScriptCatalog) -> ServiceContainer:
+        return cls(files=FileService(file_catalog), scripts=ScriptService(script_catalog))

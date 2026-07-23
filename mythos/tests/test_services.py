@@ -6,16 +6,16 @@ from pydantic import SecretStr
 from mythos.core.config import Settings
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.registry.files import FileRegistry, VirtualFile
-from mythos.registry.scripts import Script, ScriptRegistry
+from mythos.registry.bundle import RegistryBundle
+from mythos.registry.files import VirtualFile
+from mythos.registry.scripts import Script
 
 
 def test_global_services_read_frozen_registered_content(tmp_path) -> None:
     async def scenario() -> None:
-        files = FileRegistry()
-        files.register(VirtualFile("test.readme", "/README.txt", "1", b"hello", "text/plain"))
-        scripts = ScriptRegistry()
-        scripts.register(Script("test.intro", "1", {"lines": ["hello"]}))
+        registries = RegistryBundle()
+        registries.files.register(VirtualFile("test.readme", "/README.txt", "1", b"hello", "text/plain"))
+        registries.scripts.register(Script("test.intro", "1", {"lines": ["hello"]}))
         settings = Settings(
             environment="test",
             database_url=f"sqlite+aiosqlite:///{(tmp_path / 'services.sqlite3').as_posix()}",
@@ -23,11 +23,11 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
             refresh_cookie_secure=False,
         )
-        app = create_app(settings, file_registry=files, script_registry=scripts)
+        app = create_app(settings, registries=registries)
 
         async with app.router.lifespan_context(app):
-            first_services = app.state.services
-            assert first_services is app.state.services
+            first_services = app.state.runtime.services
+            assert first_services is app.state.runtime.services
             async with app.state.database.engine.begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
 
