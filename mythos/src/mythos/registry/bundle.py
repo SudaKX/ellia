@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.registry.files import FileCatalog, FileRegistry
+from mythos.registry.files import FileRegistry, FileTree
 from mythos.registry.modules import ModuleCatalog, ModuleRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 
@@ -11,7 +11,7 @@ from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 @dataclass(frozen=True)
 class RuntimeCatalogs:
     modules: ModuleCatalog
-    files: FileCatalog
+    files: FileTree
     scripts: ScriptCatalog
 
 

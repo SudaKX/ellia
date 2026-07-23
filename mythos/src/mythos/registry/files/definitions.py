@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, TypeAlias
 if TYPE_CHECKING:
     from mythos.players.player import Player
 
-FileAccessRule: TypeAlias = Callable[["Player"], bool]
+NodeAccessRule: TypeAlias = Callable[["Player"], bool]
 
 
 @dataclass(frozen=True)
@@ -33,10 +33,15 @@ class ObjectReference:
 
 
 @dataclass(frozen=True)
-class VirtualFile:
+class FileContent:
+    object_ref: ObjectReference
+    download_name: str
+
+
+@dataclass(frozen=True)
+class VirtualNode:
     stable_id: str
     path: str
     revision: str
-    object_ref: ObjectReference
-    download_name: str
-    access_rule: FileAccessRule | None = None
+    content: FileContent | None = None
+    access_rule: NodeAccessRule | None = None

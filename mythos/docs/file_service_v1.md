@@ -16,28 +16,32 @@ The public file ID is an opaque locator, not an authorization credential. Every 
 
 ## 2. Registration
 
-Puzzle modules register static files through `RegistryBundle.files`:
+Puzzle modules register file and directory Nodes through `RegistryBundle.files`:
 
 ```python
 registries.files.register(
-    VirtualFile(
+    VirtualNode(
         stable_id="intro.readme",
         path="/README.txt",
         revision="1",
-        object_ref=ObjectReference(
-            key="modules/intro/1/readme.txt",
-            content_digest="sha256:<64 lowercase hex characters>",
-            media_type="text/plain; charset=utf-8",
-            size_bytes=128,
-            version_id="<RustFS object version ID>",
+        content=FileContent(
+            object_ref=ObjectReference(
+                key="modules/intro/1/readme.txt",
+                content_digest="sha256:<64 lowercase hex characters>",
+                media_type="text/plain; charset=utf-8",
+                size_bytes=128,
+                version_id="<RustFS object version ID>",
+            ),
+            download_name="README.txt",
         ),
-        download_name="README.txt",
         access_rule=lambda player: player.progress.current_account == "PLAYER",
     )
 )
 ```
 
-Registration rejects duplicate stable IDs, duplicate virtual paths, non-canonical paths, unsafe download names and invalid object metadata. `FileRegistry.freeze()` creates an immutable `FileCatalog` with a private public-ID lookup map.
+Set `content=None` to register a directory Node. Directory Nodes can carry an `access_rule`, but have no public `file_id`, metadata or download URL. Empty explicit directories are rejected at freeze time.
+
+Registration rejects duplicate stable IDs, duplicate virtual paths, file/directory conflicts, file Nodes with child Nodes, non-canonical paths, unsafe download names and invalid object metadata. `FileRegistry.freeze()` creates an immutable `FileTree` with a private public-ID lookup map for file Nodes.
 
 ## 3. Authorization
 
@@ -48,7 +52,7 @@ The access rule receives the concrete request-level `Player`. It must be a pure 
 - It must not mutate global state, query HTTP state or call external services.
 - It must return `True` or `False`.
 
-All FileService routes load Player with `writable=False`.
+All FileService routes load Player with `writable=False`. File authorization checks every Node from the root to the target file. A denied directory blocks its whole subtree without evaluating child rules; after an allowed directory, unguarded children are visible and guarded children are checked recursively.
 
 ## 4. API
 
@@ -59,7 +63,7 @@ POST /api/v1/files/{file_id}/content-url
 POST /api/v1/files/{file_id}/download-url
 ```
 
-The directory endpoint derives directories from visible files. Invisible files and directories with no visible descendants are omitted.
+`FileTree` is built from virtual paths when the registry freezes. The directory endpoint traverses the requested subtree, returning only visible files and directories with visible descendants. Invisible files and directories with no visible descendants are omitted.
 
 Metadata, content URL and download URL requests re-evaluate authorization. Missing public IDs return `404`; inaccessible existing files return `403`.
 
