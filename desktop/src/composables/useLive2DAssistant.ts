@@ -166,6 +166,12 @@ export function useLive2DAssistant(options: UseLive2DAssistantOptions) {
         preserveDrawingBuffer: true,
       })
 
+      // 禁用 PixiJS 8 内置纹理 GC —— 它会删除 Cubism 仍在引用的贴图
+      const r = app.renderer as Record<string, any>
+      for (const key of ['textureGC', '_textureGC', 'textureGarbageCollector']) {
+        if (r[key]) { r[key].active = false; r[key].maxIdle = Infinity }
+      }
+
       app.canvas.style.display = 'block'
       app.canvas.style.width = '100%'
       app.canvas.style.height = '100%'
