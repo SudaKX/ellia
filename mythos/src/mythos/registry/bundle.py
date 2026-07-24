@@ -4,22 +4,22 @@ from dataclasses import dataclass
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.files import FileRegistry, FileTree
-from mythos.registry.modules import ModuleCatalog, ModuleRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
+from mythos.registry.validations import ValidationCatalog, ValidationRegistry
 
 
 @dataclass(frozen=True)
 class RuntimeCatalogs:
-    modules: ModuleCatalog
     files: FileTree
     scripts: ScriptCatalog
+    validations: ValidationCatalog
 
 
 class RegistryBundle:
     def __init__(self) -> None:
-        self.modules = ModuleRegistry()
         self.files = FileRegistry()
         self.scripts = ScriptRegistry()
+        self.validations = ValidationRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def freeze(self, file_ids: FileIdCodec) -> RuntimeCatalogs:
@@ -28,8 +28,8 @@ class RegistryBundle:
                 raise RuntimeError("RegistryBundle is already frozen with a different file ID key.")
             return self._catalogs
         self._catalogs = RuntimeCatalogs(
-            modules=self.modules.freeze(),
             files=self.files.freeze(file_ids),
             scripts=self.scripts.freeze(),
+            validations=self.validations.freeze(),
         )
         return self._catalogs

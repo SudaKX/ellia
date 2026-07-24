@@ -10,8 +10,7 @@ from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
 from mythos.endpoints.cache import RequestCache
-from mythos.endpoints.dispatcher import EndpointDispatcher
-from mythos.endpoints.router import router as endpoint_router
+from mythos.endpoints.command_executor import ActionTransactionExecutor
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.factory import PlayerFactory
 from mythos.services.container import ServiceContainer
@@ -19,6 +18,7 @@ from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
 from mythos.services.files.router import router as files_router
 from mythos.services.scripts.router import router as scripts_router
+from mythos.services.validations.router import router as validations_router
 
 
 def create_app(
@@ -36,8 +36,8 @@ def create_app(
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
         player_factory = PlayerFactory()
-        endpoint_dispatcher = EndpointDispatcher(
-            catalogs.modules,
+        action_executor = ActionTransactionExecutor(
+            player_factory,
             RequestCache(
                 maxsize=resolved_settings.request_cache_maxsize,
                 ttl_seconds=resolved_settings.request_cache_ttl_seconds,
@@ -51,11 +51,12 @@ def create_app(
             services=ServiceContainer.create(
                 catalogs.files,
                 catalogs.scripts,
+                catalogs.validations,
                 resolved_object_store,
                 resolved_settings.file_download_url_ttl_seconds,
             ),
             object_store=resolved_object_store,
-            endpoint_dispatcher=endpoint_dispatcher,
+            action_executor=action_executor,
         )
         try:
             yield
@@ -68,9 +69,9 @@ def create_app(
         lifespan=lifespan,
     )
     application.include_router(auth_router, prefix="/api/v1")
-    application.include_router(endpoint_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")
+    application.include_router(validations_router, prefix="/api/v1")
 
     @application.get("/health", tags=["system"])
     async def healthcheck() -> dict[str, str]:

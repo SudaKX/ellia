@@ -7,10 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.core.config import Settings
 from mythos.core.database import Database
+from mythos.core.runtime import ApplicationRuntime
 
 
 def get_settings_from_request(request: Request) -> Settings:
     return request.app.state.settings
+
+
+def get_runtime(request: Request) -> ApplicationRuntime:
+    return request.app.state.runtime
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:

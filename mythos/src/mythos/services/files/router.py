@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from mythos.auth.dependencies import get_current_player
-from mythos.auth.tokens import PlayerIdentity
 from mythos.core.runtime import ApplicationRuntime
-from mythos.core.dependencies import get_session
-from mythos.players.factory import PlayerNotFoundError
+from mythos.core.dependencies import get_runtime
+from mythos.players.context import PlayerRequestContext
+from mythos.players.dependencies import get_read_context
 from mythos.registry.errors import RegistryError
 from mythos.services.files.service import FileAccessDeniedError, FileDirectoryNotFoundError
 from mythos.services.object_store.service import ObjectStoreError, ObjectStoreUnavailableError
@@ -17,31 +15,14 @@ from mythos.services.object_store.service import ObjectStoreError, ObjectStoreUn
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-def _runtime(request: Request) -> ApplicationRuntime:
-    return request.app.state.runtime
-
-
-async def _readonly_player(
-    session: AsyncSession,
-    identity: PlayerIdentity,
-    runtime: ApplicationRuntime,
-):
-    try:
-        return await runtime.player_factory.load(session, identity.player_id, writable=False)
-    except PlayerNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
-
-
 @router.get("")
 async def list_files(
-    identity: Annotated[PlayerIdentity, Depends(get_current_player)],
-    session: Annotated[AsyncSession, Depends(get_session)],
-    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
+    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
-    player = await _readonly_player(session, identity, runtime)
     try:
-        listing = runtime.services.files.list_directory(player, path)
+        listing = runtime.services.files.list_directory(context.player, path)
     except FileDirectoryNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Directory not found.") from error
     return {
@@ -55,36 +36,32 @@ async def list_files(
 async def issue_content_url(
     file_id: str,
     response: Response,
-    identity: Annotated[PlayerIdentity, Depends(get_current_player)],
-    session: Annotated[AsyncSession, Depends(get_session)],
-    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
+    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
-    return await _issue_url(file_id, "content", session, identity, runtime)
+    return await _issue_url(file_id, "content", context, runtime)
 
 
 @router.post("/{file_id}/download-url")
 async def issue_download_url(
     file_id: str,
     response: Response,
-    identity: Annotated[PlayerIdentity, Depends(get_current_player)],
-    session: Annotated[AsyncSession, Depends(get_session)],
-    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
+    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
-    return await _issue_url(file_id, "download", session, identity, runtime)
+    return await _issue_url(file_id, "download", context, runtime)
 
 
 @router.get("/{file_id}")
 async def file_metadata(
     file_id: str,
-    identity: Annotated[PlayerIdentity, Depends(get_current_player)],
-    session: Annotated[AsyncSession, Depends(get_session)],
-    runtime: Annotated[ApplicationRuntime, Depends(_runtime)],
+    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, object]:
-    player = await _readonly_player(session, identity, runtime)
     try:
-        return runtime.services.files.metadata(player, file_id).__dict__
+        return runtime.services.files.metadata(context.player, file_id).__dict__
     except FileAccessDeniedError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="File access denied.") from error
     except RegistryError as error:
@@ -94,16 +71,14 @@ async def file_metadata(
 async def _issue_url(
     file_id: str,
     kind: str,
-    session: AsyncSession,
-    identity: PlayerIdentity,
+    context: PlayerRequestContext,
     runtime: ApplicationRuntime,
 ) -> dict[str, str]:
-    player = await _readonly_player(session, identity, runtime)
     try:
         if kind == "content":
-            issued = await runtime.services.files.issue_content_url(player, file_id)
+            issued = await runtime.services.files.issue_content_url(context.player, file_id)
         else:
-            issued = await runtime.services.files.issue_download_url(player, file_id)
+            issued = await runtime.services.files.issue_download_url(context.player, file_id)
     except FileAccessDeniedError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="File access denied.") from error
     except RegistryError as error:

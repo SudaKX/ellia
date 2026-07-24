@@ -101,7 +101,7 @@ PlayerRequestContext
 
 框架预定义 HTTP 端点，模块只能向已有端点注册回调。所有回调使用全局唯一、不可重命名的 `stable_id`。
 
-V1 的通用端点为：
+V1 曾使用以下通用端点；它们已在 V2 中移除，改由语义化 Service 端点替代：
 
 ```text
 GET  /api/v1/views/{endpoint_id}

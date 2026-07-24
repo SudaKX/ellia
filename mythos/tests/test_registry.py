@@ -1,61 +1,37 @@
-import asyncio
-
 import pytest
 
-from mythos.endpoints import ResponseAction
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import (
     DuplicateStableIdError,
-    EndpointNotFoundError,
     RegistryError,
     RegistryFrozenError,
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.files import FileContent, FileRegistry, ObjectReference, VirtualNode
-from mythos.registry.modules import ModuleRegistry
 from mythos.registry.scripts import Script
+from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationRegistry
 
 
-async def _view_callback(_context):
-    return (ResponseAction({"ok": True}),)
+async def _attempt_handler(_context, _payload):
+    return ()
 
 
-async def _command_callback(_context, _payload):
-    return (ResponseAction({"ok": True}),)
-
-
-def test_catalog_rejects_duplicate_stable_ids_and_freezes() -> None:
-    registry = ModuleRegistry()
-    registry.register_view("dashboard", "test.dashboard", _view_callback, priority=5)
+def test_validation_registry_rejects_duplicates_and_freezes() -> None:
+    registry = ValidationRegistry()
+    attempt = ValidationAttempt("test.validation", "test-validation", _attempt_handler)
+    registry.register_attempt(attempt)
 
     with pytest.raises(DuplicateStableIdError):
-        registry.register_command("progress", "test.dashboard", _command_callback)
+        registry.register_attempt(ValidationAttempt("test.validation", "other-validation", _attempt_handler))
+    with pytest.raises(RegistryError, match="must be unique"):
+        registry.register_attempt(ValidationAttempt("test.other", "test-validation", _attempt_handler))
 
-    registry.register_view("dashboard", "test.dashboard.priority", _view_callback, priority=1)
     catalog = registry.freeze()
-
-    assert [entry.stable_id for entry in catalog.view_callbacks("dashboard")] == [
-        "test.dashboard.priority",
-        "test.dashboard",
-    ]
-
+    assert catalog.attempt("test-validation") is attempt
+    with pytest.raises(ValidationAttemptNotFoundError):
+        catalog.attempt("missing")
     with pytest.raises(RegistryFrozenError):
-        registry.register_command("progress", "test.command", _command_callback)
-    with pytest.raises(EndpointNotFoundError):
-        catalog.view_callbacks("missing")
-
-
-def test_catalog_dispatches_registered_command() -> None:
-    async def scenario() -> None:
-        registry = ModuleRegistry()
-        registry.register_command("progress", "test.progress", _command_callback)
-        catalog = registry.freeze()
-
-        callback = catalog.command_callback("progress", "test.progress").callback
-        actions = await callback(None, {})
-        assert actions[0].body == {"ok": True}
-
-    asyncio.run(scenario())
+        registry.register_attempt(ValidationAttempt("test.later", "later", _attempt_handler))
 
 
 def test_registry_bundle_freezes_runtime_catalogs() -> None:
@@ -72,6 +48,7 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
         )
     )
     registries.scripts.register(Script("test.script", "1", {"lines": []}))
+    registries.validations.register_attempt(ValidationAttempt("test.validation", "test-validation", _attempt_handler))
 
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
     file_tree = registries.files.freeze(file_ids)
@@ -83,6 +60,7 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
     assert file.definition.content is not None
     assert file.definition.content.object_ref.size_bytes == 4
     assert [item.stable_id for item in catalogs.scripts.visible(None)] == ["test.script"]
+    assert catalogs.validations.attempt("test-validation").stable_id == "test.validation"
     assert registries.freeze(file_ids) is catalogs
     with pytest.raises(RuntimeError, match="different file ID key"):
         registries.freeze(FileIdCodec("another-file-id-signing-key-with-at-least-32-bytes"))
