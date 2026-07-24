@@ -39,6 +39,13 @@ const applications: DesktopApplication[] = [
     groupKey: 'applicationGroups.system',
     availability: 'available',
   },
+  {
+    id: 'ascii',
+    nameKey: 'applications.ascii.title',
+    descriptionKey: 'applications.ascii.description',
+    groupKey: 'applicationGroups.creative',
+    availability: 'available',
+  },
 ]
 
 export const useDesktopStore = defineStore('desktop', () => {
@@ -46,6 +53,13 @@ export const useDesktopStore = defineStore('desktop', () => {
   const availableApplications = computed(() => applications.filter((app) => app.availability === 'available'))
   const currentUser = ref('PLAYER')
   const privilegeClass = ref('LIMITED')
+
+  // 锁定页状态
+  const isLocked = ref(false)
+  const lockSessionId = ref<string | null>(null)
+  const lockChallengeNonce = ref<string | null>(null)
+  const guaranteeAccepted = ref(false)
+  const logoutDisabled = ref(false)
 
   function toggleApplicationOverview() {
     isApplicationOverviewOpen.value = !isApplicationOverviewOpen.value
@@ -55,13 +69,72 @@ export const useDesktopStore = defineStore('desktop', () => {
     isApplicationOverviewOpen.value = false
   }
 
+  /** 触发锁定页 */
+  function triggerLock(sessionId?: string, nonce?: string) {
+    // TODO: 后端就绪后，通过 POST /api/lock/init 获取 sessionId 和 nonce
+    lockSessionId.value = sessionId ?? 'lock_sess_dev'
+    lockChallengeNonce.value = nonce ?? Math.random().toString(36).slice(2, 10)
+    isLocked.value = true
+
+    // 持久化到 sessionStorage，支持刷新恢复
+    sessionStorage.setItem(
+      'ell_lock_active',
+      JSON.stringify({
+        sessionId: lockSessionId.value,
+        nonce: lockChallengeNonce.value,
+      }),
+    )
+  }
+
+  /** 解锁成功 */
+  function resolveLock() {
+    isLocked.value = false
+    lockSessionId.value = null
+    lockChallengeNonce.value = null
+    sessionStorage.removeItem('ell_lock_active')
+  }
+
+  /** 接受保证 */
+  function acceptGuarantee() {
+    guaranteeAccepted.value = true
+    logoutDisabled.value = true
+    isLocked.value = false
+    lockSessionId.value = null
+    lockChallengeNonce.value = null
+    sessionStorage.removeItem('ell_lock_active')
+  }
+
+  /** 从 sessionStorage 恢复锁定状态（页面刷新后调用） */
+  function rehydrateLock() {
+    const saved = sessionStorage.getItem('ell_lock_active')
+    if (!saved) return
+
+    try {
+      const { sessionId, nonce } = JSON.parse(saved)
+      lockSessionId.value = sessionId
+      lockChallengeNonce.value = nonce
+      isLocked.value = true
+    } catch {
+      sessionStorage.removeItem('ell_lock_active')
+    }
+  }
+
   return {
     applications,
     availableApplications,
     isApplicationOverviewOpen,
     currentUser,
     privilegeClass,
+    isLocked,
+    lockSessionId,
+    lockChallengeNonce,
+    guaranteeAccepted,
+    logoutDisabled,
     toggleApplicationOverview,
     closeApplicationOverview,
+    triggerLock,
+    resolveLock,
+    acceptGuarantee,
+    rehydrateLock,
   }
 })

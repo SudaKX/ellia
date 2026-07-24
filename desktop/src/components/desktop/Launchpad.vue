@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Archive, FileText, LockKeyhole, Settings, TerminalSquare, X } from 'lucide-vue-next'
+import { Archive, FileCode, FileText, LockKeyhole, Settings, TerminalSquare, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import type { ApplicationId, DesktopApplication } from '@/types/desktop'
@@ -21,6 +21,7 @@ const applicationIconMap: Record<ApplicationId, typeof FileText> = {
   terminal: TerminalSquare,
   sandbox: LockKeyhole,
   settings: Settings,
+  ascii: FileCode,
 }
 
 function iconFor(applicationId: ApplicationId) {

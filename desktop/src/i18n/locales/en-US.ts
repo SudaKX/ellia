@@ -11,6 +11,7 @@ export const enUS = {
   applicationGroups: {
     system: 'System',
     restricted: 'Restricted',
+    creative: 'Creative',
   },
   applications: {
     files: {
@@ -32,6 +33,10 @@ export const enUS = {
     settings: {
       title: 'Settings',
       description: 'Configure desktop preferences.',
+    },
+    ascii: {
+      title: 'ASCII Flow',
+      description: 'Variable typographic text reflow visualizer.',
     },
   },
   settings: {

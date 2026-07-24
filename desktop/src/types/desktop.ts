@@ -40,7 +40,7 @@ import type { Component } from 'vue'
 
 import type { FilterType } from '@/registries/filters'
 
-export type ApplicationId = 'files' | 'archive' | 'terminal' | 'sandbox' | 'settings'
+export type ApplicationId = 'files' | 'archive' | 'terminal' | 'sandbox' | 'settings' | 'ascii'
 
 /** 静态应用元数据，用于 Launchpad 展示 */
 export interface DesktopApplication {
