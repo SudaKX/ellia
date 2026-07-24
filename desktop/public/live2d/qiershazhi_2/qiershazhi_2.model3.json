@@ -4,7 +4,7 @@
   "FileReferences": {
     "Moc": "qiershazhi_2.moc3",
     "Textures": [
-      "textures/texture_00.png"
+      "textures/texture_00.webp"
     ],
     "Physics": "qiershazhi_2.physics3.json",
     "Pose": null,
