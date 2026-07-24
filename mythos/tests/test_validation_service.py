@@ -5,11 +5,10 @@ import httpx
 from pydantic import SecretStr
 
 from mythos.core.config import Settings
-from mythos.endpoints import EffectAction, FollowupAction, PendingEffectPlan, RejectAction, ResponseAction
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.validations import ValidationAttempt
+from mythos.registry.validations import ValidationAttempt, ValidationOutcome
 
 
 def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
@@ -17,29 +16,28 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
         started = asyncio.Event()
         release = asyncio.Event()
         calls = {"checkpoint": 0, "retry": 0}
+        retry_versions: list[int] = []
         registries = RegistryBundle()
 
         async def checkpoint_handler(context, payload):
             calls["checkpoint"] += 1
             checkpoint = payload["checkpoint"]
-            plan = PendingEffectPlan().add(context.player.progress.set_checkpoint(checkpoint))
-            return (
-                EffectAction(plan),
-                ResponseAction({"checkpoint": checkpoint}),
-                FollowupAction({"event": "checkpoint-set"}),
-            )
+            context.player.progress.set_checkpoint(checkpoint)
+            context.follow({"event": "checkpoint-set"})
+            return ValidationOutcome(accepted=True, checkpoint=checkpoint)
 
         async def retry_handler(context, _payload):
             calls["retry"] += 1
-            plan = PendingEffectPlan().add(context.player.progress.set_checkpoint("retry"))
+            context.player.progress.set_checkpoint("retry")
             if calls["retry"] == 1:
-                return (EffectAction(plan), RejectAction(409, "retry command"))
-            return (EffectAction(plan), ResponseAction({"checkpoint": "retry"}))
+                context.reject(409, "retry command")
+            retry_versions.append(context.player.progress.version)
+            return ValidationOutcome(accepted=True, checkpoint="retry")
 
         async def waiting_handler(_context, _payload):
             started.set()
             await release.wait()
-            return (ResponseAction({"finished": True}),)
+            return ValidationOutcome(accepted=True, checkpoint=None)
 
         registries.validations.register_attempt(
             ValidationAttempt("test.validation.checkpoint", "checkpoint", checkpoint_handler)
@@ -95,9 +93,8 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 )
                 assert first.status_code == duplicate.status_code == 200
                 assert first.json() == duplicate.json() == {
-                    "data": {"checkpoint": "first"},
+                    "content": {"accepted": True, "checkpoint": "first"},
                     "followups": [{"event": "checkpoint-set"}],
-                    "state_revision": 2,
                 }
                 assert calls["checkpoint"] == 1
 
@@ -139,8 +136,9 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 )
                 assert first_retry.status_code == 409
                 assert second_retry.status_code == 200
-                assert second_retry.json()["state_revision"] == 3
+                assert second_retry.json()["content"] == {"accepted": True, "checkpoint": "retry"}
                 assert calls["retry"] == 2
+                assert retry_versions == [3]
 
                 wait_id = str(uuid4())
                 wait_headers = {**headers, "Request-ID": wait_id}

@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from mythos.endpoints.actions import Action
-from mythos.players.context import PlayerRequestContext
+from mythos.core.commands.models import ResponseSpec
+from mythos.players.context import CommandContext
 from mythos.registry.validations import ValidationAttempt, ValidationCatalog
 
 
@@ -17,8 +17,16 @@ class ValidationService:
 
     async def submit(
         self,
-        context: PlayerRequestContext,
+        context: CommandContext,
         attempt: ValidationAttempt,
         payload: Mapping[str, Any],
-    ) -> tuple[Action, ...]:
-        return await attempt.handler(context, payload)
+    ) -> ResponseSpec:
+        outcome = await attempt.handler(context, payload)
+        return ResponseSpec(
+            status_code=200,
+            body={
+                "accepted": outcome.accepted,
+                "checkpoint": outcome.checkpoint,
+            },
+            headers={},
+        )

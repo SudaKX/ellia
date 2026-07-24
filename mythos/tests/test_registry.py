@@ -9,11 +9,11 @@ from mythos.registry.errors import (
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.files import FileContent, FileRegistry, ObjectReference, VirtualNode
 from mythos.registry.scripts import Script
-from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationRegistry
+from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationOutcome, ValidationRegistry
 
 
 async def _attempt_handler(_context, _payload):
-    return ()
+    return ValidationOutcome(accepted=True, checkpoint=None)
 
 
 def test_validation_registry_rejects_duplicates_and_freezes() -> None:

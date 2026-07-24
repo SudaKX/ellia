@@ -5,7 +5,7 @@ from uuid import UUID
 
 from cachetools import TTLCache
 
-from mythos.endpoints.models import ActionExecutionResult
+from mythos.core.commands.models import CachedResponse
 
 _MISSING = object()
 
@@ -27,14 +27,11 @@ class RequestCache:
         timer: Callable[[], float] | None = None,
     ) -> None:
         if timer is None:
-            self._entries: TTLCache[UUID, ActionExecutionResult | None] = TTLCache(
-                maxsize=maxsize,
-                ttl=ttl_seconds,
-            )
+            self._entries: TTLCache[UUID, CachedResponse | None] = TTLCache(maxsize=maxsize, ttl=ttl_seconds)
         else:
             self._entries = TTLCache(maxsize=maxsize, ttl=ttl_seconds, timer=timer)
 
-    def reserve(self, request_id: UUID, player_id: UUID) -> ActionExecutionResult | None:
+    def reserve(self, request_id: UUID, player_id: UUID) -> CachedResponse | None:
         entry = self._entries.get(request_id, _MISSING)
         if entry is _MISSING:
             self._entries[request_id] = None
@@ -45,8 +42,8 @@ class RequestCache:
             raise RequestReplayForbiddenError
         return entry
 
-    def complete(self, request_id: UUID, result: ActionExecutionResult) -> None:
-        self._entries[request_id] = result
+    def complete(self, request_id: UUID, response: CachedResponse) -> None:
+        self._entries[request_id] = response
 
     def release(self, request_id: UUID) -> None:
         self._entries.pop(request_id, None)

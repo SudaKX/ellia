@@ -1,6 +1,6 @@
 # Mythos 后端设计 V2
 
-本文取代 V1 中与玩家访问、Effect、Service 和注册器有关的约定。认证、异步 SQLite、JWT、Refresh Cookie 和 Request-ID 短时去重保持不变。
+本文取代 V1 中与玩家访问、Action、Effect、Service 和注册器有关的约定。认证、异步 SQLite、JWT、Refresh Cookie 和 Request-ID 短时去重保持不变。
 
 ## 1. 分层
 
@@ -8,7 +8,8 @@
 - `players/` 提供请求级 `Player` 聚合对象及其数据库访问 Interface。
 - `services/` 保存应用级全局 Service。Service 接收请求级 Player 和冻结后的 Catalog，不保存请求、Session 或玩家状态。
 - `registry/` 按动态内容类型维护注册期对象，并冻结为运行期 Catalog。
-- `endpoints/` 提供 Action、命令事务和 RequestCache 等框架执行工具。
+- `core/commands/` 提供命令事务、RequestCache 和可缓存响应模型。
+- `core/followups.py` 提供跨 Service 的客户端 followup 协议。
 
 ## 2. Registry 与 Runtime
 
@@ -18,7 +19,7 @@
 RegistryBundle -> RuntimeCatalogs -> ApplicationRuntime
 ```
 
-`ApplicationRuntime` 保存运行期 Catalog、PlayerFactory、全局 Service 和 `ActionTransactionExecutor`，并通过 `app.state.runtime` 提供给 Router。Service 使用具体 `Player` 调用模块注册的纯 Read 权限函数；Registry 不创建或保存 Player。
+`ApplicationRuntime` 保存运行期 Catalog、PlayerFactory、全局 Service 和 `CommandTransactionExecutor`，并通过 `app.state.runtime` 提供给 Router。Service 使用具体 `Player` 调用模块注册的纯 Read 权限函数；Registry 不创建或保存 Player。
 
 ProgressGraph、模块进度 DAG、多进度线持久化和 checkpoint 回退尚未实现，继续使用现有单一 `PlayerProgress` 状态字段。
 
@@ -31,15 +32,15 @@ Player
 └── progress: ProgressInterface
 ```
 
-Interface 的读取方法返回当前数据库快照。写入方法不直接写数据库，而是返回框架创建的 `PendingEffect`。只读 Player 不能构造写入 Effect，供视图回调和 Service 路由使用。
+`RequestContext` 包含身份、只读或可写 Player 与私有 followup 收集器。`CommandContext` 在此基础上携带非空 `Request-ID`，仅由 `CommandTransactionExecutor` 在事务内创建。只读 Player 不能修改 Interface 状态；可写 Player 的 Interface 直接修改受当前 Session 追踪的 ORM 记录，模块不能取得 Session 或自行提交事务。
 
-## 4. Effect 与事务
+## 4. 命令事务
 
-命令型模块 handler 先通过 Player 读取前置条件，再按业务顺序组织 `PendingEffectPlan` 并返回 `EffectAction`。Plan 仅收集和冻结 Effect，不使用 preview 或内存状态投影。
+命令型模块 handler 先通过 Player 读取前置条件，直接调用可写 Interface 修改状态，并返回由具体 Registry 定义的领域 Outcome。Service 将 Outcome 映射为 `ResponseSpec`，因此框架不要求通用的模块 handler 返回类型。
 
-每个 Effect 绑定其 Interface 的私有执行回调。`ActionTransactionExecutor` 在语义化命令 handler 的外层数据库事务内依次调用回调。任一回调失败时，事务回滚；成功提交后才构造和缓存 HTTP 响应。
+`CommandTransactionExecutor` 在语义化命令 handler 的外层开启数据库事务，负责 Request-ID reserve、可写 Context、提交、回滚和缓存。Service 的 `ResponseSpec.body` 是领域 content；Executor 在事务内冻结 Context followups，组装 `{ "content": ..., "followups": ... }` 后才提交和缓存最终响应。任一异常、拒绝、非法响应或非法 followup 都会回滚事务并释放 Request-ID 占位。
 
-V2 暂不提供统一的乐观锁或并发版本保护。具体 Interface 在出现真实并发约束时，于其 Effect 执行回调中定义条件更新、唯一约束或其他保护机制。
+V2 暂不提供统一的乐观锁或并发版本保护。具体 Interface 或 Service 在出现真实并发约束时定义条件更新、SQLAlchemy versioning、唯一约束或其他保护机制。版本字段是否返回给客户端由具体 Service 决定，Executor 不注入全局状态版本。
 
 ## 5. Service
 
@@ -51,7 +52,7 @@ services/scripts/  # ScriptService 与演出脚本 API
 services/validations/ # ValidationService 与验证提交 API
 ```
 
-Service 通过请求级 Player 判断内容可见性。GET Router 通过 `get_read_context()` 使用 `writable=False`；写入 Router 通过 `ActionTransactionExecutor` 创建 `writable=True` Context，并复用命令事务、Request-ID 和 EffectAction，不能直接提交 Session。
+Service 通过请求级 Player 判断内容可见性。GET Router 通过 `get_read_context()` 使用 `writable=False` 的 `RequestContext`；写入 Router 通过 `CommandTransactionExecutor` 创建 `writable=True` 的 `CommandContext`，并复用命令事务与 Request-ID，不能直接提交 Session。
 
 FileService 的静态对象存储、公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
 

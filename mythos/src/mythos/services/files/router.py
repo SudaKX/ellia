@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.dependencies import get_runtime
-from mythos.players.context import PlayerRequestContext
+from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_read_context
 from mythos.registry.errors import RegistryError
 from mythos.services.files.service import FileAccessDeniedError, FileDirectoryNotFoundError
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 @router.get("")
 async def list_files(
-    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    context: Annotated[RequestContext, Depends(get_read_context)],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -36,7 +36,7 @@ async def list_files(
 async def issue_content_url(
     file_id: str,
     response: Response,
-    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    context: Annotated[RequestContext, Depends(get_read_context)],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
@@ -47,7 +47,7 @@ async def issue_content_url(
 async def issue_download_url(
     file_id: str,
     response: Response,
-    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    context: Annotated[RequestContext, Depends(get_read_context)],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
@@ -57,7 +57,7 @@ async def issue_download_url(
 @router.get("/{file_id}")
 async def file_metadata(
     file_id: str,
-    context: Annotated[PlayerRequestContext, Depends(get_read_context)],
+    context: Annotated[RequestContext, Depends(get_read_context)],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, object]:
     try:
@@ -71,7 +71,7 @@ async def file_metadata(
 async def _issue_url(
     file_id: str,
     kind: str,
-    context: PlayerRequestContext,
+    context: RequestContext,
     runtime: ApplicationRuntime,
 ) -> dict[str, str]:
     try:

@@ -48,7 +48,7 @@ Registration rejects duplicate stable IDs, duplicate virtual paths, file/directo
 The access rule receives the concrete request-level `Player`. It must be a pure Read function:
 
 - It may read Player and Interface state.
-- It must not create `PendingEffect` values.
+- It must not modify Player or Interface state.
 - It must not mutate global state, query HTTP state or call external services.
 - It must return `True` or `False`.
 

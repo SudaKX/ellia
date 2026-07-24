@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from mythos.persistence.models import PlayerProgress
-from mythos.players.effects import SetCheckpointEffect
 
 
 class ReadOnlyPlayerError(Exception):
@@ -29,17 +28,10 @@ class ProgressInterface:
     def version(self) -> int:
         return self._progress.version
 
-    def set_checkpoint(self, checkpoint: str | None) -> SetCheckpointEffect:
+    def set_checkpoint(self, checkpoint: str | None) -> None:
         if not self._writable:
-            raise ReadOnlyPlayerError("Read-only players cannot create write effects.")
+            raise ReadOnlyPlayerError("Read-only players cannot modify progress.")
         if checkpoint is not None and len(checkpoint) > 64:
             raise ValueError("Checkpoint IDs must contain at most 64 characters.")
-        return SetCheckpointEffect(
-            kind="progress.set_checkpoint",
-            checkpoint=checkpoint,
-            _execute_callback=lambda: self._execute_set_checkpoint(checkpoint),
-        )
-
-    async def _execute_set_checkpoint(self, checkpoint: str | None) -> None:
         self._progress.checkpoint = checkpoint
         self._progress.version += 1

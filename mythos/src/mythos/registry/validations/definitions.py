@@ -4,12 +4,11 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from mythos.endpoints.actions import Action
-from mythos.players.context import PlayerRequestContext
+from mythos.players.context import CommandContext
 
 ValidationAttemptHandler: TypeAlias = Callable[
-    [PlayerRequestContext, Mapping[str, Any]],
-    Awaitable[tuple[Action, ...]],
+    [CommandContext, Mapping[str, Any]],
+    Awaitable["ValidationOutcome"],
 ]
 
 
@@ -18,3 +17,9 @@ class ValidationAttempt:
     stable_id: str
     validation_id: str
     handler: ValidationAttemptHandler
+
+
+@dataclass(frozen=True)
+class ValidationOutcome:
+    accepted: bool
+    checkpoint: str | None

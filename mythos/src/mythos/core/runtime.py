@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mythos.endpoints.command_executor import ActionTransactionExecutor
+from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.players.factory import PlayerFactory
 from mythos.registry.bundle import RuntimeCatalogs
 from mythos.services.container import ServiceContainer
@@ -15,4 +15,4 @@ class ApplicationRuntime:
     player_factory: PlayerFactory
     services: ServiceContainer
     object_store: ObjectStore
-    action_executor: ActionTransactionExecutor
+    command_executor: CommandTransactionExecutor

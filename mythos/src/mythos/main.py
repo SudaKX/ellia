@@ -9,8 +9,7 @@ from mythos.core.config import Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
-from mythos.endpoints.cache import RequestCache
-from mythos.endpoints.command_executor import ActionTransactionExecutor
+from mythos.core.commands import CommandTransactionExecutor, RequestCache
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.factory import PlayerFactory
 from mythos.services.container import ServiceContainer
@@ -36,7 +35,7 @@ def create_app(
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
         player_factory = PlayerFactory()
-        action_executor = ActionTransactionExecutor(
+        command_executor = CommandTransactionExecutor(
             player_factory,
             RequestCache(
                 maxsize=resolved_settings.request_cache_maxsize,
@@ -56,7 +55,7 @@ def create_app(
                 resolved_settings.file_download_url_ttl_seconds,
             ),
             object_store=resolved_object_store,
-            action_executor=action_executor,
+            command_executor=command_executor,
         )
         try:
             yield

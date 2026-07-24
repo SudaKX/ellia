@@ -9,22 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
+from mythos.core.commands import (
+    CachedResponse,
+    CommandRejected,
+    RequestInProgressError,
+    RequestReplayForbiddenError,
+    ResponseFormatError,
+)
 from mythos.core.dependencies import get_runtime, get_session
+from mythos.core.followups import FollowupFormatError
 from mythos.core.runtime import ApplicationRuntime
-from mythos.endpoints.actions import ActionExecutionError, ActionRejected
-from mythos.endpoints.cache import RequestInProgressError, RequestReplayForbiddenError
-from mythos.endpoints.models import ActionExecutionResult
 from mythos.players.factory import PlayerNotFoundError
 from mythos.registry.validations import ValidationAttemptNotFoundError
 
 router = APIRouter(prefix="/validations", tags=["validations"])
 
 
-def _command_response(result: ActionExecutionResult) -> JSONResponse:
+def _command_response(result: CachedResponse) -> JSONResponse:
     return JSONResponse(
-        status_code=result.status_code,
-        content={"data": result.body, "followups": list(result.followups), "state_revision": result.state_revision},
-        headers=result.headers,
+        status_code=result.response.status_code,
+        content=result.response.body,
+        headers=result.response.headers,
     )
 
 
@@ -42,7 +47,7 @@ async def submit_attempt(
     except ValidationAttemptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Validation not found.") from error
     try:
-        result = await runtime.action_executor.execute(
+        result = await runtime.command_executor.execute(
             session,
             identity,
             request_id,
@@ -58,8 +63,8 @@ async def submit_attempt(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Request-ID belongs to another player.") from error
     except PlayerNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
-    except ActionRejected as error:
+    except CommandRejected as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
-    except ActionExecutionError as error:
+    except (FollowupFormatError, ResponseFormatError) as error:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Validation handler failed.") from error
     return _command_response(result)

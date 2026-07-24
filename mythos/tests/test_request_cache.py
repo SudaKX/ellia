@@ -2,18 +2,17 @@ from uuid import uuid4
 
 import pytest
 
-from mythos.endpoints.cache import RequestCache, RequestInProgressError, RequestReplayForbiddenError
-from mythos.endpoints.models import ActionExecutionResult
+from mythos.core.commands import CachedResponse, RequestCache, RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 
 
 def _result(player_id):
-    return ActionExecutionResult(
+    return CachedResponse(
         owner_player_id=player_id,
-        status_code=200,
-        body={"ok": True},
-        headers={},
-        followups=(),
-        state_revision=1,
+        response=ResponseSpec(
+            status_code=200,
+            body={"content": {"ok": True}, "followups": []},
+            headers={},
+        ),
     )
 
 
