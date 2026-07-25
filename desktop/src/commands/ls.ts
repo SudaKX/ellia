@@ -28,6 +28,7 @@
 
 import type { CommandContext } from '@/registries/commands'
 import { registerCommand } from '@/registries/commands'
+import { useTerminalCwd } from '@/composables/useTerminalCwd'
 
 interface FileEntry {
   name: string
@@ -67,9 +68,10 @@ const rootDir: FileEntry[] = [
 
 /**
  * 解析路径为文件树节点数组。
- * 简单实现，不做 `..`、`.` 等特殊路径处理。
+ * 从根目录开始，逐段查找。不做 `..`、`.` 等特殊路径处理。
+ * 导出供 `cd` 命令复用同一文件树进行路径校验。
  */
-function resolvePath(pathStr: string): FileEntry[] | null {
+export function resolvePath(pathStr: string): FileEntry[] | null {
   if (pathStr === '/' || pathStr === '') return rootDir
 
   const segments = pathStr.replace(/^\//, '').split('/')
@@ -89,7 +91,8 @@ registerCommand({
   name: 'ls',
   descriptionKey: 'terminal.commands.ls.description',
   execute(args: string[], ctx: CommandContext) {
-    const pathStr = args[0] || '/'
+    const { getCwd } = useTerminalCwd()
+    const pathStr = args[0] || getCwd()
     const entries = resolvePath(pathStr)
 
     if (entries === null) {

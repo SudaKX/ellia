@@ -91,6 +91,7 @@ function createAuth() {
     const desktop = useDesktopStore()
     desktop.currentUser = user
     desktop.accountType = type
+    desktop.privilegeClass = type === 'admin' ? 'ADMIN' : 'LIMITED'
   }
 
   /** 退出登录：清除所有认证状态 */

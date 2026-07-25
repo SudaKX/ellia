@@ -57,6 +57,8 @@ export interface CommandContext {
    * @returns true 表示窗口创建成功
    */
   openPuzzleWindow?: (puzzle: PuzzleDescriptor) => boolean
+  /** 关闭当前终端窗口（可选，由 Terminal.vue 注入） */
+  closeTerminal?: () => void
 }
 
 /** 单个命令的定义 */

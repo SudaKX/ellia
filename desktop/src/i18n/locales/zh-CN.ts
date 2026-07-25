@@ -136,6 +136,13 @@ export const zhCN = {
       ellia: { description: '呼叫 ElLInA。' },
       sil: { description: '按 ID 打开谜题。' },
       sudo: { description: '以提升的权限执行命令。' },
+      cd: { description: '切换当前工作目录。', usage: 'cd [目录]' },
+      exit: { description: '关闭终端窗口。' },
+      man: {
+        description: '查看命令手册。',
+        usage: 'man <命令名>',
+        noArg: 'man: 请指定命令名。',
+      },
     },
     ellia: {
       line0: '  [ElLInA] 你好，{user}。',

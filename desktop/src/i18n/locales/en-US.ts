@@ -134,6 +134,13 @@ export const enUS = {
       ellia: { description: 'Contact ElLInA.' },
       sil: { description: 'Open a puzzle by ID.' },
       sudo: { description: 'Execute command with elevated privileges.' },
+      cd: { description: 'Change the current working directory.', usage: 'cd [directory]' },
+      exit: { description: 'Close the terminal window.' },
+      man: {
+        description: 'View command manual.',
+        usage: 'man <command>',
+        noArg: 'man: please specify a command name.',
+      },
     },
     ellia: {
       line0: '  [ElLInA] Hello, {user}.',

@@ -74,12 +74,15 @@ import type { WindowService } from '@/composables/useWindowService'
 // 副作用导入：触发所有命令模块的 registerCommand() 调用
 import '@/commands/calc'
 import '@/commands/cat'
+import '@/commands/cd'
 import '@/commands/clear'
 import '@/commands/date'
 import '@/commands/echo'
 import '@/commands/ellia'
+import '@/commands/exit'
 import '@/commands/help'
 import '@/commands/ls'
+import '@/commands/man'
 import '@/commands/pwd'
 import '@/commands/sil'
 import '@/commands/sudo'
@@ -123,6 +126,17 @@ const hiddenInput = ref<HTMLInputElement | null>(null)
 /** 输出区域的模板引用（用于自动滚动到底部） */
 const outputRef = ref<HTMLDivElement | null>(null)
 
+/** HTML 行标记：以 \x00 开头的行表示安全的 HTML 内容 */
+const HTML_MARKER = '\x00'
+
+function isHtmlLine(line: string): boolean {
+  return line.startsWith(HTML_MARKER)
+}
+
+function stripHtmlMarker(line: string): string {
+  return line.slice(HTML_MARKER.length)
+}
+
 // ─── CommandContext 构建 ─────────────────────────────
 
 /**
@@ -134,7 +148,7 @@ function buildContext(): CommandContext {
     user: desktop.currentUser,
     privilegeClass: desktop.privilegeClass as Privilege,
     t: (key: string, params?: Record<string, string>) => t(key, params ?? {}),
-    // 谜题窗口创建回调：sil 命令通过此函数在桌面上打开谜题窗口
+    // 谜题窗口创建回调
     openPuzzleWindow: (puzzle) => {
       if (!windowService) return false
       const result = windowService.send({
@@ -148,10 +162,19 @@ function buildContext(): CommandContext {
           defaultHeight: puzzle.defaultHeight,
           placement: 'center',
           resizable: puzzle.resizable ?? true,
-          // 谜题窗口不显示在 DockBar 中（不关联 applicationId）
         },
       })
       return result !== undefined && result !== null
+    },
+    // 关闭当前终端窗口
+    closeTerminal: () => {
+      if (!windowService) return
+      const termWin = windowService.windows.value.find(
+        (w) => w.applicationId === 'terminal' && !w.isMinimized,
+      )
+      if (termWin) {
+        windowService.send({ type: 'minimize-window', windowId: termWin.id })
+      }
     },
   }
 }
@@ -334,7 +357,10 @@ onMounted(() => {
         v-for="(line, i) in lines"
         :key="i"
         class="terminal__line"
-      >{{ line }}</p>
+      >
+        <span v-if="isHtmlLine(line)" v-html="stripHtmlMarker(line)" />
+        <template v-else>{{ line }}</template>
+      </p>
 
       <!-- 当前输入行（提示符 + 输入文本 + 闪烁光标） -->
       <div class="terminal__input-line">
@@ -415,6 +441,7 @@ onMounted(() => {
 /* ── 输入文本 ── */
 .terminal__input-text {
   color: var(--text-secondary);
+  white-space: pre-wrap;
 }
 
 /* ── 闪烁光标 ── */

@@ -2,16 +2,7 @@
  * # ellia — ElLInA 终端彩蛋
  *
  * 在终端中呼叫 ElLInA，显示 ASCII 艺术 + 随机台词。
- * 台词列表包含叙事暗示。
- *
- * ## ASCII 艺术
- *
- * 使用简单的字符画，避免过宽（终端窗口约 50-55 列）。
- *
- * ## i18n 设计
- *
- * 台词内容存储在 i18n locale 文件中（`terminal.ellia.line0` ~ `line5`），
- * 通过 `ctx.t()` 在运行时解析。这样切换语言时台词自动跟随。
+ * 支持颜色参数：`ellia blue|yellow|green|red`，默认浅蓝色。
  *
  * @example
  * ```
@@ -20,25 +11,41 @@
  *   /  \
  *  /_/\_\
  * [ElLInA] 你好，PLAYER。
- * [ElLInA] 有些文件……不是你现在该看的。
+ * ```
+ * ```
+ * > ellia red
+ *    /\
+ *   /  \
+ *  /_/\_\
+ * [ElLInA] 有些文件……不是你现在该看的。  (红色)
  * ```
  */
 
 import type { CommandContext } from '@/registries/commands'
 import { registerCommand } from '@/registries/commands'
 
-/** ElLInA ASCII 艺术（语言无关，纯字符画） */
+/** HTML 行标记前缀（与 Terminal.vue 中的 HTML_MARKER 一致） */
+const HTML_MARKER = '\x00'
+
+/** 可选颜色映射 */
+const COLOR_MAP: Record<string, string> = {
+  blue: '#5b9bd5',
+  yellow: '#d4a853',
+  green: 'var(--signal-mint)',
+  red: 'var(--signal-red)',
+}
+
+/** 默认颜色（浅蓝） */
+const DEFAULT_COLOR = COLOR_MAP.blue
+
+/** ElLInA ASCII 艺术 */
 const ELLIA_ASCII = [
   '   /\\',
   '  /  \\',
   ' /_/\\_\\',
 ]
 
-/**
- * ElLInA 台词 i18n key 数组。
- * 不在模块顶层用 `ctx.t()` 预解析——因为模块加载时 locale 可能尚未初始化，
- * 因此在 execute() 中动态调用 `ctx.t()` 获取当前语言的翻译。
- */
+/** 台词 i18n key */
 const ELLIA_LINE_KEYS = [
   'terminal.ellia.line0',
   'terminal.ellia.line1',
@@ -51,20 +58,30 @@ const ELLIA_LINE_KEYS = [
 registerCommand({
   name: 'ellia',
   descriptionKey: 'terminal.commands.ellia.description',
-  execute(_args: string[], ctx: CommandContext) {
-    const lines = [...ELLIA_ASCII]
+  execute(args: string[], ctx: CommandContext) {
+    const colorName = args[0]?.toLowerCase()
+    const color = COLOR_MAP[colorName] ?? DEFAULT_COLOR
 
-    // 随机选 1-2 句台词，每次调用结果不同
+    const asciiLines = ELLIA_ASCII.map(
+      (line) => `<span style="color:${color}">${line}</span>`,
+    )
+
+    // 随机选 1-2 句台词
     const count = 1 + Math.floor(Math.random() * 2)
     const shuffled = [...ELLIA_LINE_KEYS].sort(() => Math.random() - 0.5)
 
+    const quoteLines: string[] = []
     for (let i = 0; i < count; i++) {
       if (shuffled[i]) {
-        // 通过 ctx.t() 解析 i18n key，{user} 占位符替换为当前用户名
-        lines.push(ctx.t(shuffled[i], { user: ctx.user }))
+        const text = ctx.t(shuffled[i], { user: ctx.user })
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+        quoteLines.push(`<span style="color:${color}">${text}</span>`)
       }
     }
 
-    return lines
+    // 合并为单行 HTML，用 <br> 分隔
+    return [HTML_MARKER + [...asciiLines, ...quoteLines].join('<br>')]
   },
 })
