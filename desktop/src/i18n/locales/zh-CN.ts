@@ -19,6 +19,9 @@ export const zhCN = {
     files: {
       title: '文件浏览器',
       description: '查看已授权的系统卷。',
+      previewTitle: '文件预览',
+      cannotOpen: '无法打开此文件。',
+      emptyDir: '空目录',
     },
     archive: {
       title: '归档查看器',

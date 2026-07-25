@@ -80,7 +80,7 @@ export const puzzleRegistry = new Map<string, PuzzleDescriptor>()
  */
 export function registerPuzzle(puzzle: PuzzleDescriptor): void {
   if (puzzleRegistry.has(puzzle.id)) {
-    console.warn(`[PuzzleRegistry] Puzzle "${puzzle.id}" is already registered. Overwriting.`)
+    // console.warn(`[PuzzleRegistry] Puzzle "${puzzle.id}" is already registered. Overwriting.`)
   }
   puzzleRegistry.set(puzzle.id, puzzle)
 }

@@ -1,63 +1,88 @@
 /**
  * # cat — 读取文件内容
  *
- * Mock 文件内容查询。根据路径返回对应文件的文本内容。
- * 管理员账户可读取 `/etc/shadow` 的真实内容（叙事暗示）。
+ * 基于统一文件系统（useFileSystem），读取文件文本内容并校验访问权限。
+ *
+ * ## 数据流
+ *
+ * ```
+ * args[0] → 路径解析（绝对/相对） → getFileContent(path, player) → 输出
+ *                                    ├─ 有权限 + 有内容 → 返回文本行
+ *                                    ├─ 有权限 + 无内容 → "No such file"（如 .puz）
+ *                                    └─ 无权限           → "PERMISSION DENIED"
+ * ```
+ *
+ * ## 两阶段校验
+ *
+ * 1. **快速路径**：调用 `getFileContent(path, player)`，内部处理了节点查找 + accessRule 校验。
+ *    如果返回非 null，直接输出。
+ * 2. **权限区分**：如果返回 null，再通过 `resolveFileNode` 判断是"文件不存在"还是"权限不足"，
+ *    以给出不同的错误提示。
+ *
+ * ## 已知的受限文件
+ *
+ * | 路径 | 规则 | 可见用户 |
+ * |---|---|---|
+ * | `/etc/shadow` | `accessRule: p => p.privilegeClass === 'ADMIN'` | ADMIN |
+ * | `/home/PLAYER/notes.txt` | 父目录 `accessRule: p => p.currentAccount === 'PLAYER'` | PLAYER |
+ *
+ * @param args - args[0] 为文件路径（必填），支持相对路径（基于 cwd）和绝对路径
+ * @param ctx  - 命令上下文，提供权限信息和 i18n 翻译函数
+ * @returns 文件内容的行数组，或错误信息
  *
  * @example
  * ```
  * > cat readme.txt
  * Welcome to FakeOS. All actions are logged.
+ *
+ * > cat /etc/shadow
+ * // PLAYER (LIMITED) →  "PERMISSION DENIED — this file requires elevated privileges."
+ * // JDKTrigger (ADMIN) → "root:$6$ellia$XxXx..."
  * ```
  */
 
 import type { CommandContext } from '@/registries/commands'
 import { registerCommand } from '@/registries/commands'
+import { getFileContent, resolveFileNode, buildPlayerSnapshot } from '@/composables/useFileSystem'
 import { useTerminalCwd } from '@/composables/useTerminalCwd'
-
-/** Mock 文件内容映射：路径 → 文件内容 */
-const mockFiles: Record<string, string> = {
-  'readme.txt': 'Welcome to FakeOS. All actions are logged. Unauthorized access will be reported.',
-  '/readme.txt': 'Welcome to FakeOS. All actions are logged. Unauthorized access will be reported.',
-  '/sys/kernel.log': '[BOOT] FakeOS kernel initialized.\n[INFO] ElLInA daemon started.\n[WARN] Memory sector 0x07F corrupt — attempting recovery...\n[OK]   Recovery complete. 3 bad sectors isolated.',
-  '/sys/cache/index.json': '{"version":1,"entries":[{"hash":"00a1b2c3","special_index":7}]}',
-  '/tmp/readme.txt': 'Welcome to FakeOS. All actions are logged.',
-  '/etc/shadow': 'root:$6$ellia$XxXxXxXxXxXxXxXxXxXxXxXxXxXxXx:19000:0:99999:7:::',
-}
-
-/** 受限文件：只有 ADMIN 用户可以读取实际内容 */
-const restrictedFiles = new Set(['/etc/shadow', 'shadow', '/etc/hosts', 'hosts'])
 
 registerCommand({
   name: 'cat',
   descriptionKey: 'terminal.commands.cat.description',
-  execute(args: string[], ctx: CommandContext) {
-    const { resolvePath, getCwd } = useTerminalCwd()
+  execute(args: string[], _ctx: CommandContext) {
+    const { getCwd } = useTerminalCwd()
 
     if (args.length === 0) {
       return ['cat: missing file operand']
     }
 
     const rawPath = args[0]
-    const filePath = rawPath.startsWith('/') ? rawPath : resolvePath(getCwd(), rawPath)
-    const content = mockFiles[filePath]
+    // 将相对路径转换为绝对路径
+    const filePath = rawPath.startsWith('/') ? rawPath : `${getCwd() === '/' ? '' : getCwd()}/${rawPath}`
 
-    if (content === undefined) {
-      const baseName = rawPath.replace(/^.*\//, '')
-      if (restrictedFiles.has(filePath) || restrictedFiles.has(baseName)) {
-        if (ctx.privilegeClass === 'ADMIN') {
-          return [`cat: ${rawPath}: ACCESS GRANTED — but file is encrypted`]
+    const player = buildPlayerSnapshot()
+
+    // 第一层：尝试获取内容（内部已包含 accessRule 校验）
+    const content = getFileContent(filePath, player)
+    if (content !== null) {
+      return content.split('\n')
+    }
+
+    // 第二层：区分"不存在"和"无权限"
+    const node = resolveFileNode(filePath)
+    if (node && node.type === 'file') {
+      // 有 accessRule 且当前玩家不满足 → 权限不足
+      if (node.accessRule && !node.accessRule(player)) {
+        if (filePath === '/etc/shadow') {
+          // 特殊叙事：shadow 文件有专属错误信息
+          return ['PERMISSION DENIED — this file requires elevated privileges.']
         }
         return [`cat: ${rawPath}: PERMISSION DENIED — this file requires elevated privileges`]
       }
+      // 文件存在但无内容（如 .puz 二进制文件）
       return [`cat: ${rawPath}: No such file or directory`]
     }
 
-    // ADMIN 读取 /etc/shadow 返回真实内容
-    if (filePath === '/etc/shadow' && ctx.privilegeClass !== 'ADMIN') {
-      return ['PERMISSION DENIED — this file requires elevated privileges.']
-    }
-
-    return content.split('\n')
+    return [`cat: ${rawPath}: No such file or directory`]
   },
 })

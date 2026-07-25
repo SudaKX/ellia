@@ -181,11 +181,11 @@ export function useLive2DAssistant(options: UseLive2DAssistantOptions) {
 
       // 处理 WebGL 上下文丢失/恢复：preventDefault 阻止浏览器销毁上下文
       app.canvas.addEventListener('webglcontextlost', (e) => {
-        console.warn('[Live2D] WebGL context lost, attempting restore')
+        // console.warn('[Live2D] WebGL context lost, attempting restore')
         e.preventDefault()
       })
       app.canvas.addEventListener('webglcontextrestored', () => {
-        console.info('[Live2D] WebGL context restored')
+        // console.info('[Live2D] WebGL context restored')
       })
 
       // 加载 Live2D 模型（Cubism 4）
@@ -322,7 +322,7 @@ export function useLive2DAssistant(options: UseLive2DAssistantOptions) {
         const started = await model.motion(group, undefined, MotionPriority.FORCE)
         if (started) return group
       } catch (err) {
-        console.warn(`[Live2D] motion "${group}" failed`, err)
+        // console.warn(`[Live2D] motion "${group}" failed`, err)
       }
     }
     return null
@@ -341,7 +341,7 @@ export function useLive2DAssistant(options: UseLive2DAssistantOptions) {
         const started = await model.motion(group, undefined, MotionPriority.FORCE)
         if (started) return group
       } catch (err) {
-        console.warn(`[Live2D] zone motion "${group}" failed`, err)
+        // console.warn(`[Live2D] zone motion "${group}" failed`, err)
       }
     }
     return null

@@ -22,7 +22,8 @@ function normalizePath(path: string): string {
 function resolvePath(base: string, target: string): string {
   if (target.startsWith('/')) return normalizePath(target)
 
-  const parts = base === '/' ? [] : base.split('/')
+  // 从 base 分割时过滤掉前导 / 产生的空字符串，避免拼接出 // 前缀
+  const parts = base === '/' ? [] : base.split('/').filter(Boolean)
   for (const seg of target.split('/')) {
     if (seg === '.' || seg === '') continue
     if (seg === '..') {
@@ -31,7 +32,7 @@ function resolvePath(base: string, target: string): string {
       parts.push(seg)
     }
   }
-  return parts.length === 0 ? '/' : `/${parts.join('/')}`
+  return parts.length === 0 ? '/' : normalizePath(`/${parts.join('/')}`)
 }
 
 /**

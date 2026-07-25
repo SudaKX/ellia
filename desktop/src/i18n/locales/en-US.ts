@@ -17,6 +17,9 @@ export const enUS = {
     files: {
       title: 'File Explorer',
       description: 'Inspect authorized system volumes.',
+      previewTitle: 'File Preview',
+      cannotOpen: 'Cannot open this file.',
+      emptyDir: 'Empty directory',
     },
     archive: {
       title: 'Archive Viewer',

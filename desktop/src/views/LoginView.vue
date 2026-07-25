@@ -84,7 +84,7 @@ const loginWindow = ref<WindowInstance>({
 
 function handleLogin(username: string, password: string) {
   // TODO: 接入后端认证 API，替换 mock token
-  console.log('[LoginView] 玩家登录:', username)
+  // console.log('[LoginView] 玩家登录:', username)
   const mockToken = btoa(`${username}:${Date.now()}`)
   auth.login('player', mockToken, username)
   router.push({ name: 'desktop' })
@@ -92,7 +92,7 @@ function handleLogin(username: string, password: string) {
 
 /** 密钥登录：基于浏览器存储的 token 自动登录（TODO: token 检测待后端接入） */
 function handleTokenLogin() {
-  console.log('[LoginView] 密钥登录尝试')
+  // console.log('[LoginView] 密钥登录尝试')
   // TODO: 后端就绪后，从 URL 参数或 localStorage 读取真实 token
   const mockToken = btoa(`token:${Date.now()}`)
   auth.login('player', mockToken)

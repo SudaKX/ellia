@@ -1,110 +1,79 @@
 /**
  * # ls — 列出目录内容
  *
- * Mock 文件树。根据参数路径列出文件和子目录。
- * 文件树结构设计为为后续谜题做铺垫（隐藏的 cache 目录、readme 文件等）。
+ * 基于统一文件系统（useFileSystem），列出指定目录下的可见文件和子目录。
  *
- * ## 目录结构（mock）
+ * ## 数据流
+ *
+ * ```
+ * args[0] → resolvePath(path) → FileNode[] → getVisibleChildren(nodes, playerSnapshot) → 输出
+ * ```
+ *
+ * 无参数时默认使用根目录 `/`，而非当前工作目录（cwd）。
+ * 这是有意为之：ls 的默认行为是列出当前目录，但为了与 ls 命令的传统行为一致，
+ * 以及避免 cwd 可能为不存在路径的边界情况，这里使用根目录作为 fallback。
+ *
+ * ## 访问控制
+ *
+ * 通过 `getVisibleChildren` 自动过滤不可见内容：
+ * - `/etc/shadow` 仅 ADMIN 可见
+ * - `/home/PLAYER/` 仅 PLAYER 账户可见
+ * - 无可见后代的空目录会被隐藏
+ *
+ * ## 文件树结构
  *
  * ```
  * /
- * ├─ bin/        — 系统可执行文件（受限访问）
- * ├─ etc/        — 配置文件（受限访问）
- * ├─ home/
- * │   └─ PLAYER/ — PLAYER 用户主目录
- * ├─ sys/        — 系统目录（受限访问）
- * ├─ tmp/        — 临时文件
- * └─ readme.txt  — 欢迎文件
+ * ├── bin/        — 系统可执行文件
+ * ├── etc/        — 配置文件
+ * ├── home/       — 用户主目录
+ * ├── sys/        — 系统目录
+ * ├── tmp/        — 临时文件
+ * ├── puzzles/    — 谜题文件
+ * └── readme.txt  — 欢迎文件
  * ```
+ *
+ * @param args  - args[0] 为目标路径，可选（不传 = 列出根目录）
+ * @param _ctx  - 命令上下文（未使用，权限判断由 useFileSystem 内部处理）
+ * @returns 输出行数组，每行是用空格分隔的文件/目录名列表
  *
  * @example
  * ```
  * > ls
- * bin/  etc/  home/  sys/  tmp/  readme.txt
- * ```
+ * bin/  etc/  home/  sys/  tmp/  puzzles/  readme.txt
  *
- * @param args - 路径参数，如 `ls /sys`
+ * > ls /etc
+ * hosts  shadow
+ * ```
  */
 
 import type { CommandContext } from '@/registries/commands'
 import { registerCommand } from '@/registries/commands'
+import { getVisibleChildren, buildPlayerSnapshot, resolvePath } from '@/composables/useFileSystem'
 import { useTerminalCwd } from '@/composables/useTerminalCwd'
-
-interface FileEntry {
-  name: string
-  type: 'dir' | 'file'
-  /** 子目录内容（仅 dir 类型） */
-  children?: FileEntry[]
-}
-
-/** Mock 根目录文件树 */
-const rootDir: FileEntry[] = [
-  { name: 'bin', type: 'dir', children: [
-    { name: 'ellia_daemon', type: 'file' },
-    { name: 'init', type: 'file' },
-  ]},
-  { name: 'etc', type: 'dir', children: [
-    { name: 'hosts', type: 'file' },
-    { name: 'shadow', type: 'file' },
-  ]},
-  { name: 'home', type: 'dir', children: [
-    { name: 'PLAYER', type: 'dir', children: [
-      { name: 'notes.txt', type: 'file' },
-    ]},
-  ]},
-  { name: 'sys', type: 'dir', children: [
-    { name: 'kernel.log', type: 'file' },
-    { name: 'cache', type: 'dir', children: [
-      { name: '00a1b2c3', type: 'file' },
-      { name: 'index.json', type: 'file' },
-    ]},
-  ]},
-  { name: 'tmp', type: 'dir', children: []},
-  { name: 'readme.txt', type: 'file' },
-  { name: 'puzzles', type: 'dir', children: [
-    { name: 'caesar-cipher.puz', type: 'file' },
-  ]},
-]
-
-/**
- * 解析路径为文件树节点数组。
- * 从根目录开始，逐段查找。不做 `..`、`.` 等特殊路径处理。
- * 导出供 `cd` 命令复用同一文件树进行路径校验。
- */
-export function resolvePath(pathStr: string): FileEntry[] | null {
-  if (pathStr === '/' || pathStr === '') return rootDir
-
-  const segments = pathStr.replace(/^\//, '').split('/')
-  let current: FileEntry[] = rootDir
-
-  for (const seg of segments) {
-    const found = current.find((e) => e.name === seg)
-    if (!found) return null
-    if (found.type !== 'dir') return null
-    current = found.children!
-  }
-
-  return current
-}
 
 registerCommand({
   name: 'ls',
   descriptionKey: 'terminal.commands.ls.description',
-  execute(args: string[], ctx: CommandContext) {
-    const { getCwd } = useTerminalCwd()
-    const pathStr = args[0] || getCwd()
-    const entries = resolvePath(pathStr)
+  execute(args: string[], _ctx: CommandContext): string[] {
+    const pathStr = args[0]
+    // 未指定路径时列出当前工作目录
+    const entries = pathStr ? resolvePath(pathStr) : resolvePath(useTerminalCwd().getCwd())
 
     if (entries === null) {
       return [`ls: ${pathStr}: No such file or directory`]
     }
 
-    if (entries.length === 0) {
+    // 从 Pinia store 获取当前玩家状态，过滤不可见节点
+    const player = buildPlayerSnapshot()
+    const visible = getVisibleChildren(entries, player)
+
+    if (visible.length === 0) {
       return ['(empty)']
     }
 
-    // 目录用 / 后缀，文件不加
-    const names = entries.map((e) => (e.type === 'dir' ? `${e.name}/` : e.name))
+    // 目录加 / 后缀，文件不加
+    const names = visible.map((e) => (e.type === 'dir' ? `${e.name}/` : e.name))
     return [names.join('  ')]
   },
 })
