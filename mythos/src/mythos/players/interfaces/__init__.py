@@ -1,3 +1,3 @@
-from mythos.players.interfaces.progress import ProgressInterface, ReadOnlyPlayerError
+from mythos.players.interfaces.progress import ProgressInterface, ProgressTransitionError, ReadOnlyPlayerError
 
-__all__ = ["ProgressInterface", "ReadOnlyPlayerError"]
+__all__ = ["ProgressInterface", "ProgressTransitionError", "ReadOnlyPlayerError"]

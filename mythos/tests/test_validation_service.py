@@ -8,6 +8,7 @@ from mythos.core.config import Settings
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.progress import NormalProgressNode
 from mythos.registry.validations import ValidationAttempt, ValidationOutcome
 
 
@@ -18,17 +19,20 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
         calls = {"checkpoint": 0, "retry": 0}
         retry_versions: list[int] = []
         registries = RegistryBundle()
+        registries.progress.register(NormalProgressNode("start", ("checkpoint",), is_entry=True))
+        registries.progress.register(NormalProgressNode("checkpoint", ("retry",)))
+        registries.progress.register(NormalProgressNode("retry", ()))
 
         async def checkpoint_handler(context, payload):
             calls["checkpoint"] += 1
             checkpoint = payload["checkpoint"]
-            context.player.progress.set_checkpoint(checkpoint)
+            context.player.progress.push("checkpoint")
             context.follow({"event": "checkpoint-set"})
             return ValidationOutcome(accepted=True, checkpoint=checkpoint)
 
         async def retry_handler(context, _payload):
             calls["retry"] += 1
-            context.player.progress.set_checkpoint("retry")
+            context.player.progress.push("retry")
             if calls["retry"] == 1:
                 context.reject(409, "retry command")
             retry_versions.append(context.player.progress.version)

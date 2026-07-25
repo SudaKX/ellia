@@ -33,8 +33,6 @@ class PlayerProgress(Base):
         primary_key=True,
     )
     current_account: Mapped[str] = mapped_column(String(32), default="PLAYER", nullable=False)
-    story_node: Mapped[str] = mapped_column(String(64), default="intro", nullable=False)
-    checkpoint: Mapped[str | None] = mapped_column(String(64))
     current_checkpoint_sequence: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)
     next_checkpoint_sequence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
