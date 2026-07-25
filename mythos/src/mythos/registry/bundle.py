@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.files import FileRegistry, FileTree
+from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 from mythos.registry.validations import ValidationCatalog, ValidationRegistry
 
@@ -11,6 +12,7 @@ from mythos.registry.validations import ValidationCatalog, ValidationRegistry
 @dataclass(frozen=True)
 class RuntimeCatalogs:
     files: FileTree
+    progress: ProgressGraph
     scripts: ScriptCatalog
     validations: ValidationCatalog
 
@@ -18,6 +20,7 @@ class RuntimeCatalogs:
 class RegistryBundle:
     def __init__(self) -> None:
         self.files = FileRegistry()
+        self.progress = ProgressRegistry()
         self.scripts = ScriptRegistry()
         self.validations = ValidationRegistry()
         self._catalogs: RuntimeCatalogs | None = None
@@ -29,6 +32,7 @@ class RegistryBundle:
             return self._catalogs
         self._catalogs = RuntimeCatalogs(
             files=self.files.freeze(file_ids),
+            progress=self.progress.freeze(),
             scripts=self.scripts.freeze(),
             validations=self.validations.freeze(),
         )
