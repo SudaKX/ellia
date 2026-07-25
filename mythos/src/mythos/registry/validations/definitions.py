@@ -22,4 +22,3 @@ class ValidationAttempt:
 @dataclass(frozen=True)
 class ValidationOutcome:
     accepted: bool
-    checkpoint: str | None

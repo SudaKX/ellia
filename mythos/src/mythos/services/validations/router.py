@@ -20,6 +20,7 @@ from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.followups import FollowupFormatError
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.factory import PlayerNotFoundError
+from mythos.players.interfaces import ProgressTransitionError
 from mythos.registry.validations import ValidationAttemptNotFoundError
 
 router = APIRouter(prefix="/validations", tags=["validations"])
@@ -65,6 +66,8 @@ async def submit_attempt(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
     except CommandRejected as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    except ProgressTransitionError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except (FollowupFormatError, ResponseFormatError) as error:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Validation handler failed.") from error
     return _command_response(result)

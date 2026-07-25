@@ -24,9 +24,6 @@ class ValidationService:
         outcome = await attempt.handler(context, payload)
         return ResponseSpec(
             status_code=200,
-            body={
-                "accepted": outcome.accepted,
-                "checkpoint": outcome.checkpoint,
-            },
+            body={"accepted": outcome.accepted},
             headers={},
         )

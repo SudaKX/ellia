@@ -3,10 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mythos.registry.files import FileTree
+from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
 from mythos.registry.validations import ValidationCatalog
 from mythos.services.files.service import FileService
 from mythos.services.object_store.service import ObjectStore
+from mythos.services.progress.checkpoint_store import LocalCheckpointStore
+from mythos.services.progress.service import ProgressService
 from mythos.services.scripts.service import ScriptService
 from mythos.services.validations.service import ValidationService
 
@@ -14,6 +17,7 @@ from mythos.services.validations.service import ValidationService
 @dataclass(frozen=True)
 class ServiceContainer:
     files: FileService
+    progress: ProgressService
     scripts: ScriptService
     validations: ValidationService
 
@@ -21,13 +25,16 @@ class ServiceContainer:
     def create(
         cls,
         file_tree: FileTree,
+        progress_graph: ProgressGraph,
         script_catalog: ScriptCatalog,
         validation_catalog: ValidationCatalog,
         object_store: ObjectStore,
         file_download_url_ttl_seconds: int,
+        checkpoint_store: LocalCheckpointStore,
     ) -> ServiceContainer:
         return cls(
             files=FileService(file_tree, object_store, file_download_url_ttl_seconds),
+            progress=ProgressService(progress_graph, checkpoint_store),
             scripts=ScriptService(script_catalog),
             validations=ValidationService(validation_catalog),
         )

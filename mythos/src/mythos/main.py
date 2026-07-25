@@ -18,6 +18,7 @@ from mythos.services.object_store.service import ObjectStore
 from mythos.services.files.router import router as files_router
 from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
+from mythos.services.progress.router import router as progress_router
 from mythos.services.validations.router import router as validations_router
 
 
@@ -36,9 +37,8 @@ def create_app(
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
         player_factory = PlayerFactory(catalogs)
-        checkpoint_hook = ProgressCheckpointHook(
-            LocalCheckpointStore(resolved_settings.checkpoint_directory)
-        )
+        checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
+        checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
         command_executor = CommandTransactionExecutor(
             player_factory,
             RequestCache(
@@ -54,10 +54,12 @@ def create_app(
             player_factory=player_factory,
             services=ServiceContainer.create(
                 catalogs.files,
+                catalogs.progress,
                 catalogs.scripts,
                 catalogs.validations,
                 resolved_object_store,
                 resolved_settings.file_download_url_ttl_seconds,
+                checkpoint_store,
             ),
             object_store=resolved_object_store,
             command_executor=command_executor,
@@ -74,6 +76,7 @@ def create_app(
     )
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
+    application.include_router(progress_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")
     application.include_router(validations_router, prefix="/api/v1")
 

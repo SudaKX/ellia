@@ -14,14 +14,15 @@ class ProgressCheckpointHook:
     async def __call__(self, session: AsyncSession, context: CommandContext) -> None:
         progress = context.player.progress
         checkpoints = progress._drain_pending_checkpoints()
+        records: list[PlayerProgressCheckpoint] = []
         for checkpoint in checkpoints:
             storage_key = await self._store.write(checkpoint)
-            session.add(
-                PlayerProgressCheckpoint(
-                    player_id=checkpoint.player_id,
-                    sequence=checkpoint.sequence,
-                    storage_key=storage_key,
-                )
+            record = PlayerProgressCheckpoint(
+                player_id=checkpoint.player_id,
+                sequence=checkpoint.sequence,
+                storage_key=storage_key,
             )
-        if checkpoints:
-            progress._set_current_checkpoint_sequence(checkpoints[-1].sequence)
+            session.add(record)
+            records.append(record)
+        if records:
+            progress._set_current_checkpoint(records[-1])

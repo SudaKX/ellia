@@ -13,7 +13,7 @@ from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotF
 
 
 async def _attempt_handler(_context, _payload):
-    return ValidationOutcome(accepted=True, checkpoint=None)
+    return ValidationOutcome(accepted=True)
 
 
 def test_validation_registry_rejects_duplicates_and_freezes() -> None:

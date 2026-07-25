@@ -6,6 +6,7 @@ from uuid import UUID
 
 from mythos.persistence.models import (
     PlayerProgress,
+    PlayerProgressCheckpoint,
     PlayerProgressFrontierNode,
     PlayerProgressUnlockedNode,
 )
@@ -39,10 +40,12 @@ class ProgressInterface:
         *,
         writable: bool,
         catalogs: RuntimeCatalogs,
+        checkpoint: PlayerProgressCheckpoint | None = None,
     ) -> None:
         self._progress = progress
         self._writable = writable
         self._catalogs = catalogs
+        self._checkpoint = checkpoint
         self._pending_checkpoints: list[PendingCheckpoint] = []
 
     @property
@@ -183,5 +186,29 @@ class ProgressInterface:
         self._pending_checkpoints.clear()
         return pending
 
-    def _set_current_checkpoint_sequence(self, sequence: int) -> None:
-        self._progress.current_checkpoint_sequence = sequence
+    def _set_current_checkpoint(self, checkpoint: PlayerProgressCheckpoint) -> None:
+        self._progress.current_checkpoint_sequence = checkpoint.sequence
+        self._checkpoint = checkpoint
+
+    def _current_checkpoint_metadata(self) -> PlayerProgressCheckpoint | None:
+        return self._checkpoint
+
+    def _restore_state(self, unlocked_node_ids: tuple[int, ...], frontier_node_ids: tuple[int, ...]) -> None:
+        if not self._writable:
+            raise ReadOnlyPlayerError("Read-only players cannot modify progress.")
+        graph = self._catalogs.progress
+        unlocked_ids = set(unlocked_node_ids)
+        frontier_ids = set(frontier_node_ids)
+        if len(unlocked_ids) != len(unlocked_node_ids) or len(frontier_ids) != len(frontier_node_ids):
+            raise ProgressTransitionError("Checkpoint state contains duplicate progress nodes.")
+        if not frontier_ids.issubset(unlocked_ids):
+            raise ProgressTransitionError("Checkpoint frontier nodes must be unlocked.")
+        if any(node_id not in graph.nodes_by_node_id for node_id in unlocked_ids):
+            raise ProgressTransitionError("Checkpoint state references an unknown progress node.")
+        self._progress.unlocked_nodes[:] = [
+            PlayerProgressUnlockedNode(node_id=node_id) for node_id in sorted(unlocked_ids)
+        ]
+        self._progress.frontier_nodes[:] = [
+            PlayerProgressFrontierNode(node_id=node_id) for node_id in sorted(frontier_ids)
+        ]
+        self._progress.version += 1

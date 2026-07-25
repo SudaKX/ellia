@@ -25,10 +25,9 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
 
         async def checkpoint_handler(context, payload):
             calls["checkpoint"] += 1
-            checkpoint = payload["checkpoint"]
             context.player.progress.push("checkpoint")
             context.follow({"event": "checkpoint-set"})
-            return ValidationOutcome(accepted=True, checkpoint=checkpoint)
+            return ValidationOutcome(accepted=True)
 
         async def retry_handler(context, _payload):
             calls["retry"] += 1
@@ -36,12 +35,12 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
             if calls["retry"] == 1:
                 context.reject(409, "retry command")
             retry_versions.append(context.player.progress.version)
-            return ValidationOutcome(accepted=True, checkpoint="retry")
+            return ValidationOutcome(accepted=True)
 
         async def waiting_handler(_context, _payload):
             started.set()
             await release.wait()
-            return ValidationOutcome(accepted=True, checkpoint=None)
+            return ValidationOutcome(accepted=True)
 
         registries.validations.register_attempt(
             ValidationAttempt("test.validation.checkpoint", "checkpoint", checkpoint_handler)
@@ -97,7 +96,7 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 )
                 assert first.status_code == duplicate.status_code == 200
                 assert first.json() == duplicate.json() == {
-                    "content": {"accepted": True, "checkpoint": "first"},
+                    "content": {"accepted": True},
                     "followups": [{"event": "checkpoint-set"}],
                 }
                 assert calls["checkpoint"] == 1
@@ -140,7 +139,7 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 )
                 assert first_retry.status_code == 409
                 assert second_retry.status_code == 200
-                assert second_retry.json()["content"] == {"accepted": True, "checkpoint": "retry"}
+                assert second_retry.json()["content"] == {"accepted": True}
                 assert calls["retry"] == 2
                 assert retry_versions == [3]
 

@@ -23,7 +23,7 @@ def test_checkpoint_hook_persists_stable_progress_snapshot(tmp_path) -> None:
 
         async def handler(context, _payload):
             context.player.progress.push("saved")
-            return ValidationOutcome(accepted=True, checkpoint=None)
+            return ValidationOutcome(accepted=True)
 
         registries.validations.register_attempt(ValidationAttempt("test.save", "save", handler))
         settings = Settings(
