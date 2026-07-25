@@ -417,8 +417,10 @@ function stopResize() {
 }
 
 .window-frame--minimized {
-  transform: scaleY(0);
-  opacity: 0;
+  animation: glitch-tear 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  box-shadow:
+    4px 0 0 rgba(200, 50, 50, 0.22),
+    -4px 0 0 rgba(50, 200, 200, 0.22);
   pointer-events: none;
 }
 
@@ -536,5 +538,25 @@ function stopResize() {
 .window-frame__resize-handle--bl::after {
   bottom: 3px;
   border-bottom: 1px solid var(--text-muted);
+}
+</style>
+
+<style>
+@keyframes glitch-tear {
+  /* 阶段 1：信号干扰抖动 */
+  0%, 5%, 10%   { transform: scaleY(1) translateX(0);   opacity: 1; }
+  2.5%          { transform: scaleY(1) translateX(3px);  opacity: 1; }
+  7.5%          { transform: scaleY(1) translateX(-3px); opacity: 1; }
+  12%           { transform: scaleY(1) translateX(1px);  opacity: 1; }
+
+  /* 阶段 2：色差撕裂 */
+  15%           { transform: scaleY(1) translateX(0);    opacity: 1; }
+  45%           { transform: scaleY(1) translateX(0);    opacity: 0.85; }
+
+  /* 阶段 3：扫描线压缩 */
+  75%           { transform: scaleY(0.003) translateX(0); opacity: 0.4; }
+
+  /* 阶段 4：消失 */
+  100%          { transform: scaleY(0.003) translateX(0); opacity: 0; }
 }
 </style>
