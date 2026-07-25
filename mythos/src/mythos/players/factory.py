@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mythos.persistence.models import PlayerProgress
 from mythos.players.interfaces.progress import ProgressInterface
@@ -19,7 +21,14 @@ class PlayerFactory:
         self._catalogs = catalogs
 
     async def load(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> Player:
-        progress = await session.get(PlayerProgress, player_id)
+        progress = await session.scalar(
+            select(PlayerProgress)
+            .where(PlayerProgress.player_id == player_id)
+            .options(
+                selectinload(PlayerProgress.unlocked_nodes),
+                selectinload(PlayerProgress.frontier_nodes),
+            )
+        )
         if progress is None:
             raise PlayerNotFoundError
         return Player(

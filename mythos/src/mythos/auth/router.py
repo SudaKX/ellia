@@ -18,7 +18,8 @@ from mythos.auth.service import (
 )
 from mythos.auth.tokens import PlayerIdentity, RefreshCredential
 from mythos.core.config import Settings
-from mythos.core.dependencies import get_session, get_settings_from_request
+from mythos.core.dependencies import get_runtime, get_session, get_settings_from_request
+from mythos.core.runtime import ApplicationRuntime
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,8 +59,8 @@ def _token_response(access_token: str, settings: Settings) -> AccessTokenRespons
     )
 
 
-def _auth_service(session: AsyncSession, settings: Settings) -> AuthService:
-    return AuthService(session, settings)
+def _auth_service(session: AsyncSession, settings: Settings, runtime: ApplicationRuntime) -> AuthService:
+    return AuthService(session, settings, runtime.catalogs.progress)
 
 
 @router.post("/register", response_model=AccessTokenResponse, status_code=status.HTTP_201_CREATED)
@@ -68,9 +69,10 @@ async def register(
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_request)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> AccessTokenResponse:
     try:
-        result = await _auth_service(session, settings).register(
+        result = await _auth_service(session, settings, runtime).register(
             credentials.username,
             credentials.password,
         )
@@ -87,9 +89,10 @@ async def login(
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_request)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> AccessTokenResponse:
     try:
-        result = await _auth_service(session, settings).login(
+        result = await _auth_service(session, settings, runtime).login(
             credentials.username,
             credentials.password,
         )
@@ -106,9 +109,10 @@ async def refresh(
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_request)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> AccessTokenResponse:
     try:
-        result = await _auth_service(session, settings).refresh(
+        result = await _auth_service(session, settings, runtime).refresh(
             request.cookies.get(settings.refresh_cookie_name)
         )
     except InvalidRefreshCredentialError as error:
@@ -129,8 +133,9 @@ async def logout(
     player: Annotated[PlayerIdentity, Depends(get_current_player)],
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_request)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> Response:
-    await _auth_service(session, settings).logout(player.player_id)
+    await _auth_service(session, settings, runtime).logout(player.player_id)
     _delete_refresh_cookie(response, settings)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

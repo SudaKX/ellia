@@ -21,7 +21,14 @@ from mythos.auth.tokens import (
 )
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
-from mythos.persistence.models import PlayerAuth, PlayerProgress, PlayerRecord
+from mythos.persistence.models import (
+    PlayerAuth,
+    PlayerProgress,
+    PlayerProgressFrontierNode,
+    PlayerProgressUnlockedNode,
+    PlayerRecord,
+)
+from mythos.registry.progress import ProgressGraph
 
 password_hasher = PasswordHash.recommended()
 
@@ -58,9 +65,10 @@ def _is_expired(value: datetime | None) -> bool:
 
 
 class AuthService:
-    def __init__(self, session: AsyncSession, settings: Settings) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings, progress_graph: ProgressGraph) -> None:
         self.session = session
         self.settings = settings
+        self.progress_graph = progress_graph
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
         password_hash = await asyncio.to_thread(password_hasher.hash, password)
@@ -75,7 +83,17 @@ class AuthService:
             refresh_expires_at=now + timedelta(seconds=self.settings.refresh_token_ttl_seconds),
             refresh_rotated_at=now,
         )
-        progress = PlayerProgress(player_id=player.id)
+        progress = PlayerProgress(
+            player_id=player.id,
+            unlocked_nodes=[
+                PlayerProgressUnlockedNode(node_id=node_id)
+                for node_id in self.progress_graph.entry_node_ids
+            ],
+            frontier_nodes=[
+                PlayerProgressFrontierNode(node_id=node_id)
+                for node_id in self.progress_graph.entry_node_ids
+            ],
+        )
 
         try:
             async with self.session.begin():
