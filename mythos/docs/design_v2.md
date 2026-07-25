@@ -13,7 +13,7 @@
 
 ## 2. Registry 与 Runtime
 
-`RegistryBundle` 组合 validations、files 和 scripts 三类注册期对象。模块在应用启动前显式调用 `register(registries)`；`RegistryBundle.freeze()` 生成不可变的 `RuntimeCatalogs`。
+`RegistryBundle` 组合 validations、files 和 scripts 三类注册期对象。模块在应用启动前显式调用 `register(registries)`；`RegistryBundle.freeze()` 结束注册期并生成 `RuntimeCatalogs`。运行期消费者按约定只读使用 Catalog。
 
 ```text
 RegistryBundle -> RuntimeCatalogs -> ApplicationRuntime
@@ -25,14 +25,14 @@ ProgressGraph、模块进度 DAG、多进度线持久化和 checkpoint 回退尚
 
 ## 3. Player 与 Interface
 
-`PlayerFactory` 在每个请求中以 `AsyncSession` 和 JWT 身份创建一个 `Player`。`Player` 组合多个 Interface；V2 初始仅实现 `ProgressInterface`。
+`PlayerFactory` 在应用启动时绑定 `RuntimeCatalogs`，并在每个请求中以 `AsyncSession` 和 JWT 身份创建一个 `Player`。创建 Player 时，Factory 将同一份 Catalog 引用注入每个 Interface。`Player` 组合多个 Interface；V2 初始仅实现 `ProgressInterface`。
 
 ```text
 Player
 └── progress: ProgressInterface
 ```
 
-`RequestContext` 包含身份、只读或可写 Player 与私有 followup 收集器。`CommandContext` 在此基础上携带非空 `Request-ID`，仅由 `CommandTransactionExecutor` 在事务内创建。只读 Player 不能修改 Interface 状态；可写 Player 的 Interface 直接修改受当前 Session 追踪的 ORM 记录，模块不能取得 Session 或自行提交事务。
+`RequestContext` 包含身份、只读或可写 Player 与私有 followup 收集器。`CommandContext` 在此基础上携带非空 `Request-ID`，仅由 `CommandTransactionExecutor` 在事务内创建。Service 与 Interface 都可读取 `RuntimeCatalogs`；Interface 不取得 Service、Session 或 `ApplicationRuntime`。只读 Player 不能修改 Interface 状态；可写 Player 的 Interface 直接修改受当前 Session 追踪的 ORM 记录，模块不能取得 Session 或自行提交事务。
 
 ## 4. 命令事务
 

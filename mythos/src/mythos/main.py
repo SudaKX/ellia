@@ -34,7 +34,7 @@ def create_app(
         catalogs = registered_content.freeze(file_ids)
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
-        player_factory = PlayerFactory()
+        player_factory = PlayerFactory(catalogs)
         command_executor = CommandTransactionExecutor(
             player_factory,
             RequestCache(

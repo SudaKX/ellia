@@ -5,10 +5,15 @@ import pytest
 
 from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands import CommandRejected, ResponseFormatError, ResponseSpec
+from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import FollowupFormatError
 from mythos.players.context import CommandContext, RequestContext
 from mythos.players.interfaces import ProgressInterface, ReadOnlyPlayerError
 from mythos.players.player import Player
+from mythos.registry.bundle import RegistryBundle
+
+
+_CATALOGS = RegistryBundle().freeze(FileIdCodec("test-file-id-secret"))
 
 
 def _player(*, writable: bool) -> Player:
@@ -17,6 +22,7 @@ def _player(*, writable: bool) -> Player:
         progress=ProgressInterface(
             SimpleNamespace(current_account="PLAYER", story_node="intro", checkpoint=None, version=1),
             writable=writable,
+            catalogs=_CATALOGS,
         ),
     )
 

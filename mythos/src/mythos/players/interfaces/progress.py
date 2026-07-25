@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from mythos.persistence.models import PlayerProgress
+
+if TYPE_CHECKING:
+    from mythos.registry.bundle import RuntimeCatalogs
 
 
 class ReadOnlyPlayerError(Exception):
@@ -8,9 +13,16 @@ class ReadOnlyPlayerError(Exception):
 
 
 class ProgressInterface:
-    def __init__(self, progress: PlayerProgress, *, writable: bool) -> None:
+    def __init__(
+        self,
+        progress: PlayerProgress,
+        *,
+        writable: bool,
+        catalogs: RuntimeCatalogs,
+    ) -> None:
         self._progress = progress
         self._writable = writable
+        self._catalogs = catalogs
 
     @property
     def current_account(self) -> str:
