@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import TypeAlias
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,11 +12,19 @@ from mythos.core.commands.models import CachedResponse, ResponseSpec
 from mythos.players.context import CommandContext
 from mythos.players.factory import PlayerFactory
 
+CommandPreCommitHook: TypeAlias = Callable[[AsyncSession, CommandContext], Awaitable[None]]
+
 
 class CommandTransactionExecutor:
-    def __init__(self, player_factory: PlayerFactory, request_cache: RequestCache) -> None:
+    def __init__(
+        self,
+        player_factory: PlayerFactory,
+        request_cache: RequestCache,
+        pre_commit_hooks: tuple[CommandPreCommitHook, ...] = (),
+    ) -> None:
         self._player_factory = player_factory
         self._request_cache = request_cache
+        self._pre_commit_hooks = pre_commit_hooks
 
     async def execute(
         self,
@@ -36,6 +45,8 @@ class CommandTransactionExecutor:
                     request_id=request_id,
                 )
                 response = await operation(context)
+                for hook in self._pre_commit_hooks:
+                    await hook(session, context)
                 completed = CachedResponse(
                     owner_player_id=identity.player_id,
                     response=ResponseSpec(

@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     object_store_secret_key: SecretStr | None = None
     object_store_use_tls: bool = True
     file_download_url_ttl_seconds: int = 60
+    checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
 
     @model_validator(mode="after")
     def configure_secrets(self) -> Settings:

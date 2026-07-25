@@ -17,6 +17,7 @@ from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
 from mythos.services.files.router import router as files_router
 from mythos.services.scripts.router import router as scripts_router
+from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
 from mythos.services.validations.router import router as validations_router
 
 
@@ -35,12 +36,16 @@ def create_app(
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
         player_factory = PlayerFactory(catalogs)
+        checkpoint_hook = ProgressCheckpointHook(
+            LocalCheckpointStore(resolved_settings.checkpoint_directory)
+        )
         command_executor = CommandTransactionExecutor(
             player_factory,
             RequestCache(
                 maxsize=resolved_settings.request_cache_maxsize,
                 ttl_seconds=resolved_settings.request_cache_ttl_seconds,
             ),
+            (checkpoint_hook,),
         )
         application.state.settings = resolved_settings
         application.state.database = database

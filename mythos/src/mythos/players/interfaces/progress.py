@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from mythos.persistence.models import (
     PlayerProgress,
@@ -21,6 +23,15 @@ class ProgressTransitionError(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class PendingCheckpoint:
+    sequence: int
+    player_id: UUID
+    graph_hash: str
+    unlocked_node_ids: tuple[int, ...]
+    frontier_node_ids: tuple[int, ...]
+
+
 class ProgressInterface:
     def __init__(
         self,
@@ -32,6 +43,7 @@ class ProgressInterface:
         self._progress = progress
         self._writable = writable
         self._catalogs = catalogs
+        self._pending_checkpoints: list[PendingCheckpoint] = []
 
     @property
     def current_account(self) -> str:
@@ -78,6 +90,8 @@ class ProgressInterface:
             self._advance_to(node_id, newly_unlocked)
 
         self._resolve_merges(newly_unlocked)
+        if any(graph.node(unlocked_id).triggers_checkpoint for unlocked_id in newly_unlocked):
+            self._stage_checkpoint()
         self._progress.version += 1
 
     def _advance_to(self, node_id: int, newly_unlocked: set[int]) -> None:
@@ -150,3 +164,24 @@ class ProgressInterface:
         self._progress.frontier_nodes[:] = [
             node for node in self._progress.frontier_nodes if node.node_id not in node_ids
         ]
+
+    def _stage_checkpoint(self) -> None:
+        sequence = self._progress.next_checkpoint_sequence
+        self._pending_checkpoints.append(
+            PendingCheckpoint(
+                sequence=sequence,
+                player_id=self._progress.player_id,
+                graph_hash=self._catalogs.progress.structure_hash,
+                unlocked_node_ids=tuple(sorted(self.unlocked_node_ids)),
+                frontier_node_ids=tuple(sorted(self.frontier_node_ids)),
+            )
+        )
+        self._progress.next_checkpoint_sequence += 1
+
+    def _drain_pending_checkpoints(self) -> tuple[PendingCheckpoint, ...]:
+        pending = tuple(self._pending_checkpoints)
+        self._pending_checkpoints.clear()
+        return pending
+
+    def _set_current_checkpoint_sequence(self, sequence: int) -> None:
+        self._progress.current_checkpoint_sequence = sequence
