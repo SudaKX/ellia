@@ -67,12 +67,12 @@ onMounted(() => {
 
   // 暴露 _k0 返回值中的"下一步"指向，以便组件可以联动
   // 重写 _k2 来捕获令牌
-  const originalK2 = (window as Record<string, unknown>)._k2 as
+  const originalK2 = (window as unknown as Record<string, unknown>)._k2 as
     | ((a: unknown, b: unknown, c: unknown) => unknown)
     | undefined
 
   if (originalK2) {
-    (window as Record<string, unknown>)._k2_capture = (a: unknown, b: unknown, c: unknown) => {
+    (window as unknown as Record<string, unknown>)._k2_capture = (a: unknown, b: unknown, c: unknown) => {
       const result = originalK2(a, b, c) as Record<string, unknown> | undefined
       if (result && typeof result === 'object' && '解锁令牌' in result) {
         unlockToken.value = result.解锁令牌 as string
@@ -82,7 +82,7 @@ onMounted(() => {
 
     // 替换 window._k2 为带捕获的版本，保持对玩家的透明
     Object.defineProperty(window, '_k2', {
-      value: (window as Record<string, unknown>)._k2_capture,
+      value: (window as unknown as Record<string, unknown>)._k2_capture,
       writable: false,
       configurable: true,
       enumerable: false,

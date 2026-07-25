@@ -242,9 +242,9 @@ export function useLockPuzzle(): LockPuzzleHandle {
   }
 
   function unmount() {
-    delete (window as Record<string, unknown>)._k0
-    delete (window as Record<string, unknown>)._k1
-    delete (window as Record<string, unknown>)._k2
+    delete (window as unknown as Record<string, unknown>)._k0
+    delete (window as unknown as Record<string, unknown>)._k1
+    delete (window as unknown as Record<string, unknown>)._k2
 
     _sessionId = null
     _challengeNonce = null

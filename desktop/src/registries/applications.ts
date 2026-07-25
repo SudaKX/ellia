@@ -21,7 +21,7 @@
  */
 
 import { defineAsyncComponent } from 'vue'
-import { Archive, FileText, LockKeyhole, Settings, TerminalSquare } from 'lucide-vue-next'
+import { Archive, FileCode, FileText, LockKeyhole, Settings, TerminalSquare } from 'lucide-vue-next'
 
 import type { ApplicationDescriptor, ApplicationId } from '@/types/desktop'
 
@@ -65,5 +65,13 @@ export const applicationRegistry: Record<ApplicationId, ApplicationDescriptor> =
     component: defineAsyncComponent(() => import('@/components/applications/Settings.vue')),
     defaultWidth: 440,
     defaultHeight: 300,
+  },
+  ascii: {
+    id: 'ascii',
+    titleKey: 'applications.ascii.title',
+    icon: FileCode,
+    component: defineAsyncComponent(() => import('@/components/applications/AsciiFlow.vue')),
+    defaultWidth: 600,
+    defaultHeight: 400,
   },
 }
