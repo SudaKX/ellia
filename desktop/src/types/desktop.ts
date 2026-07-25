@@ -48,7 +48,7 @@ export interface DesktopApplication {
   nameKey: string
   descriptionKey: string
   groupKey: string
-  availability: 'available' | 'locked'
+  availability: 'available' | 'locked' | 'hidden'
 }
 
 /** 窗口初始位置策略 */

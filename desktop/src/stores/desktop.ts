@@ -44,13 +44,15 @@ const applications: DesktopApplication[] = [
     nameKey: 'applications.ascii.title',
     descriptionKey: 'applications.ascii.description',
     groupKey: 'applicationGroups.creative',
-    availability: 'available',
+    availability: 'hidden',
   },
 ]
 
 export const useDesktopStore = defineStore('desktop', () => {
   const isApplicationOverviewOpen = ref(false)
   const availableApplications = computed(() => applications.filter((app) => app.availability === 'available'))
+  /** 在 Launchpad 中可见的应用（排除 hidden） */
+  const visibleApplications = computed(() => applications.filter((app) => app.availability !== 'hidden'))
   const currentUser = ref('PLAYER')
   const privilegeClass = ref('LIMITED')
   const accountType = ref<'player' | 'admin' | null>(null)
@@ -123,6 +125,7 @@ export const useDesktopStore = defineStore('desktop', () => {
   return {
     applications,
     availableApplications,
+    visibleApplications,
     isApplicationOverviewOpen,
     currentUser,
     privilegeClass,

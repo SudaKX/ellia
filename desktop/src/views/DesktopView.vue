@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
     <Transition name="launchpad">
       <Launchpad
         v-if="desktop.isApplicationOverviewOpen"
-        :applications="desktop.applications"
+        :applications="desktop.visibleApplications"
         @close="handleCloseOverview"
         @launch="handleLaunch"
       />
