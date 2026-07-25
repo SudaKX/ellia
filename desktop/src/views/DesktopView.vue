@@ -354,13 +354,63 @@ function handleAiCloseRequest() {
       defaultWidth: 440,
       defaultHeight: 220,
       placement: 'center',
-      mode: 'modal',          // 模态窗口阻断普通窗口交互
+      mode: 'modal',
       resizable: false,
       filters: { glitch: true },
       controls: { minimize: false, close: true },
     },
   })
   playCue('system-alert')
+}
+
+/** 处理 Live2D 窗口的关闭请求：弹出权限拒绝弹窗（与 AI 助手相同行为） */
+function handleLive2dCloseRequest() {
+  handleAiCloseRequest()
+}
+
+/**
+ * 电源菜单 → 重启：暂时隐藏 AI 和 Live2D 窗口 60 秒后恢复。
+ * 不销毁组件实例，保护网络带宽（不重新下载 Live2D 资源）。
+ */
+let restartTimer: ReturnType<typeof setTimeout> | null = null
+
+function handleRestart() {
+  const aiIndex = windowService.windows.value.findIndex((w) => w.id === aiWindowId.value)
+  const live2dIndex = windowService.windows.value.findIndex((w) => w.id === live2dWindowId.value)
+
+  // 用 splice 替换元素以触发响应式（直接设置 isMinimized 不触发 v-for 更新）
+  if (aiIndex !== -1) {
+    const win = windowService.windows.value[aiIndex]
+    windowService.windows.value.splice(aiIndex, 1, { ...win, isMinimized: true })
+  }
+  if (live2dIndex !== -1) {
+    const win = windowService.windows.value[live2dIndex]
+    windowService.windows.value.splice(live2dIndex, 1, { ...win, isMinimized: true })
+  }
+
+  // 清除之前的定时器
+  if (restartTimer) clearTimeout(restartTimer)
+
+  // 60 秒后恢复
+  restartTimer = setTimeout(() => {
+    const aiIdx = windowService.windows.value.findIndex((w) => w.id === aiWindowId.value)
+    const live2dIdx = windowService.windows.value.findIndex((w) => w.id === live2dWindowId.value)
+
+    if (aiIdx !== -1) {
+      const win = windowService.windows.value[aiIdx]
+      windowService.windows.value.splice(aiIdx, 1, { ...win, isMinimized: false })
+    }
+    if (live2dIdx !== -1) {
+      const win = windowService.windows.value[live2dIdx]
+      windowService.windows.value.splice(live2dIdx, 1, { ...win, isMinimized: false })
+    }
+    restartTimer = null
+  }, 60_000)
+}
+
+/** 电源菜单 → 关机：弹出权限拒绝弹窗 */
+function handleShutdown() {
+  handleAiCloseRequest()
 }
 
 function handleNetworkAction(action: NetworkAction) {
@@ -465,13 +515,14 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
+  if (restartTimer) clearTimeout(restartTimer)
   filterService.destroy(windowGlitchFilter.instanceId)
 })
 </script>
 
 <template>
   <main class="desktop-shell">
-    <DesktopStatusBar :time="time" @network-action="handleNetworkAction" @switch-user="handleSwitchUser" />
+    <DesktopStatusBar :time="time" @network-action="handleNetworkAction" @switch-user="handleSwitchUser" @restart="handleRestart" @shutdown="handleShutdown" />
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
       <MatrixRain />
@@ -489,7 +540,7 @@ onBeforeUnmount(() => {
         :max-width="window.id === aiWindowId ? aiMaxSize : undefined"
         :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
         :title="window.id === aiWindowId ? aiTitle : window.id === live2dWindowId ? live2dTitle : undefined"
-        :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
+        :close-action="window.id === aiWindowId ? handleAiCloseRequest : window.id === live2dWindowId ? handleLive2dCloseRequest : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

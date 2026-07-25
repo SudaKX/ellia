@@ -37,6 +37,8 @@ defineProps<{
 const emit = defineEmits<{
   networkAction: [action: 'disconnect' | 'edit-ip' | 'edit-dns']
   switchUser: []
+  restart: []
+  shutdown: []
 }>()
 
 const desktop = useDesktopStore()
@@ -54,6 +56,16 @@ function handleNetworkAction(action: 'disconnect' | 'edit-ip' | 'edit-dns') {
 function handleSwitchUser() {
   setActiveMenu(null)
   emit('switchUser')
+}
+
+function handleRestart() {
+  setActiveMenu(null)
+  emit('restart')
+}
+
+function handleShutdown() {
+  setActiveMenu(null)
+  emit('shutdown')
 }
 </script>
 
@@ -95,7 +107,11 @@ function handleSwitchUser() {
         :active-menu-id="activeMenuId"
         @set-active="setActiveMenu"
       >
-        <PowerMenu @switch-user="handleSwitchUser" />
+        <PowerMenu
+          :on-switch-user="handleSwitchUser"
+          :on-restart="handleRestart"
+          :on-shutdown="handleShutdown"
+        />
       </StatusMenuButton>
     </div>
   </header>
