@@ -49,6 +49,8 @@ import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { useAuth } from '@/composables/useAuth'
+
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
 import type { DockApplicationState } from '@/components/desktop/DockBar.vue'
@@ -79,6 +81,7 @@ const audioService = useAudioService()
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
+const auth = useAuth()
 
 /** 窗口 Glitch 滤镜的默认参数 */
 const windowGlitchOptions: GlitchOptions = {
@@ -153,8 +156,9 @@ function handleCloseOverview() {
   desktop.closeApplicationOverview()
 }
 
-/** 电源菜单 → 更改账户 → 跳转登录页 */
+/** 电源菜单 → 更改账户 → 清除登录态并跳转登录页 */
 function handleSwitchUser() {
+  auth.logout()
   router.push({ name: 'login' })
 }
 

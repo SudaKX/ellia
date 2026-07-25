@@ -8,8 +8,8 @@
  * ## 事件传递
  *
  * 由于 WindowFrame 通过 `<component :is>` 动态渲染且只转发 `@close` 事件，
- * 本组件通过 `onLogin` / `onTokenLogin` prop（由父组件通过 `componentProps` 传入）
- * 回调，避免在 WindowFrame 上层额外转发事件。
+ * 本组件通过 prop 回调（由父组件通过 `componentProps` 传入），
+ * 避免在 WindowFrame 上层额外转发事件。
  *
  * ## 使用方式
  *

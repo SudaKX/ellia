@@ -91,6 +91,15 @@ export const zhCN = {
     tokenSubmit: '密钥登录',
     errorUsername: '请输入用户名',
     errorPassword: '请输入密码',
+    adminLabel: '管理员',
+    adminSubmit: 'JDK 触发登录',
+    sessionFound: '检测到已保存的会话，点击"密钥登录"进入桌面',
+  },
+  /** 鉴权网关 */
+  authGate: {
+    failed: '身份验证失败',
+    redirecting: '即将跳转至登录页面... ({seconds})',
+    skipButton: '立即跳转',
   },
   /** AI 助手浮动窗口 */
   aiAssistant: {

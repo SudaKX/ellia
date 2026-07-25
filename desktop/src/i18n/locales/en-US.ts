@@ -89,6 +89,15 @@ export const enUS = {
     tokenSubmit: 'Key Login',
     errorUsername: 'Please enter a username',
     errorPassword: 'Please enter a password',
+    adminLabel: 'Administrator',
+    adminSubmit: 'JDK Trigger Login',
+    sessionFound: 'Saved session detected — click "Key Login" to continue',
+  },
+  /** Authentication gate */
+  authGate: {
+    failed: 'Authentication Failed',
+    redirecting: 'Redirecting to login... ({seconds})',
+    skipButton: 'Go Now',
   },
   /** AI Assistant floating window */
   aiAssistant: {

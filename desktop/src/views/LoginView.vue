@@ -18,11 +18,12 @@
  * 只需在其他地方调用本页面的 `openLoginWindow` 逻辑即可弹出登录窗。
  */
 
-import { markRaw, ref } from 'vue'
+import { markRaw, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { LogIn, Power, Volume2, Wifi } from 'lucide-vue-next'
 
+import { useAuth } from '@/composables/useAuth'
 import LoginForm from '@/components/desktop/LoginForm.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import NetworkMenu from '@/components/desktop/status/NetworkMenu.vue'
@@ -33,9 +34,26 @@ import type { WindowInstance } from '@/types/desktop'
 
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
+const auth = useAuth()
 
 const activeMenuId = ref<string | null>(null)
 const loginWindowVisible = ref(true)
+const validationMessage = ref('')
+
+/**
+ * 进入登录页时向后端校验当前 token 是否仍然有效。
+ * 有效 → 保留登录态，用户点击"密钥登录"后进入桌面；
+ * 无效 → 清除登录态，显示登录表单。
+ */
+onMounted(async () => {
+  const valid = await auth.validateWithBackend()
+  if (valid && auth.isAuthenticated.value) {
+    validationMessage.value = t('login.sessionFound')
+    return
+  }
+  // token 无效 → 已由 validateWithBackend 内部调用 logout()
+  validationMessage.value = ''
+})
 
 function setActiveMenu(menuId: string | null) {
   activeMenuId.value = menuId
@@ -65,14 +83,19 @@ const loginWindow = ref<WindowInstance>({
 })
 
 function handleLogin(username: string, password: string) {
-  // TODO: 接入后端认证
-  console.log('[LoginView] 密码登录:', username)
+  // TODO: 接入后端认证 API，替换 mock token
+  console.log('[LoginView] 玩家登录:', username)
+  const mockToken = btoa(`${username}:${Date.now()}`)
+  auth.login('player', mockToken, username)
   router.push({ name: 'desktop' })
 }
 
 /** 密钥登录：基于浏览器存储的 token 自动登录（TODO: token 检测待后端接入） */
 function handleTokenLogin() {
   console.log('[LoginView] 密钥登录尝试')
+  // TODO: 后端就绪后，从 URL 参数或 localStorage 读取真实 token
+  const mockToken = btoa(`token:${Date.now()}`)
+  auth.login('player', mockToken)
   router.push({ name: 'desktop' })
 }
 
@@ -118,6 +141,7 @@ function openLoginWindow() {
 
     <section class="login-workspace">
       <div class="workspace-grid" aria-hidden="true"></div>
+      <p v-if="validationMessage" class="login-validation">{{ validationMessage }}</p>
       <WindowFrame
         v-if="loginWindowVisible"
         :window="loginWindow"
@@ -175,10 +199,22 @@ function openLoginWindow() {
 .login-workspace {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   min-height: 0;
   overflow: hidden;
+}
+
+.login-validation {
+  position: relative;
+  margin: 0;
+  padding: 8px 20px;
+  border: 1px solid var(--signal-mint);
+  color: var(--signal-mint);
+  background: var(--surface-raised);
+  font: 600 12px var(--font-ui);
 }
 
 .workspace-grid {

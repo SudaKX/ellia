@@ -53,6 +53,7 @@ export const useDesktopStore = defineStore('desktop', () => {
   const availableApplications = computed(() => applications.filter((app) => app.availability === 'available'))
   const currentUser = ref('PLAYER')
   const privilegeClass = ref('LIMITED')
+  const accountType = ref<'player' | 'admin' | null>(null)
 
   // 锁定页状态
   const isLocked = ref(false)
@@ -125,6 +126,7 @@ export const useDesktopStore = defineStore('desktop', () => {
     isApplicationOverviewOpen,
     currentUser,
     privilegeClass,
+    accountType,
     isLocked,
     lockSessionId,
     lockChallengeNonce,
