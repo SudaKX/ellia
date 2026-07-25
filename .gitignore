@@ -3,3 +3,4 @@ openspec.patch
 /.demo/
 .trae/
 .vscode/
+.idea/
