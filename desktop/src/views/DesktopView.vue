@@ -53,6 +53,7 @@ import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
 import type { DockApplicationState } from '@/components/desktop/DockBar.vue'
 import Launchpad from '@/components/desktop/Launchpad.vue'
+import MatrixRain from '@/components/desktop/MatrixRain.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
@@ -469,6 +470,7 @@ onBeforeUnmount(() => {
     <DesktopStatusBar :time="time" @network-action="handleNetworkAction" @switch-user="handleSwitchUser" />
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
+      <MatrixRain />
       <div class="workspace-grid" aria-hidden="true"></div>
 
       <WindowFrame

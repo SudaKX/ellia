@@ -161,13 +161,17 @@ export function createAudioService(): AudioService {
     if (audioContext.state === 'running') return true
     if (unlockPromise) return unlockPromise
 
-    unlockPromise = audioContext
-      .resume()
-      .then(() => audioContext.state === 'running')
-      .catch(() => false)
-      .finally(() => {
-        unlockPromise = null
-      })
+    // resume() 可能在部分浏览器/环境下永远不 resolve，
+    // 包装一个 2s 超时防止音频系统永久卡死
+    unlockPromise = Promise.race([
+      audioContext
+        .resume()
+        .then(() => audioContext.state === 'running')
+        .catch(() => false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+    ]).finally(() => {
+      unlockPromise = null
+    })
 
     return unlockPromise
   }
@@ -237,32 +241,43 @@ export function createAudioService(): AudioService {
    * @param bus - 总线（'ui' | 'system'），默认 'ui'
    */
   function playFile(url: string, bus: AudioBus = 'ui') {
+    // 打断前一个文件播放
+    if (activeFileAudio) {
+      activeFileAudio.pause()
+      activeFileAudio.remove()
+      activeFileAudio = null
+    }
+
+    const audioEl = new Audio(url)
+    activeFileAudio = audioEl
+
+    const done = () => {
+      source?.disconnect()
+      activeFileAudio = null
+      audioEl.remove()
+    }
+
+    let source: MediaElementAudioSourceNode | null = null
+
     void unlock().then((ready) => {
-      if (!ready || !context || isMuted.value || masterVolume.value === 0) return
-
-      // 打断前一个文件播放
-      if (activeFileAudio) {
-        activeFileAudio.pause()
-        activeFileAudio.remove()
-        activeFileAudio = null
+      if (ready && context && !isMuted.value && masterVolume.value > 0) {
+        // Web Audio 图可用：走频谱 + 音量控制
+        try {
+          source = context.createMediaElementSource(audioEl)
+          source.connect(busGains.get(bus)!)
+        } catch {
+          source = null
+          // Web Audio 图创建失败，回退到直接播放并手动控制音量
+          audioEl.volume = masterVolume.value * (busVolumes.value[bus] ?? 0.8)
+        }
+      } else {
+        // Web Audio 不可用，直接播放并手动应用音量
+        audioEl.volume = isMuted.value ? 0 : masterVolume.value * (busVolumes.value[bus] ?? 0.8)
       }
-
-      const audioEl = new Audio(url)
-      activeFileAudio = audioEl
-      const source = context.createMediaElementSource(audioEl)
-      source.connect(busGains.get(bus)!)
-
-      audioEl.play().catch(() => {
-        source.disconnect()
-        activeFileAudio = null
-      })
-
-      audioEl.addEventListener('ended', () => {
-        source.disconnect()
-        audioEl.remove()
-        activeFileAudio = null
-      }, { once: true })
+      audioEl.play().catch(() => {})
     })
+
+    audioEl.addEventListener('ended', done, { once: true })
   }
 
   async function suspend() {

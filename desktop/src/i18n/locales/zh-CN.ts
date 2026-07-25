@@ -13,6 +13,7 @@ export const zhCN = {
   applicationGroups: {
     system: '系统',
     restricted: '受限',
+    creative: '创意',
   },
   applications: {
     files: {
@@ -34,6 +35,10 @@ export const zhCN = {
     settings: {
       title: '设置',
       description: '配置桌面偏好。',
+    },
+    ascii: {
+      title: 'ASCII 流',
+      description: '可变字体文本回流可视化工具。',
     },
   },
   settings: {
