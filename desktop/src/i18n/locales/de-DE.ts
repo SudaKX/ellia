@@ -54,6 +54,7 @@ export const deDE = {
       deDE: 'Deutsch',
       jaJP: '日本語',
       zhTW: '中文（繁體）',
+      binary: 'Binary',
     },
   },
   network: {
@@ -112,10 +113,24 @@ export const deDE = {
     title: 'KI-Assistent',
     errorTitle: 'KI-Assistent schließen',
     closeButton: 'KI-Assistent schließen',
+    lines: {
+      0: "I-Ich bin doch gar nicht kitzlig oder so!",
+      1: "So ein bisschen Kitzeln macht mir doch...",
+      2: "Mmm~! Nimm das, Kitzelangriff!!",
+    },
   },
   /** Live2D-Assistent */
   live2d: {
     title: 'Live2D-Assistent',
+    loading: 'Live2D wird geladen...',
+    containerError: 'Live2D-Container-Init fehlgeschlagen',
+    loadFailed: 'Laden fehlgeschlagen',
+    motionFailed: 'Animationswiedergabe fehlgeschlagen',
+    motionPlaying: 'Animation wird abgespielt',
+    idle: 'Bereit',
+    mainMotion: 'Hauptanimation {n}',
+    touchBody: 'Körper berühren',
+    touchHead: 'Kopf berühren',
   },
   /** Interaktives Befehlsterminal */
   terminal: {

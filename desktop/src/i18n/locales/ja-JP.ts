@@ -54,6 +54,7 @@ export const jaJP = {
       deDE: 'Deutsch',
       jaJP: '日本語',
       zhTW: '中文（繁體）',
+      binary: 'Binary',
     },
   },
   network: {
@@ -112,10 +113,24 @@ export const jaJP = {
     title: 'AI アシスタント',
     errorTitle: 'AI アシスタントを閉じる',
     closeButton: 'AI アシスタントを閉じる',
+    lines: {
+      0: 'く、くすぐったくなんかないんだから！',
+      1: 'このくらいのくすぐったさじゃ……',
+      2: 'んん〜！ くらえ、こちょこちょ攻撃！！',
+    },
   },
   /** Live2D アシスタント */
   live2d: {
     title: 'Live2D アシスタント',
+    loading: 'Live2D 読み込み中...',
+    containerError: 'Live2D コンテナの初期化に失敗',
+    loadFailed: '読み込み失敗',
+    motionFailed: 'モーション再生に失敗',
+    motionPlaying: 'モーション再生中',
+    idle: '待機中',
+    mainMotion: 'メインモーション {n}',
+    touchBody: '体をタッチ',
+    touchHead: '頭をタッチ',
   },
   /** 対話型コマンドターミナル */
   terminal: {

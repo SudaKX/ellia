@@ -54,6 +54,7 @@ export const zhCN = {
       deDE: 'Deutsch',
       jaJP: '日本語',
       zhTW: '中文（繁體）',
+      binary: 'Binary',
     },
   },
   network: {
@@ -112,10 +113,24 @@ export const zhCN = {
     title: 'AI 助手',
     errorTitle: '关闭 AI 助手',
     closeButton: '关闭 AI 助手',
+    lines: {
+      0: '我，我才不会觉得痒什么的！',
+      1: '痒这种程度的，才不会……',
+      2: '唔嗯~！看招，挠痒痒攻击！！',
+    },
   },
   /** Live2D 助手 */
   live2d: {
     title: 'Live2D 助手',
+    loading: 'Live2D 加载中...',
+    containerError: 'Live2D 容器初始化失败',
+    loadFailed: '加载失败',
+    motionFailed: '动作播放失败',
+    motionPlaying: '动作播放中',
+    idle: '待机中',
+    mainMotion: '主动作 {n}',
+    touchBody: '摸身体',
+    touchHead: '摸头',
   },
   /** 交互式命令终端 */
   terminal: {

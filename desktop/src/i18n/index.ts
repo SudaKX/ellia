@@ -6,6 +6,7 @@ import { zhCN } from './locales/zh-CN'
 import { deDE } from './locales/de-DE'
 import { jaJP } from './locales/ja-JP'
 import { zhTW } from './locales/zh-TW'
+import { binary } from './locales/binary'
 
 const LOCALE_STORAGE_KEY = 'ellia.desktop.locale'
 
@@ -15,6 +16,7 @@ export const messages = {
   'de-DE': deDE,
   'ja-JP': jaJP,
   'zh-TW': zhTW,
+  binary,
 }
 
 export type SupportedLocale = keyof typeof messages

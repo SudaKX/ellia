@@ -20,6 +20,7 @@ const languageOptions: { value: SupportedLocale; labelKey: string }[] = [
   { value: 'zh-TW', labelKey: 'settings.languageOptions.zhTW' },
   { value: 'de-DE', labelKey: 'settings.languageOptions.deDE' },
   { value: 'ja-JP', labelKey: 'settings.languageOptions.jaJP' },
+  { value: 'binary', labelKey: 'settings.languageOptions.binary' },
 ]
 
 const isOpen = ref(false)

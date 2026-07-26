@@ -30,7 +30,10 @@
  */
 
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLive2DAssistant } from '@/composables/useLive2DAssistant'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   modelUrl: string
@@ -43,26 +46,26 @@ const props = defineProps<{
   onSetTitle?: (text: string) => void
 }>()
 
-/**
- * Cubism Core 运行时 URL。
- * 基于 Vite `BASE_URL` 构造，确保 dev/build 路径一致。
- */
 const CORE_SCRIPT_URL = new URL(
   'live2d/live2dcubismcore.min.js',
   window.location.origin + import.meta.env.BASE_URL,
 ).toString()
 
-/** 动作名 → 标题栏显示文本映射 */
-const MOTION_TITLES: Record<string, string> = {
-  idle: '待机中', idle1: '待机中', idle2: '待机中', idle3: '待机中',
-  idle4: '待机中', idle5: '待机中', idle6: '待机中',
-  main_1: '主动作 1', main_2: '主动作 2', main_3: '主动作 3',
-  main_4: '主动作 4', main_5: '主动作 5',
-  touch_body: '摸身体', touch_head: '摸头',
+/** 动作名 → 标题栏显示文本映射（使用 i18n） */
+function resolveMotionTitle(group: string | null): string {
+  if (!group) return t('live2d.motionFailed')
+  if (group.startsWith('idle')) return t('live2d.idle')
+  if (group.startsWith('main_')) {
+    const n = group.replace('main_', '')
+    return t('live2d.mainMotion', { n })
+  }
+  if (group === 'touch_body') return t('live2d.touchBody')
+  if (group === 'touch_head') return t('live2d.touchHead')
+  return t('live2d.motionPlaying')
 }
 
 const stageRef = ref<HTMLElement | null>(null)
-const loadingText = ref('Live2D 加载中...')
+const loadingText = ref(t('live2d.loading'))
 const loadError = ref<string | null>(null)
 const isReady = ref(false)
 
@@ -70,8 +73,7 @@ let resizeObserver: ResizeObserver | null = null
 let runtime: ReturnType<typeof useLive2DAssistant> | null = null
 
 function resolveTitle(group: string | null) {
-  if (!group) return '动作播放失败'
-  return MOTION_TITLES[group] ?? '动作播放中'
+  return resolveMotionTitle(group)
 }
 
 /** 页面卸载时销毁全局缓存的 Live2D 实例 */
@@ -93,11 +95,11 @@ async function handleClick(event: MouseEvent) {
 }
 
 onMounted(async () => {
-  props.onSetTitle?.('待机中')
+  props.onSetTitle?.(t('live2d.idle'))
 
   if (!stageRef.value) {
-    loadError.value = 'Live2D 容器初始化失败'
-    props.onSetTitle?.('加载失败')
+    loadError.value = t('live2d.containerError')
+    props.onSetTitle?.(t('live2d.loadFailed'))
     return
   }
 
@@ -119,7 +121,7 @@ onMounted(async () => {
 
   if (loadError.value) {
     loadingText.value = loadError.value
-    props.onSetTitle?.('加载失败')
+    props.onSetTitle?.(t('live2d.loadFailed'))
     return
   }
 

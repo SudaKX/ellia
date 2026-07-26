@@ -177,7 +177,7 @@ const aiMaxSize = ref(0)
 const aiTitle = ref('')
 
 /** Live2D 窗口标题栏文本（动作名），由 Live2DAssistant 通过 onSetTitle 更新 */
-const live2dTitle = ref('待机中')
+const live2dTitle = ref(t('live2d.idle'))
 
 /** Live2D 窗口的运行时 ID */
 const live2dWindowId = ref<string | null>(null)
@@ -189,12 +189,12 @@ const KEI_IMAGES = [
   '/console/images/kei/kei_大急.webp',         // 对应 ogg3 + 台词3
 ]
 
-/** 标题栏轮换台词：点击图片时同步切换 */
-const KEI_TITLES = [
-  '我，我才不会觉得痒什么的！',
-  '痒这种程度的，才不会……',
-  '唔嗯~！看招，挠痒痒攻击！！',
-]
+/** 标题栏轮换台词：基于 i18n 的 reactive 数组 */
+const KEI_TITLES = computed(() => [
+  t('aiAssistant.lines.0'),
+  t('aiAssistant.lines.1'),
+  t('aiAssistant.lines.2'),
+])
 
 /** kei 语音文件：点击图片时按 1→2→3→1 循环播放 */
 const KEI_VOICES = [
@@ -267,7 +267,7 @@ function initAiWindow() {
       component: markRaw(AiAssistant),
       componentProps: {
         images: KEI_IMAGES,
-        titles: KEI_TITLES,
+        titles: KEI_TITLES.value,
         voices: KEI_VOICES,
         onSetTitle: (text: string) => { aiTitle.value = text },
       },

@@ -52,6 +52,7 @@ export const enUS = {
       deDE: 'Deutsch',
       jaJP: '日本語',
       zhTW: '中文（繁體）',
+      binary: 'Binary',
     },
   },
   network: {
@@ -110,10 +111,24 @@ export const enUS = {
     title: 'AI Assistant',
     errorTitle: 'Close AI Assistant',
     closeButton: 'Close AI Assistant',
+    lines: {
+      0: "I-I definitely don't feel ticklish or anything!",
+      1: "Tickles like that won't...",
+      2: "Mmm~! Take this, tickle attack!!",
+    },
   },
   /** Live2D assistant */
   live2d: {
     title: 'Live2D Assistant',
+    loading: 'Live2D Loading...',
+    containerError: 'Live2D container init failed',
+    loadFailed: 'Load failed',
+    motionFailed: 'Motion playback failed',
+    motionPlaying: 'Playing motion',
+    idle: 'Idle',
+    mainMotion: 'Main Motion {n}',
+    touchBody: 'Touch Body',
+    touchHead: 'Touch Head',
   },
   /** Interactive command terminal */
   terminal: {
