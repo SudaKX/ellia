@@ -51,6 +51,9 @@ export const zhCN = {
     languageOptions: {
       enUS: 'English(US)',
       zhCN: '中文（简体）',
+      deDE: 'Deutsch',
+      jaJP: '日本語',
+      zhTW: '中文（繁體）',
     },
   },
   network: {

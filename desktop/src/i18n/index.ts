@@ -3,18 +3,24 @@ import { watch } from 'vue'
 
 import { enUS } from './locales/en-US'
 import { zhCN } from './locales/zh-CN'
+import { deDE } from './locales/de-DE'
+import { jaJP } from './locales/ja-JP'
+import { zhTW } from './locales/zh-TW'
 
 const LOCALE_STORAGE_KEY = 'ellia.desktop.locale'
 
 export const messages = {
   'en-US': enUS,
   'zh-CN': zhCN,
+  'de-DE': deDE,
+  'ja-JP': jaJP,
+  'zh-TW': zhTW,
 }
 
 export type SupportedLocale = keyof typeof messages
 
 function isSupportedLocale(locale: string | null): locale is SupportedLocale {
-  return locale === 'en-US' || locale === 'zh-CN'
+  return locale != null && locale in messages
 }
 
 function resolveInitialLocale(): SupportedLocale {
@@ -23,7 +29,14 @@ function resolveInitialLocale(): SupportedLocale {
   const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY)
   if (isSupportedLocale(savedLocale)) return savedLocale
 
-  return window.navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+  const navLang = window.navigator.language.toLowerCase()
+  if (navLang.startsWith('zh')) {
+    if (navLang.includes('tw') || navLang.includes('hk') || navLang === 'zh-hant') return 'zh-TW'
+    return 'zh-CN'
+  }
+  if (navLang.startsWith('de')) return 'de-DE'
+  if (navLang.startsWith('ja')) return 'ja-JP'
+  return 'en-US'
 }
 
 export const i18n = createI18n({
