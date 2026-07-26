@@ -20,6 +20,7 @@ from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
 from mythos.services.progress.router import router as progress_router
 from mythos.services.validations.router import router as validations_router
+from mythos.services.files.static_assets import StaticAssetPublisher
 
 
 def create_app(
@@ -33,9 +34,16 @@ def create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         file_ids = FileIdCodec(resolved_settings.file_id_secret)
-        catalogs = registered_content.freeze(file_ids)
         resolved_object_store = object_store or create_object_store(resolved_settings)
         database = Database(resolved_settings.database_url)
+        await registered_content.materialize_static_files(
+            StaticAssetPublisher(
+                database.session_factory,
+                resolved_object_store,
+                resolved_settings.puzzle_root,
+            )
+        )
+        catalogs = registered_content.freeze(file_ids)
         player_factory = PlayerFactory(catalogs)
         checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)

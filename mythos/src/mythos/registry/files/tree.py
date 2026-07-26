@@ -6,7 +6,7 @@ from types import MappingProxyType
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import RegistryError
-from mythos.registry.files.definitions import VirtualNode
+from mythos.registry.files.definitions import FileContent, VirtualNode
 
 
 class FileTreeDirectoryNotFoundError(RegistryError):
@@ -18,11 +18,12 @@ class TreeNode:
     path: str
     definition: VirtualNode | None
     children: Mapping[str, TreeNode]
+    content: FileContent | None = None
     file_id: str | None = None
 
     @property
     def is_file(self) -> bool:
-        return self.definition is not None and self.definition.content is not None
+        return self.content is not None
 
 
 class FileTree:
@@ -39,19 +40,29 @@ class FileTree:
         self.file_id_key_fingerprint = file_id_key_fingerprint
 
     @classmethod
-    def build(cls, nodes: Mapping[str, VirtualNode], file_ids: FileIdCodec) -> FileTree:
+    def build(
+        cls,
+        nodes: Mapping[str, VirtualNode],
+        contents_by_stable_id: Mapping[str, FileContent],
+        file_ids: FileIdCodec,
+    ) -> FileTree:
         root = _MutableTreeNode(path="/")
         file_ids_by_stable_id = {
             stable_id: file_ids.encode(stable_id)
             for stable_id, node in nodes.items()
-            if node.content is not None
+            if node.is_file
         }
         for node in nodes.values():
-            if node.content is None:
+            if not node.is_file:
                 _insert_directory(root, node)
         for node in nodes.values():
-            if node.content is not None:
-                _insert_file(root, node, file_ids_by_stable_id[node.stable_id])
+            if node.is_file:
+                _insert_file(
+                    root,
+                    node,
+                    contents_by_stable_id[node.stable_id],
+                    file_ids_by_stable_id[node.stable_id],
+                )
 
         files_by_public_id: dict[str, TreeNode] = {}
         frozen_root = _freeze_node(root, files_by_public_id)
@@ -106,6 +117,7 @@ class _MutableTreeNode:
     path: str
     definition: VirtualNode | None = None
     children: dict[str, _MutableTreeNode] | None = None
+    content: FileContent | None = None
     file_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -114,7 +126,7 @@ class _MutableTreeNode:
 
     @property
     def is_file(self) -> bool:
-        return self.definition is not None and self.definition.content is not None
+        return self.content is not None
 
 
 def _insert_directory(root: _MutableTreeNode, definition: VirtualNode) -> None:
@@ -133,7 +145,12 @@ def _insert_directory(root: _MutableTreeNode, definition: VirtualNode) -> None:
     current.definition = definition
 
 
-def _insert_file(root: _MutableTreeNode, definition: VirtualNode, file_id: str) -> None:
+def _insert_file(
+    root: _MutableTreeNode,
+    definition: VirtualNode,
+    content: FileContent,
+    file_id: str,
+) -> None:
     segments = _path_segments(definition.path)
     current = root
     for segment in segments[:-1]:
@@ -152,6 +169,7 @@ def _insert_file(root: _MutableTreeNode, definition: VirtualNode, file_id: str) 
     current.children[name] = _MutableTreeNode(
         path=_child_path(current.path, name),
         definition=definition,
+        content=content,
         file_id=file_id,
     )
 
@@ -166,6 +184,7 @@ def _freeze_node(node: _MutableTreeNode, files_by_public_id: dict[str, TreeNode]
         path=node.path,
         definition=node.definition,
         children=MappingProxyType(children),
+        content=node.content,
         file_id=node.file_id,
     )
     if frozen.file_id is not None:

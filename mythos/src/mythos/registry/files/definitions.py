@@ -39,9 +39,59 @@ class FileContent:
 
 
 @dataclass(frozen=True)
+class FileReference:
+    module: str
+    relative_path: str
+    media_type: str
+
+    @property
+    def source_locator(self) -> str:
+        return f"{self.module}:{self.relative_path}"
+
+
+@dataclass(frozen=True)
 class VirtualNode:
     stable_id: str
     path: str
     revision: str
-    content: FileContent | None = None
     access_rule: NodeAccessRule | None = None
+    source_locator: str | None = None
+    download_name: str | None = None
+
+    @classmethod
+    def file(
+        cls,
+        stable_id: str,
+        path: str,
+        revision: str,
+        source_locator: str,
+        download_name: str,
+        access_rule: NodeAccessRule | None = None,
+    ) -> VirtualNode:
+        return cls(
+            stable_id=stable_id,
+            path=path,
+            revision=revision,
+            access_rule=access_rule,
+            source_locator=source_locator,
+            download_name=download_name,
+        )
+
+    @classmethod
+    def directory(
+        cls,
+        stable_id: str,
+        path: str,
+        revision: str,
+        access_rule: NodeAccessRule | None = None,
+    ) -> VirtualNode:
+        return cls(
+            stable_id=stable_id,
+            path=path,
+            revision=revision,
+            access_rule=access_rule,
+        )
+
+    @property
+    def is_file(self) -> bool:
+        return self.source_locator is not None

@@ -13,7 +13,7 @@
 
 ## 2. Registry 与 Runtime
 
-`RegistryBundle` 组合 validations、files、progress 和 scripts 四类注册期对象。模块在应用启动前显式调用 `register(registries)`；`RegistryBundle.freeze()` 结束注册期并生成 `RuntimeCatalogs`。运行期消费者按约定只读使用 Catalog。
+`RegistryBundle` 组合 validations、files、progress 和 scripts 四类注册期对象。模块在应用启动前显式调用 `register(registries)`；静态文件 Source 在 `freeze()` 前由启动期发布器物化为 RustFS `ObjectReference`，随后 `RegistryBundle.freeze()` 结束注册期并生成 `RuntimeCatalogs`。运行期消费者按约定只读使用 Catalog。
 
 ```text
 RegistryBundle -> RuntimeCatalogs -> ApplicationRuntime
@@ -55,11 +55,11 @@ services/validations/ # ValidationService 与验证提交 API
 
 Service 通过请求级 Player 判断内容可见性。GET Router 通过 `get_read_context()` 使用 `writable=False` 的 `RequestContext`；写入 Router 通过 `CommandTransactionExecutor` 创建 `writable=True` 的 `CommandContext`，并复用命令事务与 Request-ID，不能直接提交 Session。
 
-FileService 的静态对象存储、公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
+FileService 的静态文件注册分为 `register_source(FileReference)` 与 `register_node(VirtualNode)`。Source 使用 `module + relative_path` 定位 `puzzles/<module>/` 下的本地文件；启动期发布器以 mtime 物化或复用 RustFS 对象，FileTree 仅保存已解析的 `ObjectReference`。公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
 
 ## 6. Registry
 
-- `registry/files/`：虚拟文件、路径、revision、内容和访问规则。
+- `registry/files/`：虚拟 Node、静态文件 Source、路径、revision 和访问规则。
 - `registry/progress/`：ProgressNode 注册与冻结后的进度 DAG。
 - `registry/scripts/`：演出脚本、revision 和访问规则。
 - `registry/validations/`：验证尝试 ID 与模块注册的验证 handler。

@@ -6,6 +6,7 @@ from mythos.persistence.models.progress import (
     PlayerProgressFrontierNode,
     PlayerProgressUnlockedNode,
 )
+from mythos.persistence.models.static_files import StaticFileRegistration
 
 __all__ = [
     "PlayerAuth",
@@ -14,4 +15,5 @@ __all__ = [
     "PlayerProgressFrontierNode",
     "PlayerProgressUnlockedNode",
     "PlayerRecord",
+    "StaticFileRegistration",
 ]

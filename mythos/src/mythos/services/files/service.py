@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from mythos.players.player import Player
 from mythos.registry.files import FileTree, FileTreeDirectoryNotFoundError, TreeNode
-from mythos.services.object_store.service import ObjectStore, PresignedObjectUrl
+from mythos.services.object_store.service import ObjectStoreReader, PresignedObjectUrl
 
 
 class FileAccessDeniedError(Exception):
@@ -41,7 +41,7 @@ class FileService:
     def __init__(
         self,
         tree: FileTree,
-        object_store: ObjectStore,
+        object_store: ObjectStoreReader,
         download_url_ttl_seconds: int,
     ) -> None:
         self._tree = tree
@@ -76,11 +76,11 @@ class FileService:
     def metadata(self, player: Player, file_id: str) -> FileMetadata:
         file = self._authorized_file(player, file_id)
         assert file.definition is not None
-        assert file.definition.content is not None
+        assert file.content is not None
         return FileMetadata(
             **self._summary(file).__dict__,
-            content_digest=file.definition.content.object_ref.content_digest,
-            download_name=file.definition.content.download_name,
+            content_digest=file.content.object_ref.content_digest,
+            download_name=file.content.download_name,
         )
 
     async def issue_content_url(self, player: Player, file_id: str) -> PresignedObjectUrl:
@@ -92,11 +92,11 @@ class FileService:
     async def _issue_url(self, player: Player, file_id: str, *, disposition: str) -> PresignedObjectUrl:
         file = self._authorized_file(player, file_id)
         assert file.definition is not None
-        assert file.definition.content is not None
+        assert file.content is not None
         return await self._object_store.presign_get(
-            file.definition.content.object_ref,
+            file.content.object_ref,
             expires_in_seconds=self._download_url_ttl_seconds,
-            content_disposition=f'{disposition}; filename="{file.definition.content.download_name}"',
+            content_disposition=f'{disposition}; filename="{file.content.download_name}"',
         )
 
     def _authorized_file(self, player: Player, file_id: str) -> TreeNode:
@@ -124,12 +124,12 @@ class FileService:
 
     def _summary(self, file: TreeNode) -> FileSummary:
         assert file.definition is not None
-        assert file.definition.content is not None
+        assert file.content is not None
         assert file.file_id is not None
         return FileSummary(
             file_id=file.file_id,
             path=file.definition.path,
             revision=file.definition.revision,
-            media_type=file.definition.content.object_ref.media_type,
-            size_bytes=file.definition.content.object_ref.size_bytes,
+            media_type=file.content.object_ref.media_type,
+            size_bytes=file.content.object_ref.size_bytes,
         )

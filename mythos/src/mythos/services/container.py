@@ -7,7 +7,7 @@ from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
 from mythos.registry.validations import ValidationCatalog
 from mythos.services.files.service import FileService
-from mythos.services.object_store.service import ObjectStore
+from mythos.services.object_store.service import ObjectStoreReader
 from mythos.services.progress.checkpoint_store import LocalCheckpointStore
 from mythos.services.progress.service import ProgressService
 from mythos.services.scripts.service import ScriptService
@@ -28,7 +28,7 @@ class ServiceContainer:
         progress_graph: ProgressGraph,
         script_catalog: ScriptCatalog,
         validation_catalog: ValidationCatalog,
-        object_store: ObjectStore,
+        object_store: ObjectStoreReader,
         file_download_url_ttl_seconds: int,
         checkpoint_store: LocalCheckpointStore,
     ) -> ServiceContainer:

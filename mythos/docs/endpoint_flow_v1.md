@@ -8,6 +8,8 @@
 
 ```text
 Settings + RegistryBundle
+  -> StaticAssetPublisher.materialize(files.sources)
+  -> RegistryBundle.materialize_static_files(object_references)
   -> RegistryBundle.freeze(file_ids)
   -> RuntimeCatalogs(files, progress, scripts, validations)
   -> PlayerFactory(catalogs)
@@ -30,6 +32,7 @@ Router 不自行构造 Service 或 Catalog。它通过 FastAPI 依赖取得 `App
 | `ProgressInterface` | 读取/写入当前 Session 追踪的玩家图状态 |
 | Service | 使用 Catalog、Player 或 Context 执行具体用例，不保存请求状态 |
 | `CommandTransactionExecutor` | Request-ID、事务、可写 Context、pre-commit hook、响应缓存 |
+| `StaticAssetPublisher` | 启动期同步注册的本地静态 Source、RustFS 对象版本与 SQLite 登记表 |
 
 ## 2. 当前端点分类
 

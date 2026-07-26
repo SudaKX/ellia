@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+from mythos.registry.files.definitions import ObjectReference
 
 if TYPE_CHECKING:
     from mythos.core.config import Settings
-    from mythos.registry.files.definitions import ObjectReference
 
 
 class ObjectStoreUnavailableError(Exception):
@@ -24,7 +27,7 @@ class PresignedObjectUrl:
     expires_at: datetime
 
 
-class ObjectStore(Protocol):
+class ObjectStoreReader(Protocol):
     async def presign_get(
         self,
         reference: ObjectReference,
@@ -32,6 +35,20 @@ class ObjectStore(Protocol):
         expires_in_seconds: int,
         content_disposition: str,
     ) -> PresignedObjectUrl: ...
+
+
+class StaticObjectWriter(Protocol):
+    async def put_file(
+        self,
+        source_path: Path,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference: ...
+
+
+class ObjectStore(ObjectStoreReader, StaticObjectWriter, Protocol):
+    pass
 
 
 class UnconfiguredObjectStore:
@@ -43,6 +60,16 @@ class UnconfiguredObjectStore:
         content_disposition: str,
     ) -> PresignedObjectUrl:
         del reference, expires_in_seconds, content_disposition
+        raise ObjectStoreUnavailableError("Object storage is not configured.")
+
+    async def put_file(
+        self,
+        source_path: Path,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference:
+        del source_path, object_key, media_type
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
 
@@ -64,8 +91,7 @@ class Boto3ObjectStore:
             "ResponseContentType": reference.media_type,
             "ResponseContentDisposition": content_disposition,
         }
-        if reference.version_id is not None:
-            params["VersionId"] = reference.version_id
+        params["VersionId"] = reference.version_id
         try:
             url = await asyncio.to_thread(
                 self._client.generate_presigned_url,  # type: ignore[union-attr]
@@ -78,6 +104,40 @@ class Boto3ObjectStore:
         return PresignedObjectUrl(
             url=url,
             expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
+        )
+
+    async def put_file(
+        self,
+        source_path: Path,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference:
+        return await asyncio.to_thread(self._put_file_sync, source_path, object_key, media_type)
+
+    def _put_file_sync(self, source_path: Path, object_key: str, media_type: str) -> ObjectReference:
+        try:
+            size_bytes = source_path.stat().st_size
+            with source_path.open("rb") as source:
+                digest = hashlib.file_digest(source, "sha256").hexdigest()
+                source.seek(0)
+                response = self._client.put_object(  # type: ignore[union-attr]
+                    Bucket=self._bucket,
+                    Key=object_key,
+                    Body=source,
+                    ContentType=media_type,
+                )
+        except Exception as error:
+            raise ObjectStoreError("Unable to upload a static object.") from error
+        version_id = response.get("VersionId") if isinstance(response, dict) else None
+        if not isinstance(version_id, str) or not version_id:
+            raise ObjectStoreError("Object storage did not return a version ID for the uploaded object.")
+        return ObjectReference(
+            key=object_key,
+            content_digest=f"sha256:{digest}",
+            media_type=media_type,
+            size_bytes=size_bytes,
+            version_id=version_id,
         )
 
 

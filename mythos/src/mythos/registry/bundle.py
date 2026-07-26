@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.files import FileRegistry, FileTree
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 from mythos.registry.validations import ValidationCatalog, ValidationRegistry
+
+if TYPE_CHECKING:
+    from mythos.services.files.static_assets import StaticAssetPublisher
 
 
 @dataclass(frozen=True)
@@ -37,3 +41,10 @@ class RegistryBundle:
             validations=self.validations.freeze(),
         )
         return self._catalogs
+
+    async def materialize_static_files(self, publisher: StaticAssetPublisher) -> None:
+        if self._catalogs is not None:
+            return
+        if self.files.is_materialized:
+            return
+        self.files.materialize_static_files(await publisher.materialize(self.files.sources))
