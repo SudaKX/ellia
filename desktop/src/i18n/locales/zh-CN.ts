@@ -56,6 +56,15 @@ export const zhCN = {
       zhTW: '中文（繁體）',
       binary: 'Binary',
     },
+    theme: '主题',
+    themeDescription: '选择桌面视觉主题。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日间',
+      deepBlue: '深蓝',
+      parchment: '羊皮纸',
+      rose: '雍容华丽',
+    },
   },
   network: {
     status: {

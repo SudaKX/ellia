@@ -56,6 +56,15 @@ export const jaJP = {
       zhTW: '中文（繁體）',
       binary: 'Binary',
     },
+    theme: 'テーマ',
+    themeDescription: 'デスクトップのビジュアルテーマを選択。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日中',
+      deepBlue: '深青',
+      parchment: '羊皮紙',
+      rose: '薔薇',
+    },
   },
   network: {
     status: {

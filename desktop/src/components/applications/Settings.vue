@@ -2,7 +2,7 @@
 /**
  * # Settings.vue — 桌面设置面板
  *
- * 当前仅包含语言切换功能。
+ * 包含语言切换和主题切换。
  * 使用自定义下拉组件替代原生 <select>，避免下拉菜单超出窗口边界。
  */
 
@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 
 import { setLocale, type SupportedLocale } from '@/i18n'
+import { setTheme, THEMES, type Theme } from '@/composables/useTheme'
 
 const { locale, t } = useI18n({ useScope: 'global' })
 
@@ -23,17 +24,28 @@ const languageOptions: { value: SupportedLocale; labelKey: string }[] = [
   { value: 'binary', labelKey: 'settings.languageOptions.binary' },
 ]
 
-const isOpen = ref(false)
+const langOpen = ref(false)
+const themeOpen = ref(false)
+/** 当前主题，与 <html data-theme> 同步 */
+const currentTheme = ref<Theme>(
+  (document.documentElement.dataset.theme as Theme) || 'night',
+)
 
-function select(option: { value: SupportedLocale }) {
+function selectLang(option: { value: SupportedLocale }) {
+  langOpen.value = false
   setLocale(option.value)
-  isOpen.value = false
 }
 
-/** 点击遮罩层关闭 */
-function closeDropdown(e: MouseEvent) {
+function selectTheme(theme: Theme) {
+  themeOpen.value = false
+  currentTheme.value = theme
+  setTheme(theme)
+}
+
+function closeBackdrop(e: MouseEvent) {
   if (e.target === e.currentTarget) {
-    isOpen.value = false
+    langOpen.value = false
+    themeOpen.value = false
   }
 }
 </script>
@@ -45,24 +57,22 @@ function closeDropdown(e: MouseEvent) {
       <h2 class="settings__title">{{ t('applications.settings.title') }}</h2>
     </header>
 
+    <!-- 语言 -->
     <div class="settings__field">
       <span class="settings__field-label">{{ t('settings.language') }}</span>
       <span class="settings__field-description">{{ t('settings.languageDescription') }}</span>
-
-      <!-- 自定义下拉 -->
-      <div class="dropdown" :class="{ 'dropdown--open': isOpen }">
-        <button class="dropdown__trigger" @click="isOpen = !isOpen">
+      <div class="dropdown" :class="{ 'dropdown--open': langOpen }">
+        <button class="dropdown__trigger" @click="langOpen = !langOpen">
           <span>{{ t(languageOptions.find(o => o.value === locale)?.labelKey ?? '') }}</span>
           <ChevronDown :size="14" :stroke-width="1.8" class="dropdown__chevron" />
         </button>
-
-        <div v-if="isOpen" class="dropdown__menu">
+        <div v-if="langOpen" class="dropdown__menu">
           <button
             v-for="option in languageOptions"
             :key="option.value"
             class="dropdown__item"
             :class="{ 'dropdown__item--active': option.value === locale }"
-            @click="select(option)"
+            @click="selectLang(option)"
           >
             {{ t(option.labelKey) }}
           </button>
@@ -70,8 +80,31 @@ function closeDropdown(e: MouseEvent) {
       </div>
     </div>
 
-    <!-- 点击菜单外关闭 -->
-    <div v-if="isOpen" class="dropdown__backdrop" @click="closeDropdown" />
+    <!-- 主题 -->
+    <div class="settings__field">
+      <span class="settings__field-label">{{ t('settings.theme') }}</span>
+      <span class="settings__field-description">{{ t('settings.themeDescription') }}</span>
+      <div class="dropdown" :class="{ 'dropdown--open': themeOpen }">
+        <button class="dropdown__trigger" @click="themeOpen = !themeOpen">
+          <span>{{ t(THEMES.find(t => t.key === currentTheme)?.i18nKey ?? '') }}</span>
+          <ChevronDown :size="14" :stroke-width="1.8" class="dropdown__chevron" />
+        </button>
+        <div v-if="themeOpen" class="dropdown__menu">
+          <button
+            v-for="theme in THEMES"
+            :key="theme.key"
+            class="dropdown__item"
+            :class="{ 'dropdown__item--active': theme.key === currentTheme }"
+            @click="selectTheme(theme.key)"
+          >
+            {{ t(theme.i18nKey) }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 点击背景关闭所有下拉 -->
+    <div v-if="langOpen || themeOpen" class="dropdown__backdrop" @click="closeBackdrop" />
   </section>
 </template>
 
@@ -192,7 +225,6 @@ function closeDropdown(e: MouseEvent) {
   background: var(--surface-panel);
 }
 
-/* 透明遮罩：点击菜单外关闭 */
 .dropdown__backdrop {
   position: fixed;
   inset: 0;

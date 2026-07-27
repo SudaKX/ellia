@@ -56,6 +56,15 @@ export const deDE = {
       zhTW: '中文（繁體）',
       binary: 'Binary',
     },
+    theme: 'Design',
+    themeDescription: 'Wählen Sie das visuelle Design für den Desktop.',
+    themeOptions: {
+      night: 'Nacht',
+      day: 'Tag',
+      deepBlue: 'Tiefblau',
+      parchment: 'Pergament',
+      rose: 'Rose',
+    },
   },
   network: {
     status: {

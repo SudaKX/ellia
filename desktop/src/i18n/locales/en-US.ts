@@ -54,6 +54,15 @@ export const enUS = {
       zhTW: '中文（繁體）',
       binary: 'Binary',
     },
+    theme: 'Theme',
+    themeDescription: 'Choose the visual theme for the desktop.',
+    themeOptions: {
+      night: 'Night',
+      day: 'Day',
+      deepBlue: 'Deep Blue',
+      parchment: 'Parchment',
+      rose: 'Rose',
+    },
   },
   network: {
     status: {

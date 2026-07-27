@@ -56,6 +56,15 @@ export const zhTW = {
       zhTW: '中文（繁體）',
       binary: 'Binary',
     },
+    theme: '主題',
+    themeDescription: '選擇桌面視覺主題。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日間',
+      deepBlue: '深藍',
+      parchment: '羊皮紙',
+      rose: '雍容華麗',
+    },
   },
   network: {
     status: {

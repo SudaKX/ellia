@@ -1,25 +1,128 @@
+/* ============================================================
+ * FakeOS 设计令牌 — 暗夜主题（默认）
+ * 所有变量在此定义，组件通过 var(--token) 引用。
+ * ============================================================ */
 :root {
+  /* 背景 */
   --canvas: #0d0d10;
+  /* 表面层 */
   --surface-raised: #1a1a1f;
   --surface-panel: #202026;
   --surface-hover: #2a2a32;
+  /* 线条 */
   --line-subtle: #2b2b33;
   --line-default: #4a4a55;
   --grid-line: #52525d;
+  /* 文字 */
   --text-primary: #f2f2f0;
   --text-secondary: #c4c4c8;
   --text-muted: #8c8c94;
+  /* 信号色 */
   --signal-red: #e34d55;
   --signal-red-soft: #f07177;
   --signal-red-border: #b83940;
   --signal-mint: #74d8c4;
+  /* 字体 */
   --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* MatrixRain ASCII 背景 */
+  --matrix-rain-color: #e34d55;
+  --matrix-rain-bg: rgba(13, 13, 16, 0.12);
+
   color: var(--text-primary);
   background: var(--canvas);
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+/* ============================================================
+ * 日间主题
+ * ============================================================ */
+[data-theme="day"] {
+  --canvas: #f5f5f0;
+  --surface-raised: #ffffff;
+  --surface-panel: #f0f0ed;
+  --surface-hover: #e8e8e0;
+  --line-subtle: #dcdcd4;
+  --line-default: #b0b0a8;
+  --grid-line: #c8c8c0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #808080;
+  --signal-red: #d32f2f;
+  --signal-red-soft: #e57373;
+  --signal-red-border: #b71c1c;
+  --signal-mint: #2e7d5b;
+  --matrix-rain-color: #1a1a1a;
+  --matrix-rain-bg: rgba(245, 245, 240, 0.12);
+}
+
+/* ============================================================
+ * 深蓝主题
+ * ============================================================ */
+[data-theme="deep-blue"] {
+  --canvas: #0a1628;
+  --surface-raised: #112240;
+  --surface-panel: #1a2d50;
+  --surface-hover: #243b60;
+  --line-subtle: #1e3558;
+  --line-default: #3a5280;
+  --grid-line: #4460a0;
+  --text-primary: #e6f1ff;
+  --text-secondary: #a8c8f0;
+  --text-muted: #6a8db8;
+  --signal-red: #ff6b6b;
+  --signal-red-soft: #ff8a80;
+  --signal-red-border: #e05555;
+  --signal-mint: #64ffda;
+  --matrix-rain-color: #4fc3f7;
+  --matrix-rain-bg: rgba(10, 22, 40, 0.12);
+}
+
+/* ============================================================
+ * 羊皮纸主题
+ * ============================================================ */
+[data-theme="parchment"] {
+  --canvas: #f4ecd8;
+  --surface-raised: #faf3e6;
+  --surface-panel: #f0e8d0;
+  --surface-hover: #e8dcb8;
+  --line-subtle: #d8c8a0;
+  --line-default: #b8a878;
+  --grid-line: #c8b890;
+  --text-primary: #3d2b1f;
+  --text-secondary: #6b5040;
+  --text-muted: #9a8070;
+  --signal-red: #c0392b;
+  --signal-red-soft: #d4786b;
+  --signal-red-border: #a33224;
+  --signal-mint: #4a8c6f;
+  --matrix-rain-color: #8b4513;
+  --matrix-rain-bg: rgba(244, 236, 216, 0.12);
+}
+
+/* ============================================================
+ * 雍容华丽（玫瑰）主题
+ * 浅色暖粉底 + 玫瑰红点缀
+ * ============================================================ */
+[data-theme="rose"] {
+  --canvas: #faf0eb;
+  --surface-raised: #fff8f5;
+  --surface-panel: #f5e8e0;
+  --surface-hover: #edd8d0;
+  --line-subtle: #e0ccc0;
+  --line-default: #c0a898;
+  --grid-line: #d0b8a8;
+  --text-primary: #2a1818;
+  --text-secondary: #5c3a3a;
+  --text-muted: #907070;
+  --signal-red: #cd5076;
+  --signal-red-soft: #da738a;
+  --signal-red-border: #b24057;
+  --signal-mint: #6ba88a;
+  --matrix-rain-color: #cd94b2;
+  --matrix-rain-bg: rgba(250, 240, 235, 0.12);
 }
 
 * {

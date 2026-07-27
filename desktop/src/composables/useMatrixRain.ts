@@ -27,14 +27,16 @@ export interface MatrixRainOptions {
 
 const DEFAULTS: MatrixRainOptions = {
   characters: ['0', '1'],
-  color: '#e34d55',
+  /** 使用 CSS 变量以支持主题切换，fallback 为警示红 */
+  color: 'var(--matrix-rain-color, #e34d55)',
   fontSize: 18,
   density: 0.35,
   minFlickerFrames: 2,
   maxFlickerFrames: 25,
   fps: 24,
   burstProbability: 0.003,
-  backgroundColor: 'rgba(13, 13, 16, 0.12)',
+  /** Canvas 覆盖层背景色，跟随主题 */
+  backgroundColor: 'var(--matrix-rain-bg, rgba(13, 13, 16, 0.12))',
 }
 
 /** 等宽字体族 */
@@ -43,6 +45,23 @@ const FONT_FAMILY = '"IBM Plex Mono", "Courier New", Consolas, "Liberation Mono"
 const CHAR_WIDTH_RATIO = 0.6
 /** HiDPI 屏幕最大 DPR */
 const MAX_DPR = 2
+
+/**
+ * 将 CSS 变量字符串解析为实际颜色值。
+ * Canvas API 不支持 var()，需要用 getComputedStyle 手动解析。
+ *
+ * @example
+ * resolveCssVar('var(--matrix-rain-color, #e34d55)') → '#e34d55' (根据主题)
+ */
+function resolveCssVar(value: string): string {
+  const match = value.match(/var\((--[\w-]+),\s*(.+)\)/)
+  if (!match) return value
+  const varName = match[1]
+  const fallback = match[2].trim()
+  if (typeof document === 'undefined') return fallback
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+  return resolved || fallback
+}
 
 // ─── 内部类型 ──────────────────────────────────────────────
 
@@ -73,6 +92,9 @@ function randomInt(min: number, max: number): number {
 
 export function useMatrixRain(options?: Partial<MatrixRainOptions>) {
   const opts = { ...DEFAULTS, ...options }
+  // Canvas API 不支持 var()，需在运行时解析 CSS 变量为实际颜色值
+  opts.color = resolveCssVar(opts.color)
+  opts.backgroundColor = resolveCssVar(opts.backgroundColor)
 
   const canvasRef = shallowRef<HTMLCanvasElement | null>(null)
   const isRunning = ref(false)
@@ -83,6 +105,7 @@ export function useMatrixRain(options?: Partial<MatrixRainOptions>) {
   let cssHeight = 0
   let cells: FlickerCell[] = []
   let resizeObserver: ResizeObserver | null = null
+  let themeObserver: MutationObserver | null = null
   let lastFrameTime = 0
   let frameInterval = 0
 
@@ -245,6 +268,14 @@ export function useMatrixRain(options?: Partial<MatrixRainOptions>) {
       resizeObserver.observe(canvas.parentElement)
     }
 
+    // 监听主题切换，重新解析 CSS 变量并重建网格
+    themeObserver = new MutationObserver(() => {
+      opts.color = resolveCssVar(DEFAULTS.color)
+      opts.backgroundColor = resolveCssVar(DEFAULTS.backgroundColor)
+      createGrid()
+    })
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
     await document.fonts.ready
 
     startLoop()
@@ -254,6 +285,8 @@ export function useMatrixRain(options?: Partial<MatrixRainOptions>) {
     stopLoop()
     resizeObserver?.disconnect()
     resizeObserver = null
+    themeObserver?.disconnect()
+    themeObserver = null
     canvasRef.value = null
     ctx = null
     cells = []
