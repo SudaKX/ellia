@@ -33,11 +33,13 @@ class FileTree:
         files_by_public_id: Mapping[str, TreeNode],
         public_ids_by_stable_id: Mapping[str, str],
         file_id_key_fingerprint: str,
+        tree_version: str,
     ) -> None:
         self.root = root
         self._files_by_public_id = MappingProxyType(dict(files_by_public_id))
         self._public_ids_by_stable_id = MappingProxyType(dict(public_ids_by_stable_id))
         self.file_id_key_fingerprint = file_id_key_fingerprint
+        self.tree_version = tree_version
 
     @classmethod
     def build(
@@ -66,11 +68,18 @@ class FileTree:
 
         files_by_public_id: dict[str, TreeNode] = {}
         frozen_root = _freeze_node(root, files_by_public_id)
+        tree_version = file_ids.encode_tree_version(
+            tuple(
+                _tree_version_entry(node, contents_by_stable_id.get(node.stable_id))
+                for node in sorted(nodes.values(), key=lambda item: item.stable_id)
+            )
+        )
         return cls(
             frozen_root,
             files_by_public_id,
             file_ids_by_stable_id,
             file_ids.key_fingerprint,
+            tree_version,
         )
 
     def file(self, file_id: str) -> TreeNode:
@@ -205,3 +214,14 @@ def _path_segments(path: str) -> tuple[str, ...]:
 
 def _child_path(parent: str, child: str) -> str:
     return f"/{child}" if parent == "/" else f"{parent}/{child}"
+
+
+def _tree_version_entry(node: VirtualNode, content: FileContent | None) -> tuple[str, ...]:
+    return (
+        node.stable_id,
+        node.path,
+        node.revision,
+        "file" if node.is_file else "directory",
+        node.download_name or "",
+        content.content_token if content is not None else "",
+    )

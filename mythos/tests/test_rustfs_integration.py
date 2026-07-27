@@ -1,6 +1,8 @@
 import asyncio
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 from uuid import uuid4
 
@@ -21,6 +23,7 @@ def test_rustfs_versions_and_presigned_reads(tmp_path: Path) -> None:
     endpoint = os.getenv("MYTHOS_RUSTFS_TEST_ENDPOINT", "http://127.0.0.1:9000")
     access_key = os.getenv("MYTHOS_RUSTFS_TEST_ACCESS_KEY", "rustfsadmin")
     secret_key = os.getenv("MYTHOS_RUSTFS_TEST_SECRET_KEY", "rustfsadmin")
+    presign_ttl_seconds = int(os.getenv("MYTHOS_RUSTFS_TEST_PRESIGN_TTL", "60"))
     bucket = f"mythos-integration-{uuid4().hex}"
     object_key = "static/integration/versioned.txt"
     client = boto3.client(
@@ -56,18 +59,26 @@ def test_rustfs_versions_and_presigned_reads(tmp_path: Path) -> None:
             )
             created_versions.extend((first.version_id, second.version_id))
             assert first.version_id != second.version_id
+            response_expires_at = datetime.now(UTC) + timedelta(seconds=presign_ttl_seconds)
 
             first_url = await store.presign_get(
                 first,
-                expires_in_seconds=60,
+                expires_in_seconds=presign_ttl_seconds,
                 content_disposition='inline; filename="versioned.txt"',
+                response_cache_control="private, must-revalidate",
+                response_expires_at=response_expires_at,
             )
             second_url = await store.presign_get(
                 second,
-                expires_in_seconds=60,
+                expires_in_seconds=presign_ttl_seconds,
                 content_disposition='inline; filename="versioned.txt"',
+                response_cache_control="private, must-revalidate",
+                response_expires_at=response_expires_at,
             )
+            assert parse_qs(urlparse(first_url.url).query)["X-Amz-Expires"] == [str(presign_ttl_seconds)]
             with urlopen(first_url.url, timeout=10) as response:
+                assert response.headers["Cache-Control"] == "private, must-revalidate"
+                assert response.headers["Expires"]
                 assert response.read() == b"first version"
             with urlopen(second_url.url, timeout=10) as response:
                 assert response.read() == b"second version"

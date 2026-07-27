@@ -53,18 +53,21 @@ The access rule receives the concrete request-level `Player`. It must be a pure 
 - It must not mutate global state, query HTTP state or call external services.
 - It must return `True` or `False`.
 
-All FileService routes load Player with `writable=False`. File authorization checks every Node from the root to the target file. A denied directory blocks its whole subtree without evaluating child rules; after an allowed directory, unguarded children are visible and guarded children are checked recursively.
+All file-content and directory routes load Player with `writable=False`. `GET /files/version` only verifies the caller identity because `tree_version` is a static Catalog value. File authorization checks every Node from the root to the target file. A denied directory blocks its whole subtree without evaluating child rules; after an allowed directory, unguarded children are visible and guarded children are checked recursively.
 
 ## 4. API
 
 ```text
 GET  /api/v1/files?path=/
 GET  /api/v1/files/{file_id}
-POST /api/v1/files/{file_id}/content-url
-POST /api/v1/files/{file_id}/download-url
+GET  /api/v1/files/version
+GET  /api/v1/files/{file_id}/{content_token}/content-url
+GET  /api/v1/files/{file_id}/{content_token}/download-url
 ```
 
-`FileTree` is built from virtual paths when the registry freezes. The directory endpoint traverses the requested subtree, returning only visible files and directories with visible descendants. Invisible files and directories with no visible descendants are omitted.
+`FileTree` is built from virtual paths when the registry freezes. It exposes an opaque `tree_version` derived only from static Node definitions and resolved object versions. It does not include player progress. Every file summary and metadata response carries an opaque `content_token` derived from its stable ID, Node revision, RustFS key/VersionId/media type, and download name. A change to access-rule behavior must also increment the affected Node revision.
+
+The directory endpoint traverses the requested subtree, returning only visible files and directories with visible descendants. Invisible files and directories with no visible descendants are omitted. The versioned content URL endpoint validates that `content_token` still matches the current FileTree; stale tokens return `412`.
 
 Metadata, content URL and download URL requests re-evaluate authorization. Missing public IDs return `404`; inaccessible existing files return `403`.
 
@@ -73,11 +76,12 @@ The URL-issuing endpoints return:
 ```json
 {
   "url": "https://rustfs.example/...",
-  "expires_at": "2026-07-23T12:00:00+00:00"
+  "expires_at": "2026-07-23T12:00:00+00:00",
+  "content_token": "ct1_..."
 }
 ```
 
-They set `Cache-Control: no-store`. A content URL signs an `inline` disposition; a download URL signs `attachment` with the registered safe filename.
+The content URL JSON response is cacheable only in the browser profile with `private, max-age, must-revalidate`; its max-age is shorter than its signature TTL. RustFS receives `private, must-revalidate` plus an absolute `Expires` value matching the signature expiry, so a delayed first object request cannot extend byte caching past the URL lifetime. A download URL signs an `attachment` disposition with the registered safe filename, and both its JSON response and RustFS response use `no-store`.
 
 ## 5. Object Store
 
@@ -92,7 +96,7 @@ RustFS requirements:
 - The publisher overwrites the stable object key `static/<module>/<relative_path>` only after the local source mtime changes. The resulting VersionId pins each frozen FileTree to an exact object version.
 - Do not expose object keys, bucket credentials or internal stable IDs through the API.
 
-A signed URL remains usable until its TTL expires even if player access changes. V1 uses a maximum TTL of 300 seconds and defaults to 60 seconds. Immediate revocation requires a future backend proxy download path.
+A signed URL remains usable until its TTL expires even if player access changes. Content URLs can last up to 12 hours; their browser cache lifetime must remain shorter than the signature TTL. Immediate revocation requires a future backend proxy download path.
 
 ## 6. Configuration
 
@@ -104,17 +108,19 @@ MYTHOS_OBJECT_STORE_BUCKET=mythos
 MYTHOS_OBJECT_STORE_ACCESS_KEY=<access key>
 MYTHOS_OBJECT_STORE_SECRET_KEY=<secret key>
 MYTHOS_OBJECT_STORE_USE_TLS=true
-MYTHOS_FILE_DOWNLOAD_URL_TTL_SECONDS=60
+MYTHOS_FILE_CONTENT_URL_TTL_SECONDS=43200
+MYTHOS_FILE_CONTENT_CACHE_MAX_AGE_SECONDS=42900
+MYTHOS_FILE_DOWNLOAD_URL_TTL_SECONDS=900
 MYTHOS_PUZZLE_ROOT=./src/mythos/puzzles
 ```
 
-`MYTHOS_FILE_ID_SIGNING_KEY` must remain stable for a deployment. Rotating it changes public file IDs; a future key-version migration is required before rotation in a live deployment.
+`MYTHOS_FILE_ID_SIGNING_KEY` must remain stable for a deployment. Rotating it changes public file IDs, FileTree versions, and content tokens; a future key-version migration is required before rotation in a live deployment.
 
 `MYTHOS_OBJECT_STORE_ENDPOINT` must be an absolute HTTP URL without a path prefix, query or fragment. Its scheme must match `MYTHOS_OBJECT_STORE_USE_TLS`; production only accepts an HTTPS endpoint.
 
 ## 7. Deferred Work
 
-- 在本地 RustFS 上运行 `MYTHOS_RUSTFS_INTEGRATION=1 pytest tests/test_rustfs_integration.py`，验证 bucket versioning、上传 VersionId 与指定版本的预签名读取。
+- 在本地 RustFS 上运行 `MYTHOS_RUSTFS_INTEGRATION=1 pytest tests/test_rustfs_integration.py`，验证 bucket versioning、上传 VersionId、指定版本的预签名读取与响应缓存头。
 - Dynamic player artifacts through `ArtifactInterface`.
 - File access auditing.
 - "Open file" command effects that modify progress.

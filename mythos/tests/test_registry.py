@@ -109,3 +109,84 @@ def test_file_registry_rejects_file_directory_conflicts_and_empty_directories() 
     empty_directory.register_node(VirtualNode.directory("test.empty", "/empty", "1"))
     with pytest.raises(RegistryError, match="contain a file descendant"):
         empty_directory.freeze(file_ids)
+
+
+def test_file_tree_versions_follow_node_revision_and_object_version() -> None:
+    file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
+
+    def build_tree(*, revision: str, object_version_id: str):
+        registry = FileRegistry()
+        source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
+        registry.register_node(
+            VirtualNode.file("test.file", "/file.txt", revision, source_locator, "file.txt")
+        )
+        registry.materialize_static_files(
+            {
+                source_locator: ObjectReference(
+                    "static/test/assets/file.txt",
+                    "sha256:" + "a" * 64,
+                    "text/plain",
+                    4,
+                    object_version_id,
+                )
+            }
+        )
+        return registry.freeze(file_ids)
+
+    first = build_tree(revision="1", object_version_id="object-v1")
+    changed_object = build_tree(revision="1", object_version_id="object-v2")
+    changed_revision = build_tree(revision="2", object_version_id="object-v1")
+
+    first_id = first.file_id_for_stable_id("test.file")
+    assert changed_object.file_id_for_stable_id("test.file") == first_id
+    assert changed_revision.file_id_for_stable_id("test.file") == first_id
+    assert first.file(first_id).content is not None
+    assert changed_object.file(first_id).content is not None
+    assert changed_revision.file(first_id).content is not None
+    assert first.file(first_id).content.content_token != changed_object.file(first_id).content.content_token
+    assert first.file(first_id).content.content_token != changed_revision.file(first_id).content.content_token
+    assert first.tree_version != changed_object.tree_version
+    assert first.tree_version != changed_revision.tree_version
+
+
+def test_file_content_token_follows_representation_metadata() -> None:
+    file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
+
+    def build_tree(*, media_type: str, download_name: str, object_key: str = "static/test/assets/file.txt"):
+        registry = FileRegistry()
+        source_locator = registry.register_source(FileReference("test", "assets/file.txt", media_type))
+        registry.register_node(
+            VirtualNode.file("test.file", "/file.txt", "1", source_locator, download_name)
+        )
+        registry.materialize_static_files(
+            {
+                source_locator: ObjectReference(
+                    object_key,
+                    "sha256:" + "a" * 64,
+                    media_type,
+                    4,
+                    "object-v1",
+                )
+            }
+        )
+        return registry.freeze(file_ids)
+
+    plain = build_tree(media_type="text/plain", download_name="file.txt")
+    html = build_tree(media_type="text/html", download_name="file.txt")
+    renamed = build_tree(media_type="text/plain", download_name="renamed.txt")
+    moved = build_tree(
+        media_type="text/plain",
+        download_name="file.txt",
+        object_key="static/test/assets/moved-file.txt",
+    )
+    file_id = plain.file_id_for_stable_id("test.file")
+    assert plain.file(file_id).content is not None
+    assert html.file(file_id).content is not None
+    assert renamed.file(file_id).content is not None
+    assert moved.file(file_id).content is not None
+    assert plain.file(file_id).content.content_token != html.file(file_id).content.content_token
+    assert plain.file(file_id).content.content_token != renamed.file(file_id).content.content_token
+    assert plain.file(file_id).content.content_token != moved.file(file_id).content.content_token
+    assert plain.tree_version != html.tree_version
+    assert plain.tree_version != renamed.tree_version
+    assert plain.tree_version != moved.tree_version

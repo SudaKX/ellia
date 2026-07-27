@@ -41,15 +41,16 @@ Router 不自行构造 Service 或 Catalog。它通过 FastAPI 依赖取得 `App
 | 无状态读取 | `GET /health` | 否 | 否 |
 | 认证 | `POST /auth/register`、`login`、`refresh`、`logout` | 注册时初始化 entry；其余写认证状态 | 否 |
 | 只读内容 | `GET /files`、`GET /files/{file_id}`、`GET /scripts`、`GET /progress` | 否 | 否 |
-| 只读内容操作 | `POST /files/{file_id}/content-url`、`download-url` | 否 | 否 |
+| 缓存版本校验 | `GET /files/version` | 否 | 否 |
+| 只读内容操作 | `GET /files/{file_id}/{content_token}/content-url`、`download-url` | 否 | 否 |
 | 命令 | `POST /validations/{validation_id}/attempts` | 可写 | 是 |
 | 命令 | `POST /progress/checkpoints/restore` | 可写 | 是 |
 
-文件预签名 URL 使用 `POST`，但它只读取 Player 和 FileTree 并调用对象存储，不写入 SQLite 玩家状态，因此属于只读内容操作。
+文件预签名 URL 端点使用版本化 `GET`，但它只读取 Player 和 FileTree 并调用对象存储，不写入 SQLite 玩家状态，因此属于只读内容操作。`tree_version` 仅标识静态 FileTree；玩家进度版本由 Progress API 独立提供。
 
 ## 3. 受保护读操作
 
-除 `/health` 与认证入口外，读端点共享以下前半段：
+除 `/health`、认证入口与只读取静态 `tree_version` 的 `GET /files/version` 外，读端点共享以下前半段：
 
 ```mermaid
 flowchart LR
@@ -84,7 +85,7 @@ GET /files/{file_id}
   -> JSON
 ```
 
-`POST /files/{file_id}/content-url` 与 `download-url` 在完成相同的 FileTree/权限检查后调用 `ObjectStore.presign_get()`，返回 `{url, expires_at}` 并设置 `Cache-Control: no-store`。文件未知为 `404`，已知但无权限为 `403`，对象存储不可用为 `503` 或 `502`。
+`GET /files/{file_id}/{content_token}/content-url` 与 `download-url` 在完成相同的 FileTree/权限检查后验证内容 token，再调用 `ObjectStore.presign_get()`。content URL 返回 `{url, expires_at, content_token}`，使用浏览器私有缓存且缓存期短于签名 TTL；download URL 使用 `no-store`。文件未知为 `404`，已知但无权限为 `403`，过期 token 为 `412`，对象存储不可用为 `503` 或 `502`。
 
 ### 3.2 ScriptService 与 ProgressService
 

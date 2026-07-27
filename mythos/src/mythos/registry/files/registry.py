@@ -74,9 +74,18 @@ class FileRegistry:
                 continue
             assert node.source_locator is not None
             assert node.download_name is not None
+            object_reference = self._objects_by_source_locator[node.source_locator]
             contents_by_stable_id[node.stable_id] = FileContent(
-                object_ref=self._objects_by_source_locator[node.source_locator],
+                object_ref=object_reference,
                 download_name=node.download_name,
+                content_token=file_ids.encode_content_token(
+                    node.stable_id,
+                    node.revision,
+                    object_reference.key,
+                    object_reference.version_id,
+                    object_reference.media_type,
+                    node.download_name,
+                ),
             )
         self._tree = FileTree.build(self._nodes_by_stable_id, contents_by_stable_id, file_ids)
         return self._tree

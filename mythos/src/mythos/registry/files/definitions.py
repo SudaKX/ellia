@@ -36,6 +36,7 @@ class ObjectReference:
 class FileContent:
     object_ref: ObjectReference
     download_name: str
+    content_token: str
 
 
 @dataclass(frozen=True)

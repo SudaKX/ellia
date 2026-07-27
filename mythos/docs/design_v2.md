@@ -55,7 +55,7 @@ services/validations/ # ValidationService 与验证提交 API
 
 Service 通过请求级 Player 判断内容可见性。GET Router 通过 `get_read_context()` 使用 `writable=False` 的 `RequestContext`；写入 Router 通过 `CommandTransactionExecutor` 创建 `writable=True` 的 `CommandContext`，并复用命令事务与 Request-ID，不能直接提交 Session。
 
-FileService 的静态文件注册分为 `register_source(FileReference)` 与 `register_node(VirtualNode)`。Source 使用 `module + relative_path` 定位 `puzzles/<module>/` 下的本地文件；启动期发布器以 mtime 物化或复用 RustFS 对象，FileTree 仅保存已解析的 `ObjectReference`。公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
+FileService 的静态文件注册分为 `register_source(FileReference)` 与 `register_node(VirtualNode)`。Source 使用 `module + relative_path` 定位 `puzzles/<module>/` 下的本地文件；启动期发布器以 mtime 物化或复用 RustFS 对象，FileTree 仅保存已解析的 `ObjectReference`。FileTree 提供仅反映静态 Catalog 的 `tree_version`，每个文件提供由 Node revision 与对象 VersionId 派生的 `content_token`；两者均不包含玩家进度。公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
 
 ## 6. Registry
 

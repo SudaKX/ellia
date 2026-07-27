@@ -29,11 +29,19 @@ class ServiceContainer:
         script_catalog: ScriptCatalog,
         validation_catalog: ValidationCatalog,
         object_store: ObjectStoreReader,
+        file_content_url_ttl_seconds: int,
+        file_content_cache_max_age_seconds: int,
         file_download_url_ttl_seconds: int,
         checkpoint_store: LocalCheckpointStore,
     ) -> ServiceContainer:
         return cls(
-            files=FileService(file_tree, object_store, file_download_url_ttl_seconds),
+            files=FileService(
+                file_tree,
+                object_store,
+                file_content_url_ttl_seconds,
+                file_content_cache_max_age_seconds,
+                file_download_url_ttl_seconds,
+            ),
             progress=ProgressService(progress_graph, checkpoint_store),
             scripts=ScriptService(script_catalog),
             validations=ValidationService(validation_catalog),

@@ -48,6 +48,15 @@ def test_object_store_endpoint_rejects_path_prefix() -> None:
         )
 
 
+def test_content_cache_lifetime_must_be_shorter_than_content_url_ttl() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="test",
+            file_content_url_ttl_seconds=60,
+            file_content_cache_max_age_seconds=60,
+        )
+
+
 def test_authentication_lifecycle(tmp_path) -> None:
     async def scenario() -> None:
         database_path = tmp_path / "auth.sqlite3"

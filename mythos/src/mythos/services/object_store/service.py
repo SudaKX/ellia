@@ -34,6 +34,8 @@ class ObjectStoreReader(Protocol):
         *,
         expires_in_seconds: int,
         content_disposition: str,
+        response_cache_control: str,
+        response_expires_at: datetime | None,
     ) -> PresignedObjectUrl: ...
 
 
@@ -58,8 +60,10 @@ class UnconfiguredObjectStore:
         *,
         expires_in_seconds: int,
         content_disposition: str,
+        response_cache_control: str,
+        response_expires_at: datetime | None,
     ) -> PresignedObjectUrl:
-        del reference, expires_in_seconds, content_disposition
+        del reference, expires_in_seconds, content_disposition, response_cache_control, response_expires_at
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
     async def put_file(
@@ -84,14 +88,19 @@ class Boto3ObjectStore:
         *,
         expires_in_seconds: int,
         content_disposition: str,
+        response_cache_control: str,
+        response_expires_at: datetime | None,
     ) -> PresignedObjectUrl:
-        params: dict[str, str] = {
+        params: dict[str, object] = {
             "Bucket": self._bucket,
             "Key": reference.key,
             "ResponseContentType": reference.media_type,
             "ResponseContentDisposition": content_disposition,
+            "ResponseCacheControl": response_cache_control,
         }
         params["VersionId"] = reference.version_id
+        if response_expires_at is not None:
+            params["ResponseExpires"] = response_expires_at
         try:
             url = await asyncio.to_thread(
                 self._client.generate_presigned_url,  # type: ignore[union-attr]

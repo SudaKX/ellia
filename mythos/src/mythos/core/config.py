@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     object_store_access_key: SecretStr | None = None
     object_store_secret_key: SecretStr | None = None
     object_store_use_tls: bool = True
-    file_download_url_ttl_seconds: int = 60
+    file_content_url_ttl_seconds: int = 43_200
+    file_content_cache_max_age_seconds: int = 42_900
+    file_download_url_ttl_seconds: int = 900
     puzzle_root: Path = PROJECT_ROOT / "src" / "mythos" / "puzzles"
     checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
 
@@ -73,8 +75,12 @@ class Settings(BaseSettings):
             raise ValueError("Request cache TTL must be at least one second.")
         if self.request_cache_maxsize < 1:
             raise ValueError("Request cache size must be at least one entry.")
-        if not 1 <= self.file_download_url_ttl_seconds <= 300:
-            raise ValueError("File download URL TTL must be between one and 300 seconds.")
+        if not 1 <= self.file_content_url_ttl_seconds <= 43_200:
+            raise ValueError("File content URL TTL must be between one second and 12 hours.")
+        if not 0 <= self.file_content_cache_max_age_seconds < self.file_content_url_ttl_seconds:
+            raise ValueError("File content cache max-age must be non-negative and shorter than the URL TTL.")
+        if not 1 <= self.file_download_url_ttl_seconds <= 43_200:
+            raise ValueError("File download URL TTL must be between one second and 12 hours.")
         object_store_values = (
             self.object_store_endpoint,
             self.object_store_bucket,

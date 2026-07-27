@@ -66,6 +66,8 @@ def create_app(
                 catalogs.scripts,
                 catalogs.validations,
                 resolved_object_store,
+                resolved_settings.file_content_url_ttl_seconds,
+                resolved_settings.file_content_cache_max_age_seconds,
                 resolved_settings.file_download_url_ttl_seconds,
                 checkpoint_store,
             ),

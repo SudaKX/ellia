@@ -17,11 +17,21 @@ from mythos.services.object_store.service import PresignedObjectUrl
 
 class FakeObjectStore:
     def __init__(self) -> None:
-        self.requests: list[tuple[str, str]] = []
+        self.requests: list[tuple[str, str, str]] = []
         self.uploads: list[str] = []
 
-    async def presign_get(self, reference, *, expires_in_seconds: int, content_disposition: str) -> PresignedObjectUrl:
-        self.requests.append((reference.key, content_disposition))
+    async def presign_get(
+        self,
+        reference,
+        *,
+        expires_in_seconds: int,
+        content_disposition: str,
+        response_cache_control: str,
+        response_expires_at,
+    ) -> PresignedObjectUrl:
+        self.requests.append(
+            (reference.key, content_disposition, response_cache_control, response_expires_at)
+        )
         return PresignedObjectUrl(
             url=f"https://objects.test/{reference.key}?expires={expires_in_seconds}",
             expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
@@ -100,6 +110,9 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             file_id_signing_key=SecretStr("test-file-id-signing-key-with-at-least-32-bytes"),
             refresh_cookie_secure=False,
             puzzle_root=puzzle_root,
+            file_content_url_ttl_seconds=60,
+            file_content_cache_max_age_seconds=55,
+            file_download_url_ttl_seconds=60,
         )
         database = Database(settings.database_url)
         async with database.engine.begin() as connection:
@@ -118,39 +131,83 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 )
                 headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
                 listing = await client.get("/api/v1/files", headers=headers)
+                assert listing.headers["cache-control"] == "no-store"
+                assert listing.headers["vary"] == "Authorization"
                 assert listing.json()["path"] == "/"
                 assert listing.json()["directories"] == ["/docs", "/open"]
                 assert len(listing.json()["files"]) == 1
                 readme_id = listing.json()["files"][0]["file_id"]
+                readme_token = listing.json()["files"][0]["content_token"]
+                assert listing.json()["tree_version"].startswith("ft1_")
+                assert readme_token.startswith("ct1_")
                 assert "stable_id" not in listing.json()["files"][0]
 
                 open_directory = await client.get("/api/v1/files", params={"path": "/open"}, headers=headers)
-                assert open_directory.json() == {
-                    "path": "/open",
-                    "directories": [],
-                    "files": [
-                        {
-                            "file_id": app.state.runtime.catalogs.files.file_id_for_stable_id("test.open-file"),
-                            "path": "/open/public.txt",
-                            "revision": "1",
-                            "media_type": "text/plain",
-                            "size_bytes": 6,
-                        }
-                    ],
-                }
+                open_listing = open_directory.json()
+                assert open_listing["path"] == "/open"
+                assert open_listing["directories"] == []
+                assert open_listing["tree_version"] == listing.json()["tree_version"]
+                assert open_listing["files"] == [
+                    {
+                        "file_id": app.state.runtime.catalogs.files.file_id_for_stable_id("test.open-file"),
+                        "path": "/open/public.txt",
+                        "revision": "1",
+                        "media_type": "text/plain",
+                        "size_bytes": 6,
+                        "content_token": open_listing["files"][0]["content_token"],
+                    }
+                ]
+                assert open_listing["files"][0]["content_token"].startswith("ct1_")
 
                 metadata = await client.get(f"/api/v1/files/{readme_id}", headers=headers)
                 assert metadata.status_code == 200
+                assert metadata.headers["cache-control"] == "no-store"
+                assert metadata.headers["vary"] == "Authorization"
                 assert metadata.json()["download_name"] == "README.txt"
-                content_url = await client.post(f"/api/v1/files/{readme_id}/content-url", headers=headers)
+                assert metadata.json()["content_token"] == readme_token
+                assert metadata.json()["tree_version"] == listing.json()["tree_version"]
+                version = await client.get("/api/v1/files/version", headers=headers)
+                assert version.json() == {"tree_version": listing.json()["tree_version"]}
+                assert version.headers["cache-control"] == "private, no-cache"
+                assert version.headers["vary"] == "Authorization"
+                unchanged_version = await client.get(
+                    "/api/v1/files/version",
+                    headers={**headers, "If-None-Match": version.headers["etag"]},
+                )
+                assert unchanged_version.status_code == 304
+
+                content_url = await client.get(
+                    f"/api/v1/files/{readme_id}/{readme_token}/content-url",
+                    headers=headers,
+                )
                 assert content_url.status_code == 200
-                assert content_url.headers["cache-control"] == "no-store"
+                assert content_url.headers["cache-control"] == "private, max-age=55, must-revalidate"
+                assert content_url.headers["vary"] == "Authorization"
+                assert content_url.json()["content_token"] == readme_token
                 assert content_url.json()["url"] == "https://objects.test/static/test/assets/readme.txt?expires=60"
+                stale_content_url = await client.get(
+                    f"/api/v1/files/{readme_id}/ct1_stale/content-url",
+                    headers=headers,
+                )
+                assert stale_content_url.status_code == 412
+
+                download_url = await client.get(
+                    f"/api/v1/files/{readme_id}/{readme_token}/download-url",
+                    headers=headers,
+                )
+                assert download_url.status_code == 200
+                assert download_url.headers["cache-control"] == "no-store"
+                assert download_url.json()["url"] == "https://objects.test/static/test/assets/readme.txt?expires=60"
 
                 private_id = app.state.runtime.catalogs.files.file_id_for_stable_id("test.private")
+                private_file = app.state.runtime.catalogs.files.file(private_id)
+                assert private_file.content is not None
                 private_directory = await client.get("/api/v1/files", params={"path": "/private"}, headers=headers)
                 assert private_directory.status_code == 404
-                private_url = await client.post(f"/api/v1/files/{private_id}/download-url", headers=headers)
+                private_url = await client.get(
+                    f"/api/v1/files/{private_id}/{private_file.content.content_token}/download-url",
+                    headers=headers,
+                )
                 assert private_url.status_code == 403
                 assert child_rule_calls == 0
                 assert object_store.uploads == [
@@ -160,7 +217,18 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     "static/test/assets/open-public.txt",
                     "static/test/assets/open-hidden.txt",
                 ]
-                assert object_store.requests == [("static/test/assets/readme.txt", 'inline; filename="README.txt"')]
+                assert object_store.requests[0][:3] == (
+                    "static/test/assets/readme.txt",
+                    'inline; filename="README.txt"',
+                    "private, must-revalidate",
+                )
+                assert object_store.requests[0][3] is not None
+                assert object_store.requests[1] == (
+                    "static/test/assets/readme.txt",
+                    'attachment; filename="README.txt"',
+                    "no-store",
+                    None,
+                )
 
                 scripts = await client.get("/api/v1/scripts", headers=headers)
                 assert scripts.json() == {
