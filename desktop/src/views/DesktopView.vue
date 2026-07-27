@@ -60,7 +60,8 @@ import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import AiAssistant from '@/components/applications/AiAssistant.vue'
-import Live2DAssistant from '@/components/applications/Live2DAssistant.vue'
+// Live2D 暂时隐藏 — 取消注释以下行 + initLive2dWindow() 即可恢复
+// import Live2DAssistant from '@/components/applications/Live2DAssistant.vue'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
@@ -176,11 +177,11 @@ const aiMaxSize = ref(0)
 /** AI 窗口标题栏文本（聊天消息），由 AiAssistant 通过 onSetTitle 更新 */
 const aiTitle = ref('')
 
-/** Live2D 窗口标题栏文本（动作名），由 Live2DAssistant 通过 onSetTitle 更新 */
-const live2dTitle = ref(t('live2d.idle'))
+/** Live2D 窗口标题栏文本 — 暂时隐藏 */
+// const live2dTitle = ref(t('live2d.idle'))
 
-/** Live2D 窗口的运行时 ID */
-const live2dWindowId = ref<string | null>(null)
+/** Live2D 窗口的运行时 ID — 暂时隐藏 */
+// const live2dWindowId = ref<string | null>(null)
 
 /** kei 表情图片列表：与语音/台词一一对应 */
 const KEI_IMAGES = [
@@ -203,14 +204,13 @@ const KEI_VOICES = [
   '/console/sounds/kei/kei_eventmission_2_3.ogg',
 ]
 
-// ─── Live2D 配置 ──────────────────────────────────
-
+// ─── Live2D 配置（暂时隐藏 — 取消注释以恢复）──────────────────
+/*
 const LIVE2D_MODEL_URL = new URL(
   'live2d/qiershazhi_2/qiershazhi_2.model3.json',
   window.location.origin + import.meta.env.BASE_URL,
 ).toString()
 const LIVE2D_IDLE_GROUPS = ['idle', 'idle1', 'idle2', 'idle3', 'idle4', 'idle5', 'idle6']
-/** 模型全部动作组（36 个），来自 model3.json Motions 定义 */
 const LIVE2D_ALL_MOTIONS = [
   'idle', 'idle1', 'idle2', 'idle3', 'idle4', 'idle5', 'idle6',
   'main_1', 'main_2', 'main_3', 'main_4', 'main_5',
@@ -221,22 +221,15 @@ const LIVE2D_ALL_MOTIONS = [
   'complete', 'effect', 'home', 'login', 'mail',
   'mission', 'mission_complete', 'touch_special', 'wedding',
 ]
-
-/** 点击任意区域时轮播的动作（全部 36 个） */
 const LIVE2D_TAP_GROUPS = LIVE2D_ALL_MOTIONS
-
-/**
- * 分区动作组：头/身体各包含全部动作，
- * 其中 touch_head 固定在 head 区，touch_body 固定在 body 区，其余均分。
- */
 const LIVE2D_ZONE_GROUPS = {
   head: LIVE2D_ALL_MOTIONS,
   body: LIVE2D_ALL_MOTIONS,
 } as const
 const LIVE2D_SCALE = 2
 const LIVE2D_POSITION = { x: 0.5, y: 0.5 }
-/** 可视区域：截取模型右下 40%-80% 的见方区域（x,y 为起点，w,h 为范围） */
 const LIVE2D_RENDER_AREA = { x: 0.4, y: 0.4, width: 0.4, height: 0.4 }
+*/
 
 /**
  * 初始化 AI 助手窗口。
@@ -291,15 +284,12 @@ function initAiWindow() {
 }
 
 /**
- * 初始化 Live2D 虚拟形象窗口。
+ * 初始化 Live2D 虚拟形象窗口 — 暂时隐藏。
+ * 取消此注释块 + 恢复导入 + 恢复配置常量即可重新启用。
  *
- * 定位于桌面左下角，与右下角的 kei AI 窗口对称。
- * 可自由缩放，缩放过程中 Live2D 内容与窗口保持相对位置。
- * 不显示关闭/最小化按钮（与 kei 窗口行为一致）。
- */
 function initLive2dWindow() {
   const windowWidth = 400
-  const windowHeight = 434  // 400 body + 34 titlebar
+  const windowHeight = 434
   const padding = 16
 
   const result = windowService.send({
@@ -328,11 +318,11 @@ function initLive2dWindow() {
 
   if (result) {
     live2dWindowId.value = result.id
-    // 定位到左下角
     result.x = padding
     result.y = Math.max(0, window.innerHeight - windowHeight - 90)
   }
 }
+ */
 
 /**
  * 处理 AI 助手的关闭请求：弹出权限拒绝模态弹窗。
@@ -363,46 +353,33 @@ function handleAiCloseRequest() {
   playCue('system-alert')
 }
 
-/** 处理 Live2D 窗口的关闭请求：弹出权限拒绝弹窗（与 AI 助手相同行为） */
-function handleLive2dCloseRequest() {
-  handleAiCloseRequest()
-}
+/** 处理 Live2D 窗口的关闭请求 — 暂时隐藏 */
+// function handleLive2dCloseRequest() {
+//   handleAiCloseRequest()
+// }
 
 /**
- * 电源菜单 → 重启：暂时隐藏 AI 和 Live2D 窗口 60 秒后恢复。
- * 不销毁组件实例，保护网络带宽（不重新下载 Live2D 资源）。
+ * 电源菜单 → 重启：暂时隐藏 AI 窗口 60 秒后恢复。
+ * 不销毁组件实例，保护网络带宽。
  */
 let restartTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleRestart() {
   const aiIndex = windowService.windows.value.findIndex((w) => w.id === aiWindowId.value)
-  const live2dIndex = windowService.windows.value.findIndex((w) => w.id === live2dWindowId.value)
 
-  // 用 splice 替换元素以触发响应式（直接设置 isMinimized 不触发 v-for 更新）
   if (aiIndex !== -1) {
     const win = windowService.windows.value[aiIndex]
     windowService.windows.value.splice(aiIndex, 1, { ...win, isMinimized: true })
   }
-  if (live2dIndex !== -1) {
-    const win = windowService.windows.value[live2dIndex]
-    windowService.windows.value.splice(live2dIndex, 1, { ...win, isMinimized: true })
-  }
 
-  // 清除之前的定时器
   if (restartTimer) clearTimeout(restartTimer)
 
-  // 60 秒后恢复
   restartTimer = setTimeout(() => {
     const aiIdx = windowService.windows.value.findIndex((w) => w.id === aiWindowId.value)
-    const live2dIdx = windowService.windows.value.findIndex((w) => w.id === live2dWindowId.value)
 
     if (aiIdx !== -1) {
       const win = windowService.windows.value[aiIdx]
       windowService.windows.value.splice(aiIdx, 1, { ...win, isMinimized: false })
-    }
-    if (live2dIdx !== -1) {
-      const win = windowService.windows.value[live2dIdx]
-      windowService.windows.value.splice(live2dIdx, 1, { ...win, isMinimized: false })
     }
     restartTimer = null
   }, 60_000)
@@ -510,7 +487,7 @@ onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
   initAiWindow()
-  initLive2dWindow()
+  // initLive2dWindow() — Live2D 暂时隐藏
 })
 
 onBeforeUnmount(() => {
@@ -539,8 +516,8 @@ onBeforeUnmount(() => {
         :min-height="window.id === aiWindowId ? aiMinSize : undefined"
         :max-width="window.id === aiWindowId ? aiMaxSize : undefined"
         :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
-        :title="window.id === aiWindowId ? aiTitle : window.id === live2dWindowId ? live2dTitle : undefined"
-        :close-action="window.id === aiWindowId ? handleAiCloseRequest : window.id === live2dWindowId ? handleLive2dCloseRequest : undefined"
+        :title="window.id === aiWindowId ? aiTitle : undefined"
+        :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

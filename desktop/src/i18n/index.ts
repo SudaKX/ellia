@@ -60,4 +60,6 @@ watch(
 export function setLocale(locale: SupportedLocale) {
   i18n.global.locale.value = locale
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+  // 重新加载页面确保所有文本（包括 setup 阶段捕获的 ref/computed）使用新语言
+  window.location.reload()
 }

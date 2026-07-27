@@ -47,10 +47,10 @@ onMounted(() => {
   window.addEventListener('keydown', unlockAudio, { capture: true })
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
-  // 预热 Live2D 资源到浏览器缓存 — 首页加载完成后后台下载，桌面打开无需等待
-  const base = window.location.origin + import.meta.env.BASE_URL
-  const textureUrl = new URL('live2d/qiershazhi_2/textures/texture_00.webp', base).toString()
-  requestIdleCallback(() => { fetch(textureUrl) }, { timeout: 2000 })
+  // 预热 Live2D 资源到浏览器缓存 — 暂时隐藏，恢复 Live2D 时取消注释
+  // const base = window.location.origin + import.meta.env.BASE_URL
+  // const textureUrl = new URL('live2d/qiershazhi_2/textures/texture_00.webp', base).toString()
+  // requestIdleCallback(() => { fetch(textureUrl) }, { timeout: 2000 })
 })
 
 onBeforeUnmount(() => {
