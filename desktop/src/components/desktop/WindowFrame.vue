@@ -502,6 +502,7 @@ function stopResize() {
   position: absolute;
   width: 14px;
   height: 14px;
+  z-index: 1;
 }
 
 .window-frame__resize-handle--br {
