@@ -71,6 +71,8 @@ export interface AudioService {
   play: (cue: AudioCue) => void
   /** 播放音频文件，通过 Web Audio 图输出（会显示在频谱上），音量受主音量和静音控制 */
   playFile: (url: string, bus?: AudioBus) => void
+  /** 停止当前正在播放的文件 */
+  stopFile: () => void
   readSpectrumData: (samples: Uint8Array<ArrayBuffer>) => boolean
   setMuted: (muted: boolean) => void
   setMasterVolume: (volume: number) => void
@@ -280,6 +282,15 @@ export function createAudioService(): AudioService {
     audioEl.addEventListener('ended', done, { once: true })
   }
 
+  /** 停止当前正在播放的文件 */
+  function stopFile() {
+    if (activeFileAudio) {
+      activeFileAudio.pause()
+      activeFileAudio.remove()
+      activeFileAudio = null
+    }
+  }
+
   async function suspend() {
     if (context?.state === 'running') {
       await context.suspend()
@@ -312,6 +323,7 @@ export function createAudioService(): AudioService {
     unlock,
     play,
     playFile,
+    stopFile,
     readSpectrumData,
     setMuted,
     setMasterVolume,

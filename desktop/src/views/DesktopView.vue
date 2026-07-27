@@ -385,8 +385,12 @@ function handleRestart() {
   }, 60_000)
 }
 
-/** 电源菜单 → 关机：弹出权限拒绝弹窗 */
+/** 电源菜单 → 关机：播放音效 + 弹出权限拒绝弹窗 */
 function handleShutdown() {
+  // 通过音频通道播放关机音效，10 秒后停止
+  audioService.playFile('/console/sounds/shihuai/关羽之歌.mp3')
+  setTimeout(() => audioService.stopFile(), 10_000)
+
   handleAiCloseRequest()
 }
 
