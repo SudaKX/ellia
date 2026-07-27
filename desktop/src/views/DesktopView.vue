@@ -522,6 +522,7 @@ onBeforeUnmount(() => {
         :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
         :title="window.id === aiWindowId ? aiTitle : undefined"
         :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
+        :translucent="window.id === aiWindowId ? true : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

@@ -100,6 +100,8 @@ const props = defineProps<{
    * 不提供时走默认关闭流程，现有窗口不受影响。
    */
   closeAction?: () => void
+  /** 窗口背景半透明（内容保持完全不透明）。 */
+  translucent?: boolean
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -337,6 +339,7 @@ function stopResize() {
       'window-frame--minimized': window.isMinimized,
       'window-frame--dragging': isDragging,
       'window-frame--resizing': isResizing,
+      'window-frame--translucent': props.translucent,
     }"
     :style="{
       left: `${x}px`,
@@ -440,6 +443,17 @@ function stopResize() {
 .window-frame--resizing .window-frame__body {
   pointer-events: none;
 }
+
+/* 半透明模式：仅背景透明，内容（图片等）保持不变 */
+.window-frame--translucent {
+  background: transparent;
+  border-color: rgba(74, 74, 85, 0.5);
+  box-shadow: none;
+}
+.window-frame--translucent .window-frame__titlebar {
+   background: rgba(32, 32, 38, 0.5);
+   border-bottom-color: rgba(43, 43, 51, 0.5);
+ }
 
 .window-frame__titlebar {
   display: flex;

@@ -96,7 +96,6 @@ function handleClick() {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--surface-panel);
 }
 
 /* 图片区域：填满整个 body 空间，无留白 */
