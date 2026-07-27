@@ -324,33 +324,21 @@ function initLive2dWindow() {
 }
  */
 
-/**
- * 处理 AI 助手的关闭请求：弹出权限拒绝模态弹窗。
- *
- * 复用 DesktopView 已有的 handleNetworkAction 模式——
- * 创建带 glitch 滤镜的模态 MessageBox + PermissionDenied 弹窗。
- * AI 窗口本身不会被关闭。
- */
+/** AI 窗口 X 按钮 → 随机漂移到桌面内其他位置 */
 function handleAiCloseRequest() {
-  windowService.send({
-    type: 'create-window',
-    payload: {
-      titleKey: 'aiAssistant.errorTitle',
-      icon: Bot,
-      component: MessageBox,
-      componentProps: {
-        contentComponent: PermissionDenied,
-      },
-      defaultWidth: 440,
-      defaultHeight: 220,
-      placement: 'center',
-      mode: 'modal',
-      resizable: false,
-      filters: { glitch: true },
-      controls: { minimize: false, close: true },
-    },
-  })
-  playCue('system-alert')
+  const aiWin = windowService.windows.value.find((w) => w.id === aiWindowId.value)
+  if (!aiWin) return
+
+  const maxX = window.innerWidth - aiWin.width
+  const maxY = window.innerHeight - aiWin.height
+
+  const x = Math.max(0, Math.floor(Math.random() * maxX))
+  const y = Math.max(0, Math.floor(Math.random() * maxY))
+
+  // shallowRef 数组 splice 不触发响应式 → 用新数组替换
+  windowService.windows.value = windowService.windows.value.map(
+    (w) => w.id === aiWin.id ? { ...w, x, y } : w,
+  )
 }
 
 /** 处理 Live2D 窗口的关闭请求 — 暂时隐藏 */

@@ -41,7 +41,7 @@
  */
 
 import { Minus, X } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { FilterType } from '@/registries/filters'
@@ -133,6 +133,10 @@ const x = ref(props.window.x)
 const y = ref(props.window.y)
 const width = ref(props.window.width)
 const height = ref(props.window.height)
+
+// 同步外部位置变化（如漂移）到本地 ref，拖拽期间跳过
+watch(() => props.window.x, (val) => { if (!isDragging.value) x.value = val })
+watch(() => props.window.y, (val) => { if (!isDragging.value) y.value = val })
 
 const isDragging = ref(false)
 const isResizing = ref(false)
@@ -348,6 +352,7 @@ function stopResize() {
       height: `${height}px`,
       zIndex: window.zIndex,
       filter: filterValue,
+      ...(isDragging ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
     }"
     :role="window.mode === 'modal' ? 'dialog' : undefined"
     :aria-modal="window.mode === 'modal' ? 'true' : undefined"
