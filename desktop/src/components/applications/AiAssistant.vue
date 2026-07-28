@@ -33,9 +33,10 @@
  * ```
  */
 
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useAudioService } from '@/composables/useAudioService'
+import { useHalftone } from '@/composables/useHalftone'
 
 const props = defineProps<{
   /** kei 表情图片 URL 数组，点击轮换 */
@@ -49,10 +50,30 @@ const props = defineProps<{
 }>()
 
 const audioService = useAudioService()
+const halftone = useHalftone({ dotSpacing: 3, maxRadius: 2.5, minRadius: 0.6 })
 
 /** 当前图片索引 */
 const currentIndex = ref(0)
 const currentImage = computed(() => props.images[currentIndex.value] || props.images[0])
+
+/** canvas 引用，用于 halftone.init */
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+
+onMounted(async () => {
+  if (canvasRef.value) {
+    await halftone.init(canvasRef.value)
+    await halftone.render(currentImage.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  halftone.destroy()
+})
+
+/** 图片切换时重新渲染点阵 */
+watch(currentImage, (url) => {
+  halftone.render(url)
+})
 
 /**
  * 点击图片：轮换到下一张 + 更新标题栏台词 + 播放对应语音。
@@ -78,12 +99,10 @@ function handleClick() {
   <section class="ai-assistant" aria-label="AI Assistant">
     <!-- 图片：填满整个 body，点击轮换。object-fit: fill 确保无留白 -->
     <div class="ai-assistant__image-area" @click="handleClick">
-      <img
-        :src="currentImage"
-        :alt="`Kei expression ${currentIndex + 1}`"
-        class="ai-assistant__image"
-        draggable="false"
-        @dragstart.prevent
+      <canvas
+        ref="canvasRef"
+        class="ai-assistant__canvas"
+        aria-label="Halftone dot rendering"
       />
     </div>
   </section>
@@ -106,10 +125,9 @@ function handleClick() {
   cursor: pointer;
 }
 
-.ai-assistant__image {
+.ai-assistant__canvas {
   width: 100%;
   height: 100%;
-  object-fit: fill;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
@@ -117,7 +135,7 @@ function handleClick() {
 }
 
 /* 图片点击时的微小反馈 */
-.ai-assistant__image-area:active .ai-assistant__image {
+.ai-assistant__image-area:active .ai-assistant__canvas {
   opacity: 0.7;
 }
 </style>
