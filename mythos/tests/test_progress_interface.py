@@ -27,6 +27,27 @@ def _file_ids():
     return FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
 
 
+def test_status_queries_resolve_registered_string_ids() -> None:
+    registries = RegistryBundle()
+    registries.progress.register(NormalProgressNode("start", ("finish",), is_entry=True))
+    registries.progress.register(NormalProgressNode("finish", ()))
+    interface = _interface(registries)
+
+    assert interface.is_unlocked("start")
+    assert interface.is_frontier("start")
+    assert not interface.is_unlocked("finish")
+    assert not interface.is_frontier("finish")
+    assert not interface.is_unlocked("missing")
+    assert not interface.is_frontier("missing")
+
+    interface.push("finish")
+
+    assert interface.is_unlocked("start")
+    assert not interface.is_frontier("start")
+    assert interface.is_unlocked("finish")
+    assert interface.is_frontier("finish")
+
+
 def test_push_advances_branch_and_resolves_and_merge() -> None:
     registries = RegistryBundle()
     registries.progress.register(NormalProgressNode("start", ("branch",), is_entry=True))

@@ -72,6 +72,14 @@ class ProgressInterface:
     def version(self) -> int:
         return self._progress.version
 
+    def is_unlocked(self, str_id: str) -> bool:
+        node_id = self._catalogs.progress.node_ids_by_str_id.get(str_id)
+        return node_id is not None and node_id in self.unlocked_node_ids
+
+    def is_frontier(self, str_id: str) -> bool:
+        node_id = self._catalogs.progress.node_ids_by_str_id.get(str_id)
+        return node_id is not None and node_id in self.frontier_node_ids
+
     def push(self, id: str, branch_arg: Any | None = None) -> None:
         if not self._writable:
             raise ReadOnlyPlayerError("Read-only players cannot modify progress.")
