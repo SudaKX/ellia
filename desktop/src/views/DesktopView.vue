@@ -204,6 +204,20 @@ const KEI_VOICES = [
   '/console/sounds/kei/kei_eventmission_2_3.ogg',
 ]
 
+/** kei 关闭按钮语音：点击 X 时随机播放 */
+const KEI_CLOSE_VOICES = [
+  '/console/sounds/kei/kei_给我等着瞧.ogg',
+  '/console/sounds/kei/kei_竟敢.ogg',
+  '/console/sounds/kei/kei_真是无聊呢.ogg',
+]
+
+/** kei 关闭按钮标题栏台词：基于 i18n，与语音一一对应 */
+const KEI_CLOSE_TITLES = computed(() => [
+  t('aiAssistant.closeLines.0'),
+  t('aiAssistant.closeLines.1'),
+  t('aiAssistant.closeLines.2'),
+])
+
 // ─── Live2D 配置（暂时隐藏 — 取消注释以恢复）──────────────────
 /*
 const LIVE2D_MODEL_URL = new URL(
@@ -324,10 +338,15 @@ function initLive2dWindow() {
 }
  */
 
-/** AI 窗口 X 按钮 → 随机漂移到桌面内其他位置 */
+/** AI 窗口 X 按钮 → 播放关闭语音 + 修改标题栏 + 随机漂移 */
 function handleAiCloseRequest() {
   const aiWin = windowService.windows.value.find((w) => w.id === aiWindowId.value)
   if (!aiWin) return
+
+  // 随机选一条关闭台词和语音
+  const idx = Math.floor(Math.random() * KEI_CLOSE_VOICES.length)
+  audioService.playFile(KEI_CLOSE_VOICES[idx])
+  aiTitle.value = KEI_CLOSE_TITLES.value[idx]
 
   const maxX = window.innerWidth - aiWin.width
   const maxY = window.innerHeight - aiWin.height

@@ -127,6 +127,12 @@ export const deDE = {
       1: "So ein bisschen Kitzeln macht mir doch...",
       2: "Mmm~! Nimm das, Kitzelangriff!!",
     },
+    /** Zeilen beim Klicken des X-Schließen-Buttons (zufällig) */
+    closeLines: {
+      0: 'Warte nur ab!',
+      1: 'Wie kannst du es wagen!',
+      2: 'Wie langweilig',
+    },
   },
   /** Live2D-Assistent */
   live2d: {

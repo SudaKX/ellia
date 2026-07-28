@@ -125,6 +125,12 @@ export const enUS = {
       1: "Tickles like that won't...",
       2: "Mmm~! Take this, tickle attack!!",
     },
+    /** Lines shown when clicking the X close button (picked randomly) */
+    closeLines: {
+      0: 'Just you wait!',
+      1: 'How dare you!',
+      2: 'How boring',
+    },
   },
   /** Live2D assistant */
   live2d: {
