@@ -203,6 +203,8 @@ class FileRegistry:
     def _validate_node(self, node: VirtualNode) -> None:
         if not node.stable_id or not node.revision or not _is_canonical_virtual_path(node.path):
             raise RegistryError("Virtual nodes require a stable ID, revision, and canonical absolute path.")
+        if not isinstance(node.hidden, bool):
+            raise RegistryError("Virtual node hidden flags must be booleans.")
         if node.is_file:
             if not node.download_name or not _is_safe_download_name(node.download_name):
                 raise RegistryError("Virtual files require a safe download name.")

@@ -97,10 +97,11 @@ class FileService:
         directories: list[DirectorySummary] = []
         files: list[FileSummary] = []
         for child in directory.children.values():
+            if self._is_hidden_node(child) or not self._is_allowed_node(player, child):
+                continue
             if child.is_file:
-                if self._is_allowed_node(player, child):
-                    files.append(self._summary(child))
-            elif self._is_allowed_node(player, child):
+                files.append(self._summary(child))
+            else:
                 directories.append(self._directory_summary(child))
         return DirectoryListing(
             path=directory.path,
@@ -194,7 +195,7 @@ class FileService:
         directories: list[DirectoryTree] = []
         files: list[FileSummary] = []
         for child in directory.children.values():
-            if not self._is_allowed_node(player, child):
+            if self._is_hidden_node(child) or not self._is_allowed_node(player, child):
                 continue
             if child.is_file:
                 files.append(self._summary(child))
@@ -213,6 +214,10 @@ class FileService:
     @staticmethod
     def _is_allowed_node(player: Player, node: TreeNode) -> bool:
         return node.definition is None or node.definition.access_rule is None or node.definition.access_rule(player)
+
+    @staticmethod
+    def _is_hidden_node(node: TreeNode) -> bool:
+        return node.definition is not None and node.definition.hidden
 
     @staticmethod
     def _display(node: TreeNode) -> DisplayParams:

@@ -54,6 +54,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
     async def scenario() -> None:
         child_rule_calls = 0
         hidden_leaf_rule_calls = 0
+        hidden_directory_rule_calls = 0
 
         def child_rule(_player) -> bool:
             nonlocal child_rule_calls
@@ -64,6 +65,11 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             nonlocal hidden_leaf_rule_calls
             hidden_leaf_rule_calls += 1
             return False
+
+        def hidden_directory_rule(_player) -> bool:
+            nonlocal hidden_directory_rule_calls
+            hidden_directory_rule_calls += 1
+            return True
 
         registries = RegistryBundle()
         puzzle_root = tmp_path / "puzzles"
@@ -131,6 +137,23 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             "assets/open-hidden.txt",
             "secret.txt",
             "hidden",
+        )
+        registries.files.register_node(
+            VirtualNode.directory(
+                "test.hidden-by-path-directory",
+                "/open/hidden-by-path",
+                "1",
+                hidden_directory_rule,
+                display=DisplayParams(label="Hidden by path", icon="folder"),
+                hidden=True,
+            )
+        )
+        register_file(
+            "test.hidden-by-path-file",
+            "/open/hidden-by-path/clue.txt",
+            "assets/hidden-by-path.txt",
+            "clue.txt",
+            "hidden by path",
         )
         registries.files.register_node(
             VirtualNode.directory(
@@ -223,12 +246,15 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 ]
                 docs_tree = next(item for item in tree.json()["directories"] if item["path"] == "/docs")
                 assert docs_tree["files"][0]["path"] == "/docs/guide.txt"
+                open_tree = next(item for item in tree.json()["directories"] if item["path"] == "/open")
+                assert open_tree["directories"] == []
                 visible_empty_tree = next(
                     item for item in tree.json()["directories"] if item["path"] == "/visible-empty"
                 )
                 assert visible_empty_tree["directories"] == []
                 assert visible_empty_tree["files"] == []
                 assert hidden_leaf_rule_calls == 1
+                assert hidden_directory_rule_calls == 0
 
                 empty_directory = await client.get(
                     "/api/v1/files/ls",
@@ -265,6 +291,30 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     }
                 ]
                 assert open_listing["files"][0]["content_token"].startswith("ct1_")
+
+                hidden_by_path_listing = await client.get(
+                    "/api/v1/files/ls",
+                    params={"path": "/open/hidden-by-path"},
+                    headers=headers,
+                )
+                assert hidden_by_path_listing.status_code == 200
+                assert hidden_by_path_listing.json()["directories"] == []
+                assert [item["path"] for item in hidden_by_path_listing.json()["files"]] == [
+                    "/open/hidden-by-path/clue.txt"
+                ]
+                assert hidden_directory_rule_calls == 1
+
+                hidden_by_path_tree = await client.get(
+                    "/api/v1/files/tree",
+                    params={"path": "/open/hidden-by-path"},
+                    headers=headers,
+                )
+                assert hidden_by_path_tree.status_code == 200
+                assert hidden_by_path_tree.json()["path"] == "/open/hidden-by-path"
+                assert [item["path"] for item in hidden_by_path_tree.json()["files"]] == [
+                    "/open/hidden-by-path/clue.txt"
+                ]
+                assert hidden_directory_rule_calls == 2
 
                 metadata = await client.get(f"/api/v1/files/{readme_id}", headers=headers)
                 assert metadata.status_code == 200
@@ -328,6 +378,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     "static/test/assets/private.txt",
                     "static/test/assets/open-public.txt",
                     "static/test/assets/open-hidden.txt",
+                    "static/test/assets/hidden-by-path.txt",
                     "static/test/assets/visible-empty.txt",
                 ]
                 assert object_store.requests[0][:3] == (

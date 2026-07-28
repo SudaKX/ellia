@@ -300,6 +300,25 @@ def test_file_tree_versions_follow_display_params_without_changing_content_token
     assert first.file(file_id).content.content_token == renamed.file(file_id).content.content_token
 
 
+def test_file_tree_versions_follow_hidden_flags() -> None:
+    file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
+
+    def build_tree(*, hidden: bool):
+        registry = FileRegistry()
+        registry.register_node(
+            VirtualNode.directory(
+                "test.hidden-directory",
+                "/hidden",
+                "1",
+                display=_display("Hidden", "folder"),
+                hidden=hidden,
+            )
+        )
+        return registry.freeze(file_ids)
+
+    assert build_tree(hidden=False).tree_version != build_tree(hidden=True).tree_version
+
+
 def test_file_registry_registers_json_tree_atomically() -> None:
     registry = FileRegistry()
     manifest = {
@@ -313,6 +332,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "revision": "1",
                 "display": {"label": "Docs", "icon": "folder"},
                 "access_rule": "docs-visible",
+                "hidden": True,
                 "children": [
                     {
                         "kind": "file",
@@ -375,6 +395,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
     )
     tree = registry.freeze(FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes"))
     assert tree.directory_chain("/docs")[-1].definition is not None
+    assert tree.directory_chain("/docs")[-1].definition.hidden is True
     assert tree.directory_chain("/empty")[-1].definition is not None
 
 

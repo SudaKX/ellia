@@ -223,6 +223,7 @@ def _tree_version_entry(node: VirtualNode, content: FileContent | None) -> tuple
         node.path,
         node.revision,
         "file" if node.is_file else "directory",
+        "hidden" if node.hidden else "visible",
         node.download_name or "",
         content.content_token if content is not None else "",
         json.dumps(node.display.as_dict(), ensure_ascii=True, sort_keys=True, separators=(",", ":")),

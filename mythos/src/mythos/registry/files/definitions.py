@@ -85,6 +85,7 @@ class VirtualNode:
     access_rule: NodeAccessRule | None = None
     source_locator: str | None = None
     download_name: str | None = None
+    hidden: bool = False
 
     @classmethod
     def file(
@@ -97,6 +98,7 @@ class VirtualNode:
         access_rule: NodeAccessRule | None = None,
         *,
         display: DisplayParams,
+        hidden: bool = False,
     ) -> VirtualNode:
         return cls(
             stable_id=stable_id,
@@ -106,6 +108,7 @@ class VirtualNode:
             access_rule=access_rule,
             source_locator=source_locator,
             download_name=download_name,
+            hidden=hidden,
         )
 
     @classmethod
@@ -117,6 +120,7 @@ class VirtualNode:
         access_rule: NodeAccessRule | None = None,
         *,
         display: DisplayParams,
+        hidden: bool = False,
     ) -> VirtualNode:
         return cls(
             stable_id=stable_id,
@@ -124,6 +128,7 @@ class VirtualNode:
             revision=revision,
             display=display,
             access_rule=access_rule,
+            hidden=hidden,
         )
 
     @property

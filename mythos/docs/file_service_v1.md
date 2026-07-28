@@ -41,9 +41,9 @@ registries.files.register_node(
 
 `FileReference.source_locator` is derived from `module` and `relative_path`, for example `intro:assets/README.txt`. At startup the publisher reads `puzzles/<module>/<relative_path>`, checks the SQLite static-file registration, uploads missing or mtime-changed files to RustFS, and produces an `ObjectReference`. `freeze()` then combines the resolved ObjectReference with the Node download name into runtime `FileContent`.
 
-Every `VirtualNode` carries a required `DisplayParams(label, description, icon, sort_order)`. It is returned to the frontend for both files and directories. `icon` is a semantic frontend token, never an asset URL or SVG. A display-only change changes `tree_version` but does not change a file `content_token`.
+Every `VirtualNode` carries a required `DisplayParams(label, description, icon, sort_order)` and an optional `hidden` flag, which defaults to `false`. Display parameters are returned to the frontend for both files and directories. `icon` is a semantic frontend token, never an asset URL or SVG. A display-only or hidden-state change changes `tree_version` but does not change a file `content_token`.
 
-Directory Nodes use `VirtualNode.directory(...)` and have no source. They can carry an `access_rule`, but have no public `file_id`, metadata or download URL. Empty explicit directories are valid and remain visible to players allowed to access them.
+Directory Nodes use `VirtualNode.directory(...)` and have no source. They can carry an `access_rule`, but have no public `file_id`, metadata or download URL. Empty explicit directories are valid and remain visible to players allowed to access them. A hidden directory is omitted when its parent is listed or traversed, but a player who knows its path can request that directory directly if its full access-rule chain allows it.
 
 Registration rejects duplicate stable IDs, duplicate virtual paths, duplicate source locators, file/directory conflicts, file Nodes with child Nodes, non-canonical paths and unsafe download names. Every file Node must bind one registered source, and every source must bind at least one file Node. `FileRegistry.freeze()` creates an immutable `FileTree` with a private public-ID lookup map for file Nodes.
 
@@ -60,7 +60,7 @@ The access rule receives the concrete request-level `Player`. It must be a pure 
 - It must not mutate global state, query HTTP state or call external services.
 - It must return `True` or `False`.
 
-All file-content and directory routes load Player with `writable=False`. `GET /files/version` only verifies the caller identity because `tree_version` is a static Catalog value. File authorization checks every Node from the root to the requested target. A denied directory blocks its whole subtree without evaluating child rules. `ls` evaluates only direct children after this path check; `tree` evaluates one child rule at each recursive level.
+All file-content and directory routes load Player with `writable=False`. `GET /files/version` only verifies the caller identity because `tree_version` is a static Catalog value. File authorization checks every Node from the root to the requested target. A denied directory blocks its whole subtree without evaluating child rules. `ls` evaluates only direct children after this path check; `tree` evaluates one child rule at each recursive level. Hidden Nodes are skipped before their access rule is evaluated while enumerating a parent, but remain subject to their access-rule chain when directly addressed.
 
 ## 4. API
 
@@ -73,9 +73,9 @@ GET  /api/v1/files/{file_id}/{content_token}/content-url
 GET  /api/v1/files/{file_id}/{content_token}/download-url
 ```
 
-`FileTree` is built from virtual paths when the registry freezes. It exposes an opaque `tree_version` derived only from static Node definitions and resolved object versions. It does not include player progress. Every file summary and metadata response carries an opaque `content_token` derived from its stable ID, Node revision, RustFS key/VersionId/media type, and download name. A change to access-rule behavior must also increment the affected Node revision.
+`FileTree` is built from virtual paths when the registry freezes. It exposes an opaque `tree_version` derived only from static Node definitions, including hidden state, and resolved object versions. It does not include player progress. Every file summary and metadata response carries an opaque `content_token` derived from its stable ID, Node revision, RustFS key/VersionId/media type, and download name. A change to access-rule behavior must also increment the affected Node revision.
 
-`GET /files/ls` returns only direct visible children. It verifies the requested path's full ancestor chain, then evaluates only each direct child's access rule; allowed empty directories and allowed directories with no visible descendants are returned. `GET /files/tree` returns the complete nested subtree using the same local rule at every level. Both responses include display parameters and omit denied Nodes. The versioned content URL endpoint validates that `content_token` still matches the current FileTree; stale tokens return `412`.
+`GET /files/ls` returns only direct visible children. It verifies the requested path's full ancestor chain, then skips hidden children before evaluating each remaining child's access rule; allowed empty directories and allowed directories with no visible descendants are returned. `GET /files/tree` returns the complete nested subtree using the same local rule at every level. Both responses include display parameters and omit denied or hidden Nodes. A hidden directory remains queryable by its exact path and applies the same visibility rule to its children. The versioned content URL endpoint validates that `content_token` still matches the current FileTree; stale tokens return `412`.
 
 Metadata, content URL and download URL requests re-evaluate authorization. Missing public IDs return `404`; inaccessible existing files return `403`.
 

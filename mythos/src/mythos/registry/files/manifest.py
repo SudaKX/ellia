@@ -53,6 +53,7 @@ class _NodeManifest(_ManifestModel):
     revision: Annotated[str, Field(min_length=1)]
     display: DisplayManifest
     access_rule: str | None = None
+    hidden: bool = False
 
     @field_validator("name")
     @classmethod
@@ -128,6 +129,7 @@ def parse_json_file_tree(
                     node.revision,
                     access_rule,
                     display=display,
+                    hidden=node.hidden,
                 )
             )
             for child in node.children:
@@ -148,6 +150,7 @@ def parse_json_file_tree(
                 node.download_name,
                 access_rule,
                 display=display,
+                hidden=node.hidden,
             )
         )
 
