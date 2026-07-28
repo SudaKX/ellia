@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Example Runtime</title>
+    <link rel="stylesheet" href="/example/example.css">
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <h1>Example Runtime</h1>
+          <span>MYTHOS / DEVELOPMENT</span>
+        </div>
+        <div class="top-actions">
+          <div class="status"><i id="status-dot" class="status-dot"></i><span id="session-status">Not authenticated</span></div>
+          <button id="refresh-button" class="text" type="button" disabled>Refresh</button>
+          <button id="logout-button" class="text" type="button" disabled>Log out</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel">
+          <div class="panel-inner">
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Session</h2></div>
+              <div class="segmented" aria-label="Authentication mode">
+                <button id="register-mode" class="active" type="button">Register</button>
+                <button id="login-mode" type="button">Log in</button>
+              </div>
+              <form id="auth-form" class="stack auth-form">
+                <label><span class="section-label">Username</span><input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
+                <label><span class="section-label">Password</span><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>
+                <button id="auth-submit" class="primary" type="submit">Create session</button>
+              </form>
+              <p id="auth-message" class="notice" aria-live="polite"></p>
+            </section>
+
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Requests</h2></div>
+              <ol id="event-list" class="event-list"><li><span class="muted">---</span><span class="path">No requests</span><span></span></li></ol>
+            </section>
+          </div>
+        </aside>
+
+        <section class="panel">
+          <div class="panel-inner">
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">File System</h2><span id="tree-version" class="muted">--</span></div>
+              <div id="file-tree" class="file-tree"><p class="notice">Authenticate to load files.</p></div>
+            </section>
+
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Preview</h2></div>
+              <div class="preview">
+                <div class="preview-bar"><span id="preview-name" class="preview-name">No file selected</span><button id="open-file-button" class="text" type="button" disabled>Open</button></div>
+                <pre id="preview-content" class="preview-content">Select a file from the tree.</pre>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="panel runtime-panel">
+          <div class="panel-inner">
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Progress</h2></div>
+              <ul id="progress-list" class="kv-list"><li><strong>Status</strong><span>Not loaded</span></li></ul>
+            </section>
+
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Scripts</h2></div>
+              <ul id="script-list" class="script-list"><li><span class="muted">No scripts loaded</span></li></ul>
+            </section>
+
+            <section class="section">
+              <div class="panel-header"><h2 class="panel-title">Recovery Console</h2></div>
+              <form id="answer-form" class="answer-form" hidden>
+                <label><span id="answer-label" class="section-label">Answer</span><input id="answer-input" autocomplete="off" required></label>
+                <span id="answer-meta" class="answer-meta"></span>
+                <div class="actions"><button id="answer-submit" class="primary" type="submit">Submit</button><button id="retry-answer" type="button" hidden>Retry request</button></div>
+              </form>
+              <p id="answer-message" class="notice" aria-live="polite">No answer validator available.</p>
+            </section>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script defer src="/example/example.js"></script>
+  </body>
+</html>

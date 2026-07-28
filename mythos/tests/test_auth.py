@@ -7,6 +7,7 @@ from pydantic import SecretStr, ValidationError
 from mythos.core.config import Settings
 from mythos.main import create_app
 from mythos.persistence.base import Base
+from mythos.registry.bundle import RegistryBundle
 
 
 def test_production_rejects_short_auth_secrets() -> None:
@@ -67,7 +68,7 @@ def test_authentication_lifecycle(tmp_path) -> None:
             refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
             refresh_cookie_secure=False,
         )
-        app = create_app(settings)
+        app = create_app(settings, registries=RegistryBundle())
 
         async with app.router.lifespan_context(app):
             async with app.state.database.engine.begin() as connection:

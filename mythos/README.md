@@ -16,10 +16,11 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 - 实现请求级 `Player`、`ProgressInterface`、PendingEffectPlan 和事务内 Effect 执行。
 - 实现模块、文件和脚本注册器，以及全局 FileService、ScriptService 和固定 Router。
 - 覆盖认证、端点派发、短时重复请求、Player Effect 和 Service 生命周期测试。
+- 提供默认装配的 Example 模块，覆盖静态线索、答案校验、进度 checkpoint、文件与脚本解锁。
 
 尚未实现：
 
-- 具体谜题模块、动态产物、演出状态、统计、审计和活动管理 API。
+- 动态产物、演出状态、统计、审计和活动管理 API。
 
 ## 本地开发
 
@@ -34,6 +35,14 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 ```powershell
 .\.venv\Scripts\python.exe -m pytest mythos/tests
 ```
+
+启动开发服务器：
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn mythos.main:app --app-dir mythos/src --reload
+```
+
+开发模式下可通过 `/example/` 打开 Example 交互测试页面。
 
 首次运行前，将 `.env.example` 复制为 `.env` 并替换认证密钥；随后执行迁移：
 

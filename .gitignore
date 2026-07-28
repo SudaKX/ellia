@@ -9,8 +9,8 @@ __pycache__/
 /mythos/.env
 /mythos/credentials.json
 /refs/
-/mythos/data/*.sqlite3
-/mythos/data/*.sqlite3-*
+/mythos/data/*
+!/mythos/data/.gitkeep
 
 # Shared Vue/Vite project artifacts (editor and desktop)
 **/logs/

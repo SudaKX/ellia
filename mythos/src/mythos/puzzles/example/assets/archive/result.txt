@@ -1,0 +1,5 @@
+ARCHIVE UNLOCKED
+
+The Example module has confirmed the full integration loop:
+
+static file -> answer validation -> progress checkpoint -> new visible content

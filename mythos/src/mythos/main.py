@@ -3,13 +3,15 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from mythos.auth.router import router as auth_router
-from mythos.core.config import Settings, get_settings
+from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.commands import CommandTransactionExecutor, RequestCache
+from mythos.puzzles import register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.factory import PlayerFactory
 from mythos.services.container import ServiceContainer
@@ -29,7 +31,11 @@ def create_app(
     object_store: ObjectStore | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
-    registered_content = registries or RegistryBundle(resolved_settings.puzzle_root)
+    if registries is None:
+        registered_content = RegistryBundle(resolved_settings.puzzle_root)
+        register_all(registered_content)
+    else:
+        registered_content = registries
     registered_content.configure_puzzle_root(resolved_settings.puzzle_root)
 
     @asynccontextmanager
@@ -85,6 +91,12 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+    if resolved_settings.environment == "development":
+        application.mount(
+            "/example",
+            StaticFiles(directory=PROJECT_ROOT / "example", html=True),
+            name="example",
+        )
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
