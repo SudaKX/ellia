@@ -42,8 +42,10 @@ function selectTheme(theme: Theme) {
   setTheme(theme)
 }
 
-function closeBackdrop(e: MouseEvent) {
-  if (e.target === e.currentTarget) {
+/** 点击设置面板非下拉区域时关闭所有下拉，不阻塞滚轮等事件 */
+function handleSettingsClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.dropdown')) {
     langOpen.value = false
     themeOpen.value = false
   }
@@ -51,7 +53,7 @@ function closeBackdrop(e: MouseEvent) {
 </script>
 
 <template>
-  <section class="settings" :aria-label="t('applications.settings.title')">
+  <section class="settings" :aria-label="t('applications.settings.title')" @click="handleSettingsClick">
     <header class="settings__header">
       <p class="settings__eyebrow">{{ t('settings.label') }}</p>
       <h2 class="settings__title">{{ t('applications.settings.title') }}</h2>
@@ -103,8 +105,6 @@ function closeBackdrop(e: MouseEvent) {
       </div>
     </div>
 
-    <!-- 点击背景关闭所有下拉 -->
-    <div v-if="langOpen || themeOpen" class="dropdown__backdrop" @click="closeBackdrop" />
   </section>
 </template>
 
@@ -196,9 +196,25 @@ function closeBackdrop(e: MouseEvent) {
   left: 0;
   right: 0;
   z-index: 10;
+  max-height: 180px;
+  overflow-y: auto;
   border: 1px solid var(--line-default);
   border-top: none;
   background: var(--surface-panel);
+}
+
+/* FakeOS 风格滚动条 */
+.dropdown__menu::-webkit-scrollbar {
+  width: 6px;
+}
+.dropdown__menu::-webkit-scrollbar-track {
+  background: var(--surface-panel);
+}
+.dropdown__menu::-webkit-scrollbar-thumb {
+  background: var(--line-default);
+}
+.dropdown__menu::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .dropdown__item {
@@ -223,11 +239,5 @@ function closeBackdrop(e: MouseEvent) {
 .dropdown__item--active {
   color: var(--signal-mint);
   background: var(--surface-panel);
-}
-
-.dropdown__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
 }
 </style>
