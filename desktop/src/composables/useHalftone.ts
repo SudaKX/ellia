@@ -5,12 +5,11 @@
  * 每个圆点大小与原始图片对应位置亮度成反比：
  * 越暗 → 圆点越大，越亮 → 圆点越小。
  *
- * ## 渲染流程
+ * ## 缓存策略
  *
- * 1. `new Image()` 加载图片
- * 2. 在离屏 canvas 上以目标尺寸 + DPR 缩放绘制原图
- * 3. `getImageData()` 获取像素数据
- * 4. 遍历网格，每个格子采样中心像素 → 算亮度 → 画彩色圆点
+ * 首次渲染时将结果绘制到一张"主画布"（分辨率 = 原图尺寸）并内存缓存。
+ * 后续窗口缩放只需 `drawImage` 缩放主画布，不再重算所有圆点。
+ * 图片切换时重新生成主画布。
  *
  * ## 使用方式
  *
@@ -39,6 +38,13 @@ const DEFAULTS: Required<HalftoneOptions> = {
   minRadius: 0.6,
 }
 
+/** 从 document 解析 CSS 变量实际值 */
+function resolveCssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return resolved || fallback
+}
+
 /** HiDPI 屏幕最大 DPR */
 const MAX_DPR = 2
 
@@ -48,22 +54,100 @@ export function useHalftone(options?: HalftoneOptions) {
   const canvasRef = shallowRef<HTMLCanvasElement | null>(null)
 
   let ctx: CanvasRenderingContext2D | null = null
-  let offscreen: HTMLCanvasElement | null = null
-  let offCtx: CanvasRenderingContext2D | null = null
   let cssWidth = 0
   let cssHeight = 0
   let currentUrl = ''
   let resizeObserver: ResizeObserver | null = null
-  let renderPending = false
 
-  // ─── 离屏 Canvas ──────────────────────────────────────
+  /** 主画布缓存：Map<imageUrl, HTMLCanvasElement>，所有渲染过的图都保留 */
+  const cache = new Map<string, HTMLCanvasElement>()
 
-  function ensureOffscreen(w: number, h: number): void {
-    if (offscreen && offscreen.width === w && offscreen.height === h) return
-    offscreen = document.createElement('canvas')
-    offscreen.width = w
-    offscreen.height = h
-    offCtx = offscreen.getContext('2d')!
+  // ─── 主画布缓存 ──────────────────────────────────────
+
+  function createMaster(w: number, h: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    return { canvas, ctx: canvas.getContext('2d')! }
+  }
+
+  /**
+   * 从原图生成点阵主画布，仅在图片切换时调用。
+   * 在 masterCanvas（原图分辨率）上绘制所有圆点并缓存。
+   */
+  async function renderMaster(imageUrl: string): Promise<void> {
+    // Step 1: 加载图片
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.src = imageUrl
+    await image.decode()
+
+    const imgW = image.naturalWidth
+    const imgH = image.naturalHeight
+    const { canvas: masterCanvas, ctx: masterCtx } = createMaster(imgW, imgH)
+
+    // Step 2: 在原图分辨率空间采样
+    const offscreen = document.createElement('canvas')
+    offscreen.width = imgW
+    offscreen.height = imgH
+    const offCtx = offscreen.getContext('2d')!
+    offCtx.drawImage(image, 0, 0)
+    const imageData = offCtx.getImageData(0, 0, imgW, imgH)
+    const pixels = imageData.data
+
+    // Step 3: 清空主画布（透明），只靠格子 fillRect 覆盖角色区域
+    masterCtx!.clearRect(0, 0, imgW, imgH)
+    const baseColor = resolveCssVar('--canvas', '#0d0d10')
+
+    // Step 4: 遍历网格 — 用量尺坐标（不缩放），因为 masterCanvas = 1:1 原图
+    const { dotSpacing, maxRadius, minRadius } = opts
+    const radiusRange = maxRadius - minRadius
+    const cols = Math.floor(imgW / dotSpacing)
+    const rows = Math.floor(imgH / dotSpacing)
+    const cellW = Math.ceil(dotSpacing)
+    const cellH = Math.ceil(dotSpacing)
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const sx = Math.floor(col * dotSpacing + dotSpacing / 2)
+        const sy = Math.floor(row * dotSpacing + dotSpacing / 2)
+        const pixelIndex = (sy * imgW + sx) * 4
+
+        const r = pixels[pixelIndex]
+        const g = pixels[pixelIndex + 1]
+        const b = pixels[pixelIndex + 2]
+        const a = pixels[pixelIndex + 3]
+
+        if (a < 128) continue
+
+        const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        const radius = minRadius + radiusRange * (1 - brightness)
+        if (radius < 0.15) continue
+
+        const cx = col * dotSpacing + dotSpacing / 2
+        const cy = row * dotSpacing + dotSpacing / 2
+
+        // 底层格子填底色
+        masterCtx!.fillStyle = baseColor
+        masterCtx!.fillRect(col * dotSpacing, row * dotSpacing, cellW, cellH)
+
+        // 上层圆点
+        masterCtx!.fillStyle = `rgb(${r},${g},${b})`
+        masterCtx!.beginPath()
+        masterCtx!.arc(cx, cy, radius, 0, Math.PI * 2)
+        masterCtx!.fill()
+      }
+    }
+
+    cache.set(imageUrl, masterCanvas)
+  }
+
+  /** 将主画布缩放到当前显示 canvas */
+  function paintToDisplay(imageUrl: string): void {
+    const masterCanvas = cache.get(imageUrl)
+    if (!ctx || !masterCanvas || cssWidth <= 0 || cssHeight <= 0) return
+    ctx.clearRect(0, 0, cssWidth, cssHeight)
+    ctx.drawImage(masterCanvas, 0, 0, cssWidth, cssHeight)
   }
 
   // ─── DPR 感知的 canvas 尺寸调整 ─────────────────────────
@@ -93,89 +177,22 @@ export function useHalftone(options?: HalftoneOptions) {
     newCtx.scale(dpr, dpr)
     ctx = newCtx
 
-    // 尺寸变化后重新渲染当前图片
-    if (currentUrl && !renderPending) {
-      renderPending = true
-      requestAnimationFrame(() => {
-        renderPending = false
-        render(currentUrl)
-      })
-    }
+    // 缩放主画布到新尺寸（极快，无需节流）
+    paintToDisplay(currentUrl)
   }
 
-  // ─── 核心渲染 ─────────────────────────────────────────
+  // ─── 公开 render ──────────────────────────────────────
 
   /**
-   * 加载图片并渲染为点阵。
-   * 可多次调用以切换图片。
+   * 渲染图片为点阵。
+   * 仅当图片 URL 变化时重新生成主画布，否则直接缩放到显示尺寸。
    */
   async function render(imageUrl: string): Promise<void> {
     currentUrl = imageUrl
-    if (!ctx || cssWidth <= 0 || cssHeight <= 0) return
-
-    // Step 1: 加载图片
-    const image = new Image()
-    image.crossOrigin = 'anonymous'
-    image.src = imageUrl
-    await image.decode()
-
-    // Step 2: 离屏绘制原图（DPR 缩放以保持采样精度）
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
-    const offW = cssWidth * dpr
-    const offH = cssHeight * dpr
-    ensureOffscreen(offW, offH)
-    offCtx!.clearRect(0, 0, offW, offH)
-    offCtx!.drawImage(image, 0, 0, offW, offH)
-
-    // Step 3: 获取像素数据
-    const imageData = offCtx!.getImageData(0, 0, offW, offH)
-    const pixels = imageData.data
-
-    // Step 4: 清空主 canvas（透明背景）
-    ctx!.clearRect(0, 0, cssWidth, cssHeight)
-
-    // Step 5: 遍历网格，绘制点阵
-    const { dotSpacing, maxRadius, minRadius } = opts
-    const radiusRange = maxRadius - minRadius
-
-    // 按 DPR 缩放网格步长用于采样
-    const sampleStep = dotSpacing * dpr
-    const cols = Math.floor(offW / sampleStep)
-    const rows = Math.floor(offH / sampleStep)
-
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        // 离屏采样坐标（DPR 空间）
-        const sx = Math.floor(col * sampleStep + sampleStep / 2)
-        const sy = Math.floor(row * sampleStep + sampleStep / 2)
-        const pixelIndex = (sy * offW + sx) * 4
-
-        const r = pixels[pixelIndex]
-        const g = pixels[pixelIndex + 1]
-        const b = pixels[pixelIndex + 2]
-        const a = pixels[pixelIndex + 3]
-
-        // 透明像素不画
-        if (a < 128) continue
-
-        // 感知亮度（ITU-R BT.601）
-        const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        // 越暗 → 圆点越大
-        const radius = minRadius + radiusRange * (1 - brightness)
-
-        // 太小不画
-        if (radius < 0.15) continue
-
-        // 主 canvas 绘制坐标（CSS px 空间）
-        const cx = col * dotSpacing + dotSpacing / 2
-        const cy = row * dotSpacing + dotSpacing / 2
-
-        ctx!.fillStyle = `rgb(${r},${g},${b})`
-        ctx!.beginPath()
-        ctx!.arc(cx, cy, radius, 0, Math.PI * 2)
-        ctx!.fill()
-      }
+    if (!cache.has(imageUrl)) {
+      await renderMaster(imageUrl)
     }
+    paintToDisplay(imageUrl)
   }
 
   // ─── 生命周期 ─────────────────────────────────────────
@@ -193,11 +210,10 @@ export function useHalftone(options?: HalftoneOptions) {
   function destroy(): void {
     resizeObserver?.disconnect()
     resizeObserver = null
-    offscreen = null
-    offCtx = null
     ctx = null
     canvasRef.value = null
     currentUrl = ''
+    cache.clear()
   }
 
   return { canvasRef, init, render, destroy }
