@@ -24,28 +24,27 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 
 ## 本地开发
 
+完整的启动步骤、路径约束和 RustFS 前置条件见 [docs/development_runtime_v1.md](docs/development_runtime_v1.md)。以下命令从 `mythos/` 目录执行。
+
 项目使用根目录的 `.venv` 虚拟环境。安装开发依赖：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --editable ".\mythos[dev]"
+..\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
 ```
 
 运行测试：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest mythos/tests
+..\.venv\Scripts\python.exe -m pytest tests
 ```
 
 启动开发服务器：
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn mythos.main:app --app-dir mythos/src --reload
+..\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
+..\.venv\Scripts\python.exe -m mythos --reload
 ```
 
 开发模式下可通过 `/example/` 打开 Example 交互测试页面。
 
-首次运行前，将 `.env.example` 复制为 `.env` 并替换认证密钥；随后执行迁移：
-
-```powershell
-.\.venv\Scripts\python.exe -m alembic -c mythos/alembic.ini upgrade head
-```
+首次运行前，将 `.env.example` 复制为 `.env` 并替换认证密钥和对象存储配置。

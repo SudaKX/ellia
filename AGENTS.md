@@ -10,25 +10,26 @@
 ## Mythos 后端
 
 - 只使用根目录 `.venv`，不要在 `mythos/` 下创建虚拟环境。
-- 从仓库根目录安装与测试：
+- 从 `mythos/` 目录安装、测试与启动：
 
   ```powershell
-  .\.venv\Scripts\python.exe -m pip install --editable ".\mythos[dev]"
-  .\.venv\Scripts\python.exe -m pytest mythos/tests
+  ..\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
+  ..\.venv\Scripts\python.exe -m pytest tests
+  ..\.venv\Scripts\python.exe -m mythos --reload
   ```
 
 - 聚焦测试使用完整测试目录加 `-k`，例如：
 
   ```powershell
-  .\.venv\Scripts\python.exe -m pytest mythos/tests -k test_global_services_read_frozen_registered_content
+  ..\.venv\Scripts\python.exe -m pytest tests -k test_global_services_read_frozen_registered_content
   ```
 
   不要直接按 `test_registry.py`、`test_services.py` 的顺序指定文件；当前会触发导入顺序相关的循环导入。
 - 配置从 `mythos/.env` 读取，环境变量必须使用 `MYTHOS_` 前缀；该文件及 `mythos/credentials.json` 均不得提交。
-- 数据库迁移必须从根目录显式指定配置：
+- 数据库迁移必须从 `mythos/` 目录显式指定配置：
 
   ```powershell
-  .\.venv\Scripts\python.exe -m alembic -c mythos/alembic.ini upgrade head
+  ..\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
   ```
 
 - RustFS 集成测试默认跳过。设置 `MYTHOS_RUSTFS_INTEGRATION=1` 后才会连接本地 S3 端点，并创建、启用版本控制后删除临时 bucket；需要相应权限。
