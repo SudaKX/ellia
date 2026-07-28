@@ -24,6 +24,7 @@ import { useRouter } from 'vue-router'
 import { LogIn, Power, Volume2, Wifi } from 'lucide-vue-next'
 
 import { useAuth } from '@/composables/useAuth'
+import { AUTH_ENDPOINTS, USE_REAL_API } from '@/config/api'
 import LoginForm from '@/components/desktop/LoginForm.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import NetworkMenu from '@/components/desktop/status/NetworkMenu.vue'
@@ -82,18 +83,56 @@ const loginWindow = ref<WindowInstance>({
   isMinimized: false,
 })
 
-function handleLogin(username: string, password: string) {
-  // TODO: 接入后端认证 API，替换 mock token
-  // console.log('[LoginView] 玩家登录:', username)
+/**
+ * 密码登录。
+ * 切换真实 API：将 `src/config/api.ts` 中 `USE_REAL_API` 改为 `true` 并设置 `API_BASE`。
+ */
+async function handleLogin(username: string, password: string) {
+  if (USE_REAL_API) {
+    try {
+      const res = await fetch(AUTH_ENDPOINTS.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      auth.login(data.accountType ?? 'player', data.token, data.username ?? username)
+      router.push({ name: 'desktop' })
+      return
+    } catch {
+      return
+    }
+  }
+
+  // Mock 模式
   const mockToken = btoa(`${username}:${Date.now()}`)
   auth.login('player', mockToken, username)
   router.push({ name: 'desktop' })
 }
 
-/** 密钥登录：基于浏览器存储的 token 自动登录（TODO: token 检测待后端接入） */
-function handleTokenLogin() {
-  // console.log('[LoginView] 密钥登录尝试')
-  // TODO: 后端就绪后，从 URL 参数或 localStorage 读取真实 token
+/** 密钥登录：基于已有 token 登录 */
+async function handleTokenLogin() {
+  if (USE_REAL_API) {
+    const savedToken = localStorage.getItem('ell_auth_token')
+    if (!savedToken) return
+    try {
+      const res = await fetch(AUTH_ENDPOINTS.tokenLogin, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: savedToken }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      auth.login(data.accountType ?? 'player', data.token, data.username)
+      router.push({ name: 'desktop' })
+      return
+    } catch {
+      return
+    }
+  }
+
+  // Mock 模式
   const mockToken = btoa(`token:${Date.now()}`)
   auth.login('player', mockToken)
   router.push({ name: 'desktop' })

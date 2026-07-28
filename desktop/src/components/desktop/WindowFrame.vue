@@ -67,8 +67,17 @@ const props = defineProps<{
    * 提供后，缩放时 width = height * aspectRatio。
    * undefined 时自由缩放（默认行为，现有窗口不受影响）。
    * 例如：正方形图片设 1，16:9 宽屏设 16/9。
+   *
+   * 注意：此属性约束整个窗口（含标题栏）的宽高比。
+   * 如需约束内容区域（不含标题栏），使用 bodyAspectRatio。
    */
   aspectRatio?: number
+  /**
+   * 内容区域等比缩放比例（宽/高），不含标题栏与边框。
+   * 例如设 1 时，body 区域始终保持正方形，标题栏高度另算。
+   * 与 aspectRatio 互斥，同时设置时 aspectRatio 生效。
+   */
+  bodyAspectRatio?: number
   /**
    * 最小宽度。覆盖模块默认 MIN_WIDTH(260)。
    * 不传时使用默认值，现有窗口不受影响。
@@ -279,7 +288,7 @@ function onResize(event: MouseEvent) {
   const rawDeltaX = (event.clientX - dragStartX.value) * signX
   const rawDeltaY = (event.clientY - dragStartY.value) * signY
 
-  if (props.aspectRatio === undefined) {
+  if (props.aspectRatio === undefined && props.bodyAspectRatio === undefined) {
     // 自由缩放：直接应用 delta
     const newWidth = Math.max(effectiveMinWidth.value, windowStartWidth.value + rawDeltaX)
     const newHeight = Math.max(effectiveMinHeight.value, windowStartHeight.value + rawDeltaY)
@@ -295,18 +304,43 @@ function onResize(event: MouseEvent) {
     return
   }
 
-  // 等比缩放：取 X/Y 中变化更大的方向主导，另一方向按比例跟随
+  // 等比缩放
   const clampW = (v: number) => clamp(v, effectiveMinWidth.value, effectiveMaxWidth.value)
   const clampH = (v: number) => clamp(v, effectiveMinHeight.value, effectiveMaxHeight.value)
 
+  // aspectRatio：约束整个窗口宽高比；bodyAspectRatio：约束 body 区域宽高比（不含标题栏）
+  const isWindowRatio = props.aspectRatio !== undefined
+  const ratio = isWindowRatio ? props.aspectRatio! : props.bodyAspectRatio!
+
+  // 标题栏 + 边框偏移量（bodyAspectRatio 模式需要扣除）
+  const titlebarH = props.hideTitlebar ? 0 : 34
+  const borderOffsetW = 2   // 左 1px + 右 1px
+  const borderOffsetH = titlebarH + 2  // 标题栏 34px + 上下边框各 1px
+
   if (Math.abs(rawDeltaX) >= Math.abs(rawDeltaY)) {
     const newWidth = clampW(windowStartWidth.value + rawDeltaX)
-    const newHeight = newWidth / props.aspectRatio
+    let newHeight: number
+    if (isWindowRatio) {
+      newHeight = newWidth / ratio
+    } else {
+      // body 宽高比：bodyW = windowW - borderOffsetW
+      const bodyW = newWidth - borderOffsetW
+      const bodyH = bodyW / ratio
+      newHeight = clampH(bodyH + borderOffsetH)
+    }
     width.value = newWidth
     height.value = newHeight
   } else {
     const newHeight = clampH(windowStartHeight.value + rawDeltaY)
-    const newWidth = newHeight * props.aspectRatio
+    let newWidth: number
+    if (isWindowRatio) {
+      newWidth = newHeight * ratio
+    } else {
+      // body 宽高比：bodyH = windowH - borderOffsetH
+      const bodyH = newHeight - borderOffsetH
+      const bodyW = bodyH * ratio
+      newWidth = clampW(bodyW + borderOffsetW)
+    }
     width.value = newWidth
     height.value = newHeight
   }

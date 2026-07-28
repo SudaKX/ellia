@@ -41,18 +41,29 @@ function consoleRedirectPlugin(): import('vite').Plugin {
       server.middlewares.use(cacheMiddleware)
     },
     configurePreviewServer(server) {
-      // 在静态文件中间件之前插入，直接返回 index.html
-      // 避免 sirv 将 dist/ 当作目录处理导致 EISDIR
+      // 在静态文件中间件之前插入 SPA 回退
+      // 路径含扩展名 → 静态资源（.js/.css/.webp 等），放行
+      // 无扩展名 → SPA 路由，返回 index.html
       const distIndex = resolve(__dirname, 'dist/index.html')
       const indexHtml = readFileSync(distIndex, 'utf-8')
 
       server.middlewares.use((req, res, next) => {
-        // 仅拦截 SPA 入口路径，静态资源（assets/、images/ 等）放行
-        if (req.url === '/console/' || req.url === '/console') {
+        const url = req.url ?? ''
+
+        // 有文件扩展名 → 静态资源，放行
+        const pathname = url.split('?')[0]
+        if (pathname.includes('.')) {
+          next()
+          return
+        }
+
+        // /console 或 /console/ 或 /console/anything → SPA 回退
+        if (url === '/console' || url.startsWith('/console/')) {
           res.writeHead(200, { 'Content-Type': 'text/html' })
           res.end(indexHtml)
           return
         }
+
         next()
       })
 

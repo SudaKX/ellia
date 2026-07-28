@@ -522,7 +522,7 @@ onBeforeUnmount(() => {
         :window="window"
         :is-active="windowService.activeWindowId.value === window.id"
         :filter-ids="windowFilterIds"
-        :aspect-ratio="window.id === aiWindowId ? 1 : undefined"
+        :body-aspect-ratio="window.id === aiWindowId ? 1 : undefined"
         :min-width="window.id === aiWindowId ? aiMinSize : undefined"
         :min-height="window.id === aiWindowId ? aiMinSize : undefined"
         :max-width="window.id === aiWindowId ? aiMaxSize : undefined"

@@ -38,13 +38,6 @@ const DEFAULTS: Required<HalftoneOptions> = {
   minRadius: 0.6,
 }
 
-/** 从 document 解析 CSS 变量实际值 */
-function resolveCssVar(name: string, fallback: string): string {
-  if (typeof document === 'undefined') return fallback
-  const resolved = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return resolved || fallback
-}
-
 /** HiDPI 屏幕最大 DPR */
 const MAX_DPR = 2
 
@@ -97,7 +90,7 @@ export function useHalftone(options?: HalftoneOptions) {
 
     // Step 3: 清空主画布（透明），只靠格子 fillRect 覆盖角色区域
     masterCtx!.clearRect(0, 0, imgW, imgH)
-    const baseColor = resolveCssVar('--canvas', '#0d0d10')
+    const baseColor = '#f0f0ed'  // 浅色背景，固定不随主题切换
 
     // Step 4: 遍历网格 — 用量尺坐标（不缩放），因为 masterCanvas = 1:1 原图
     const { dotSpacing, maxRadius, minRadius } = opts

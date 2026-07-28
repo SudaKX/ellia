@@ -35,6 +35,7 @@
 
 import { computed, ref } from 'vue'
 import { useDesktopStore } from '@/stores/desktop'
+import { AUTH_ENDPOINTS, USE_REAL_API } from '@/config/api'
 
 const TOKEN_KEY = 'ell_auth_token'
 const PLAYER_KEY = 'ell_player_logged_in'
@@ -118,7 +119,7 @@ function createAuth() {
   /**
    * 后端校验：进入登录页时调用，验证 localStorage 中的 token 是否仍然有效。
    *
-   * TODO: 后端就绪后替换为 `POST /api/auth/validate`，返回 `{ valid: boolean, accountType?: string }`
+   * 切换真实 API：将 `src/config/api.ts` 中 `USE_REAL_API` 改为 `true` 并设置 `API_BASE`。
    */
   async function validateWithBackend(): Promise<boolean> {
     const savedToken = localStorage.getItem(TOKEN_KEY)
@@ -128,17 +129,24 @@ function createAuth() {
       return false
     }
 
-    // TODO: 替换为真实 API 调用
-    // const res = await fetch('/api/auth/validate', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ token: savedToken }),
-    // })
-    // if (!res.ok) { logout(); return false }
-    // const data = await res.json()
-    // return data.valid
+    if (USE_REAL_API) {
+      try {
+        const res = await fetch(AUTH_ENDPOINTS.validate, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: savedToken }),
+        })
+        if (!res.ok) { logout(); return false }
+        const data = await res.json()
+        if (!data.valid) { logout(); return false }
+        return true
+      } catch {
+        logout()
+        return false
+      }
+    }
 
-    // Mock：本地 token 存在即认为有效
+    // Mock 模式：本地 token 存在即认为有效
     return true
   }
 
