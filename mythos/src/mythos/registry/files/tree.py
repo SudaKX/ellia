@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import json
 from types import MappingProxyType
 
 from mythos.core.file_ids import FileIdCodec
@@ -224,4 +225,5 @@ def _tree_version_entry(node: VirtualNode, content: FileContent | None) -> tuple
         "file" if node.is_file else "directory",
         node.download_name or "",
         content.content_token if content is not None else "",
+        json.dumps(node.display.as_dict(), ensure_ascii=True, sort_keys=True, separators=(",", ":")),
     )

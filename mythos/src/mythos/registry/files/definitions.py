@@ -12,6 +12,32 @@ NodeAccessRule: TypeAlias = Callable[["Player"], bool]
 
 
 @dataclass(frozen=True)
+class DisplayParams:
+    label: str
+    description: str | None = None
+    icon: str | None = None
+    sort_order: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.label or any(character in "\r\n" for character in self.label):
+            raise ValueError("Display labels must be non-empty single-line strings.")
+        if self.description is not None and any(character in "\r\n" for character in self.description):
+            raise ValueError("Display descriptions cannot contain newlines.")
+        if self.icon is not None and not re.fullmatch(r"[a-z][a-z0-9-]*", self.icon):
+            raise ValueError("Display icons must be semantic lowercase tokens.")
+        if isinstance(self.sort_order, bool) or not isinstance(self.sort_order, int):
+            raise ValueError("Display sort orders must be integers.")
+
+    def as_dict(self) -> dict[str, str | int | None]:
+        return {
+            "label": self.label,
+            "description": self.description,
+            "icon": self.icon,
+            "sort_order": self.sort_order,
+        }
+
+
+@dataclass(frozen=True)
 class ObjectReference:
     key: str
     content_digest: str
@@ -55,6 +81,7 @@ class VirtualNode:
     stable_id: str
     path: str
     revision: str
+    display: DisplayParams
     access_rule: NodeAccessRule | None = None
     source_locator: str | None = None
     download_name: str | None = None
@@ -68,11 +95,14 @@ class VirtualNode:
         source_locator: str,
         download_name: str,
         access_rule: NodeAccessRule | None = None,
+        *,
+        display: DisplayParams,
     ) -> VirtualNode:
         return cls(
             stable_id=stable_id,
             path=path,
             revision=revision,
+            display=display,
             access_rule=access_rule,
             source_locator=source_locator,
             download_name=download_name,
@@ -85,11 +115,14 @@ class VirtualNode:
         path: str,
         revision: str,
         access_rule: NodeAccessRule | None = None,
+        *,
+        display: DisplayParams,
     ) -> VirtualNode:
         return cls(
             stable_id=stable_id,
             path=path,
             revision=revision,
+            display=display,
             access_rule=access_rule,
         )
 

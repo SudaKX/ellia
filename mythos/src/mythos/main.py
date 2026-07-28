@@ -29,7 +29,8 @@ def create_app(
     object_store: ObjectStore | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
-    registered_content = registries or RegistryBundle()
+    registered_content = registries or RegistryBundle(resolved_settings.puzzle_root)
+    registered_content.configure_puzzle_root(resolved_settings.puzzle_root)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):

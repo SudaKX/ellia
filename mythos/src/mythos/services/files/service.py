@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from mythos.players.player import Player
-from mythos.registry.files import FileTree, FileTreeDirectoryNotFoundError, TreeNode
+from mythos.registry.files import DisplayParams, FileTree, FileTreeDirectoryNotFoundError, TreeNode
 from mythos.services.object_store.service import ObjectStoreReader, PresignedObjectUrl
 
 
@@ -28,12 +28,19 @@ class FileSummary:
     media_type: str
     size_bytes: int
     content_token: str
+    display: DisplayParams
+
+
+@dataclass(frozen=True)
+class DirectorySummary:
+    path: str
+    display: DisplayParams
 
 
 @dataclass(frozen=True)
 class DirectoryListing:
     path: str
-    directories: tuple[str, ...]
+    directories: tuple[DirectorySummary, ...]
     files: tuple[FileSummary, ...]
     tree_version: str
 
@@ -42,6 +49,14 @@ class DirectoryListing:
 class FileMetadata(FileSummary):
     content_digest: str
     download_name: str
+
+
+@dataclass(frozen=True)
+class DirectoryTree:
+    path: str
+    display: DisplayParams
+    directories: tuple["DirectoryTree", ...]
+    files: tuple[FileSummary, ...]
 
 
 class FileService:
@@ -79,22 +94,29 @@ class FileService:
             raise FileDirectoryNotFoundError
 
         directory = directory_chain[-1]
-        directories: list[str] = []
+        directories: list[DirectorySummary] = []
         files: list[FileSummary] = []
         for child in directory.children.values():
             if child.is_file:
                 if self._is_allowed_node(player, child):
                     files.append(self._summary(child))
-            elif self._directory_has_visible_file(player, child):
-                directories.append(child.path)
-        if directory.path != "/" and not directories and not files:
-            raise FileDirectoryNotFoundError
+            elif self._is_allowed_node(player, child):
+                directories.append(self._directory_summary(child))
         return DirectoryListing(
             path=directory.path,
-            directories=tuple(sorted(directories)),
-            files=tuple(sorted(files, key=lambda item: item.path)),
+            directories=tuple(sorted(directories, key=self._sort_by_display)),
+            files=tuple(sorted(files, key=self._sort_by_display)),
             tree_version=self._tree.tree_version,
         )
+
+    def directory_tree(self, player: Player, path: str = "/") -> DirectoryTree:
+        try:
+            directory_chain = self._tree.directory_chain(path)
+        except FileTreeDirectoryNotFoundError as error:
+            raise FileDirectoryNotFoundError from error
+        if not self._is_allowed_chain(player, directory_chain):
+            raise FileDirectoryNotFoundError
+        return self._directory_tree(player, directory_chain[-1])
 
     def metadata(self, player: Player, file_id: str) -> FileMetadata:
         file = self._authorized_file(player, file_id)
@@ -168,15 +190,22 @@ class FileService:
             raise FileAccessDeniedError
         return file
 
-    def _directory_has_visible_file(self, player: Player, directory: TreeNode) -> bool:
-        if not self._is_allowed_node(player, directory):
-            return False
+    def _directory_tree(self, player: Player, directory: TreeNode) -> DirectoryTree:
+        directories: list[DirectoryTree] = []
+        files: list[FileSummary] = []
         for child in directory.children.values():
-            if child.is_file and self._is_allowed_node(player, child):
-                return True
-            if not child.is_file and self._directory_has_visible_file(player, child):
-                return True
-        return False
+            if not self._is_allowed_node(player, child):
+                continue
+            if child.is_file:
+                files.append(self._summary(child))
+            else:
+                directories.append(self._directory_tree(player, child))
+        return DirectoryTree(
+            path=directory.path,
+            display=self._display(directory),
+            directories=tuple(sorted(directories, key=self._sort_by_display)),
+            files=tuple(sorted(files, key=self._sort_by_display)),
+        )
 
     def _is_allowed_chain(self, player: Player, chain: tuple[TreeNode, ...]) -> bool:
         return all(self._is_allowed_node(player, node) for node in chain)
@@ -184,6 +213,20 @@ class FileService:
     @staticmethod
     def _is_allowed_node(player: Player, node: TreeNode) -> bool:
         return node.definition is None or node.definition.access_rule is None or node.definition.access_rule(player)
+
+    @staticmethod
+    def _display(node: TreeNode) -> DisplayParams:
+        if node.definition is not None:
+            return node.definition.display
+        label = "/" if node.path == "/" else node.path.rsplit("/", maxsplit=1)[-1]
+        return DisplayParams(label=label, icon="folder")
+
+    def _directory_summary(self, directory: TreeNode) -> DirectorySummary:
+        return DirectorySummary(path=directory.path, display=self._display(directory))
+
+    @staticmethod
+    def _sort_by_display(item: DirectorySummary | DirectoryTree | FileSummary) -> tuple[int, str]:
+        return item.display.sort_order, item.path
 
     def _summary(self, file: TreeNode) -> FileSummary:
         assert file.definition is not None
@@ -196,4 +239,5 @@ class FileService:
             media_type=file.content.object_ref.media_type,
             size_bytes=file.content.object_ref.size_bytes,
             content_token=file.content.content_token,
+            display=self._display(file),
         )

@@ -13,16 +13,20 @@ from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_read_context
 from mythos.registry.errors import RegistryError
 from mythos.services.files.service import (
+    DirectorySummary,
+    DirectoryTree,
     FileAccessDeniedError,
     FileContentVersionMismatchError,
     FileDirectoryNotFoundError,
+    FileMetadata,
+    FileSummary,
 )
 from mythos.services.object_store.service import ObjectStoreError, ObjectStoreUnavailableError
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-@router.get("")
+@router.get("/ls")
 async def list_files(
     response: Response,
     context: Annotated[RequestContext, Depends(get_read_context)],
@@ -37,10 +41,26 @@ async def list_files(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Directory not found.") from error
     return {
         "path": listing.path,
-        "directories": list(listing.directories),
-        "files": [item.__dict__ for item in listing.files],
+        "directories": [_directory_summary(item) for item in listing.directories],
+        "files": [_file_summary(item) for item in listing.files],
         "tree_version": listing.tree_version,
     }
+
+
+@router.get("/tree")
+async def file_tree(
+    response: Response,
+    context: Annotated[RequestContext, Depends(get_read_context)],
+    runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
+    path: Annotated[str, Query()] = "/",
+) -> dict[str, object]:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Authorization"
+    try:
+        tree = runtime.services.files.directory_tree(context.player, path)
+    except FileDirectoryNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Directory not found.") from error
+    return {**_directory_tree(tree), "tree_version": runtime.services.files.tree_version}
 
 
 @router.get("/version")
@@ -95,12 +115,12 @@ async def file_metadata(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Authorization"
     try:
-        metadata = runtime.services.files.metadata(context.player, file_id).__dict__
+        metadata = runtime.services.files.metadata(context.player, file_id)
     except FileAccessDeniedError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="File access denied.") from error
     except RegistryError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.") from error
-    return {**metadata, "tree_version": runtime.services.files.tree_version}
+    return {**_file_metadata(metadata), "tree_version": runtime.services.files.tree_version}
 
 
 async def _issue_url(
@@ -132,4 +152,37 @@ async def _issue_url(
         "url": issued.url,
         "expires_at": issued.expires_at.isoformat(),
         "content_token": content_token,
+    }
+
+
+def _directory_summary(item: DirectorySummary) -> dict[str, object]:
+    return {"path": item.path, "display": item.display.as_dict()}
+
+
+def _file_summary(item: FileSummary) -> dict[str, object]:
+    return {
+        "file_id": item.file_id,
+        "path": item.path,
+        "revision": item.revision,
+        "media_type": item.media_type,
+        "size_bytes": item.size_bytes,
+        "content_token": item.content_token,
+        "display": item.display.as_dict(),
+    }
+
+
+def _file_metadata(item: FileMetadata) -> dict[str, object]:
+    return {
+        **_file_summary(item),
+        "content_digest": item.content_digest,
+        "download_name": item.download_name,
+    }
+
+
+def _directory_tree(item: DirectoryTree) -> dict[str, object]:
+    return {
+        "path": item.path,
+        "display": item.display.as_dict(),
+        "directories": [_directory_tree(directory) for directory in item.directories],
+        "files": [_file_summary(file) for file in item.files],
     }

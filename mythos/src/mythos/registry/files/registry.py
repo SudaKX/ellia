@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
-from mythos.registry.files.definitions import FileContent, FileReference, ObjectReference, VirtualNode
+from mythos.registry.files.definitions import (
+    FileContent,
+    FileReference,
+    NodeAccessRule,
+    ObjectReference,
+    VirtualNode,
+)
 from mythos.registry.files.tree import FileTree
 
 
 class FileRegistry:
-    def __init__(self) -> None:
+    def __init__(self, puzzle_root: Path | None = None) -> None:
         self._nodes_by_stable_id: dict[str, VirtualNode] = {}
         self._sources_by_locator: dict[str, FileReference] = {}
         self._file_paths: set[str] = set()
@@ -18,6 +25,16 @@ class FileRegistry:
         self._objects_by_source_locator: dict[str, ObjectReference] | None = None
         self._frozen = False
         self._tree: FileTree | None = None
+        self._puzzle_root: Path | None = None
+        if puzzle_root is not None:
+            self.configure_puzzle_root(puzzle_root)
+
+    def configure_puzzle_root(self, puzzle_root: Path) -> None:
+        self._ensure_mutable()
+        resolved_root = puzzle_root.resolve()
+        if self._puzzle_root is not None and self._puzzle_root != resolved_root:
+            raise RegistryError("File registry is already configured with a different puzzle root.")
+        self._puzzle_root = resolved_root
 
     def register_source(self, reference: FileReference) -> str:
         self._ensure_mutable()
@@ -39,6 +56,100 @@ class FileRegistry:
         else:
             self._register_directory(node)
         self._nodes_by_stable_id[node.stable_id] = node
+
+    def register_json_tree(
+        self,
+        document: str | bytes | Mapping[str, object],
+        *,
+        path_prefix: str = "/",
+        access_rules: Mapping[str, NodeAccessRule] | None = None,
+    ) -> None:
+        from mythos.registry.files.manifest import parse_json_file_tree
+
+        sources, nodes = parse_json_file_tree(
+            document,
+            path_prefix=path_prefix,
+            access_rules=access_rules or {},
+        )
+        self._register_manifest(sources, nodes)
+
+    def register_json_tree_asset(
+        self,
+        module: str,
+        relative_asset_path: str,
+        *,
+        path_prefix: str = "/",
+        access_rules: Mapping[str, NodeAccessRule] | None = None,
+    ) -> None:
+        from mythos.registry.files.manifest import parse_json_file_tree
+
+        manifest_path = self._manifest_asset_path(module, relative_asset_path)
+        try:
+            document = manifest_path.read_bytes()
+        except OSError as error:
+            raise RegistryError(f"File tree manifest is unavailable: {manifest_path}") from error
+        sources, nodes = parse_json_file_tree(
+            document,
+            path_prefix=path_prefix,
+            access_rules=access_rules or {},
+            expected_module=module,
+        )
+        self._register_manifest(sources, nodes)
+
+    def _register_manifest(
+        self,
+        sources: tuple[FileReference, ...],
+        nodes: tuple[VirtualNode, ...],
+    ) -> None:
+        snapshot = (
+            dict(self._nodes_by_stable_id),
+            dict(self._sources_by_locator),
+            set(self._file_paths),
+            set(self._explicit_directory_paths),
+            set(self._directory_paths),
+        )
+        try:
+            for source in sources:
+                registered = self._sources_by_locator.get(source.source_locator)
+                if registered is None:
+                    self.register_source(source)
+                elif registered != source:
+                    raise RegistryError("JSON file tree conflicts with an existing static file source.")
+            for node in nodes:
+                self.register_node(node)
+        except Exception:
+            (
+                self._nodes_by_stable_id,
+                self._sources_by_locator,
+                self._file_paths,
+                self._explicit_directory_paths,
+                self._directory_paths,
+            ) = snapshot
+            raise
+
+    def _manifest_asset_path(self, module: str, relative_asset_path: str) -> Path:
+        if self._puzzle_root is None:
+            raise RegistryError("File registry requires a configured puzzle root to read manifest assets.")
+        if not module or "/" in module or "\\" in module or module in {".", ".."}:
+            raise RegistryError("Manifest asset modules must be one canonical path segment.")
+        if (
+            not relative_asset_path
+            or relative_asset_path.startswith("/")
+            or "\\" in relative_asset_path
+            or any(not part or part in {".", ".."} for part in relative_asset_path.split("/"))
+        ):
+            raise RegistryError("Manifest asset paths must be canonical module-relative paths.")
+        module_root = (self._puzzle_root / module).resolve()
+        try:
+            module_root.relative_to(self._puzzle_root)
+        except ValueError as error:
+            raise RegistryError("Manifest asset modules must remain within the puzzle root.") from error
+        manifest_path = (module_root / relative_asset_path).resolve()
+        try:
+            manifest_path.relative_to(module_root)
+        except ValueError as error:
+            raise RegistryError("Manifest asset paths must remain within their module directory.") from error
+        return manifest_path
 
     @property
     def sources(self) -> tuple[FileReference, ...]:
@@ -66,7 +177,6 @@ class FileRegistry:
         self._validate_source_bindings()
         if self._sources_by_locator and self._objects_by_source_locator is None:
             raise RegistryError("Static file sources must be materialized before the file registry is frozen.")
-        self._ensure_no_empty_directories()
         self._frozen = True
         contents_by_stable_id: dict[str, FileContent] = {}
         for node in self._nodes_by_stable_id.values():
@@ -129,11 +239,6 @@ class FileRegistry:
         for ancestor in _directory_paths_for(path, include_self=False):
             if ancestor in self._file_paths:
                 raise RegistryError("A virtual file cannot contain child nodes.")
-
-    def _ensure_no_empty_directories(self) -> None:
-        for directory in self._explicit_directory_paths:
-            if not any(path.startswith(directory + "/") for path in self._file_paths):
-                raise RegistryError("Virtual directories must contain a file descendant.")
 
     def _ensure_mutable(self) -> None:
         if self._frozen or self._objects_by_source_locator is not None:

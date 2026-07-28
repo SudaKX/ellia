@@ -1,5 +1,7 @@
-import pytest
 import asyncio
+import json
+
+import pytest
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import (
@@ -8,13 +10,24 @@ from mythos.registry.errors import (
     RegistryFrozenError,
 )
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import FileReference, FileRegistry, ObjectReference, VirtualNode
+from mythos.registry.files import (
+    DisplayParams,
+    FileReference,
+    FileRegistry,
+    FileTreeManifest,
+    ObjectReference,
+    VirtualNode,
+)
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationOutcome, ValidationRegistry
 
 
 async def _attempt_handler(_context, _payload):
     return ValidationOutcome(accepted=True)
+
+
+def _display(label: str, icon: str = "document") -> DisplayParams:
+    return DisplayParams(label=label, icon=icon)
 
 
 class FakeStaticPublisher:
@@ -55,7 +68,14 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
         FileReference("test", "assets/file.txt", "text/plain")
     )
     registries.files.register_node(
-        VirtualNode.file("test.file", "/file.txt", "1", source_locator, "file.txt")
+        VirtualNode.file(
+            "test.file",
+            "/file.txt",
+            "1",
+            source_locator,
+            "file.txt",
+            display=_display("File"),
+        )
     )
     registries.scripts.register(Script("test.script", "1", {"lines": []}))
     registries.validations.register_attempt(ValidationAttempt("test.validation", "test-validation", _attempt_handler))
@@ -77,38 +97,74 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
         registries.freeze(FileIdCodec("another-file-id-signing-key-with-at-least-32-bytes"))
     with pytest.raises(RegistryFrozenError):
         registries.files.register_node(
-            VirtualNode.file("test.other", "/other.txt", "1", source_locator, "other.txt")
+            VirtualNode.file(
+                "test.other",
+                "/other.txt",
+                "1",
+                source_locator,
+                "other.txt",
+                display=_display("Other"),
+            )
         )
 
 
-def test_file_registry_rejects_file_directory_conflicts_and_empty_directories() -> None:
+def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_directories() -> None:
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
     registry = FileRegistry()
     report_source = registry.register_source(FileReference("test", "assets/report.txt", "text/plain"))
     registry.register_node(
-        VirtualNode.file("test.report", "/report", "1", report_source, "report.txt")
+        VirtualNode.file(
+            "test.report",
+            "/report",
+            "1",
+            report_source,
+            "report.txt",
+            display=_display("Report"),
+        )
     )
     with pytest.raises(RegistryError, match="contain child"):
         guide_source = registry.register_source(FileReference("test", "assets/report-guide.txt", "text/plain"))
         registry.register_node(
-            VirtualNode.file("test.report-guide", "/report/guide.txt", "1", guide_source, "guide.txt")
+            VirtualNode.file(
+                "test.report-guide",
+                "/report/guide.txt",
+                "1",
+                guide_source,
+                "guide.txt",
+                display=_display("Guide"),
+            )
         )
 
     descendant_first = FileRegistry()
     guide_source = descendant_first.register_source(FileReference("test", "assets/guide.txt", "text/plain"))
     descendant_first.register_node(
-        VirtualNode.file("test.guide", "/docs/guide.txt", "1", guide_source, "guide.txt")
+        VirtualNode.file(
+            "test.guide",
+            "/docs/guide.txt",
+            "1",
+            guide_source,
+            "guide.txt",
+            display=_display("Guide"),
+        )
     )
     with pytest.raises(RegistryError, match="also be a directory"):
         docs_source = descendant_first.register_source(FileReference("test", "assets/docs.txt", "text/plain"))
         descendant_first.register_node(
-            VirtualNode.file("test.docs-file", "/docs", "1", docs_source, "docs.txt")
+            VirtualNode.file(
+                "test.docs-file",
+                "/docs",
+                "1",
+                docs_source,
+                "docs.txt",
+                display=_display("Docs"),
+            )
         )
 
     empty_directory = FileRegistry()
-    empty_directory.register_node(VirtualNode.directory("test.empty", "/empty", "1"))
-    with pytest.raises(RegistryError, match="contain a file descendant"):
-        empty_directory.freeze(file_ids)
+    empty_directory.register_node(
+        VirtualNode.directory("test.empty", "/empty", "1", display=_display("Empty", "folder"))
+    )
+    assert empty_directory.freeze(file_ids).directory_chain("/empty")[-1].path == "/empty"
 
 
 def test_file_tree_versions_follow_node_revision_and_object_version() -> None:
@@ -118,7 +174,14 @@ def test_file_tree_versions_follow_node_revision_and_object_version() -> None:
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
         registry.register_node(
-            VirtualNode.file("test.file", "/file.txt", revision, source_locator, "file.txt")
+            VirtualNode.file(
+                "test.file",
+                "/file.txt",
+                revision,
+                source_locator,
+                "file.txt",
+                display=_display("File"),
+            )
         )
         registry.materialize_static_files(
             {
@@ -156,7 +219,14 @@ def test_file_content_token_follows_representation_metadata() -> None:
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", media_type))
         registry.register_node(
-            VirtualNode.file("test.file", "/file.txt", "1", source_locator, download_name)
+            VirtualNode.file(
+                "test.file",
+                "/file.txt",
+                "1",
+                source_locator,
+                download_name,
+                display=_display("File"),
+            )
         )
         registry.materialize_static_files(
             {
@@ -190,3 +260,157 @@ def test_file_content_token_follows_representation_metadata() -> None:
     assert plain.tree_version != html.tree_version
     assert plain.tree_version != renamed.tree_version
     assert plain.tree_version != moved.tree_version
+
+
+def test_file_tree_versions_follow_display_params_without_changing_content_tokens() -> None:
+    file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
+
+    def build_tree(display: DisplayParams):
+        registry = FileRegistry()
+        source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
+        registry.register_node(
+            VirtualNode.file(
+                "test.file",
+                "/file.txt",
+                "1",
+                source_locator,
+                "file.txt",
+                display=display,
+            )
+        )
+        registry.materialize_static_files(
+            {
+                source_locator: ObjectReference(
+                    "static/test/assets/file.txt",
+                    "sha256:" + "a" * 64,
+                    "text/plain",
+                    4,
+                    "object-v1",
+                )
+            }
+        )
+        return registry.freeze(file_ids)
+
+    first = build_tree(_display("File"))
+    renamed = build_tree(_display("Renamed"))
+    file_id = first.file_id_for_stable_id("test.file")
+    assert first.file(file_id).content is not None
+    assert renamed.file(file_id).content is not None
+    assert first.tree_version != renamed.tree_version
+    assert first.file(file_id).content.content_token == renamed.file(file_id).content.content_token
+
+
+def test_file_registry_registers_json_tree_atomically() -> None:
+    registry = FileRegistry()
+    manifest = {
+        "schema_version": 1,
+        "module": "test",
+        "children": [
+            {
+                "kind": "directory",
+                "stable_id": "test.docs",
+                "name": "docs",
+                "revision": "1",
+                "display": {"label": "Docs", "icon": "folder"},
+                "access_rule": "docs-visible",
+                "children": [
+                    {
+                        "kind": "file",
+                        "stable_id": "test.guide",
+                        "name": "guide.txt",
+                        "revision": "1",
+                        "display": {"label": "Guide", "icon": "document"},
+                        "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
+                        "download_name": "guide.txt",
+                    }
+                ],
+            },
+            {
+                "kind": "directory",
+                "stable_id": "test.empty",
+                "name": "empty",
+                "revision": "1",
+                "display": {"label": "Empty", "icon": "folder"},
+                "children": [],
+            },
+        ],
+    }
+    registry.register_json_tree(json.dumps(manifest), access_rules={"docs-visible": lambda _player: True})
+    assert registry.sources == (FileReference("test", "assets/guide.txt", "text/plain"),)
+    assert "DirectoryManifest" in FileTreeManifest.model_json_schema()["$defs"]
+
+    invalid = {**manifest, "unexpected": True}
+    with pytest.raises(RegistryError, match="Invalid file tree manifest"):
+        FileRegistry().register_json_tree(invalid)
+
+    conflicting = {
+        "schema_version": 1,
+        "module": "test",
+        "children": [
+            {
+                "kind": "file",
+                "stable_id": "test.guide",
+                "name": "other.txt",
+                "revision": "1",
+                "display": {"label": "Other", "icon": "document"},
+                "source": {"relative_path": "assets/other.txt", "media_type": "text/plain"},
+                "download_name": "other.txt",
+            }
+        ],
+    }
+    with pytest.raises(DuplicateStableIdError):
+        registry.register_json_tree(conflicting)
+    assert registry.sources == (FileReference("test", "assets/guide.txt", "text/plain"),)
+
+    registry.materialize_static_files(
+        {
+            "test:assets/guide.txt": ObjectReference(
+                "static/test/assets/guide.txt",
+                "sha256:" + "a" * 64,
+                "text/plain",
+                4,
+                "test-version",
+            )
+        }
+    )
+    tree = registry.freeze(FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes"))
+    assert tree.directory_chain("/docs")[-1].definition is not None
+    assert tree.directory_chain("/empty")[-1].definition is not None
+
+
+def test_file_registry_reads_json_tree_assets_from_puzzle_root(tmp_path) -> None:
+    puzzle_root = tmp_path / "puzzles"
+    manifest_path = puzzle_root / "test" / "assets" / "file-tree.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "module": "test",
+                "children": [
+                    {
+                        "kind": "file",
+                        "stable_id": "test.guide",
+                        "name": "guide.txt",
+                        "revision": "1",
+                        "display": {"label": "Guide", "icon": "document"},
+                        "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
+                        "download_name": "guide.txt",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = FileRegistry(puzzle_root)
+    registry.register_json_tree_asset("test", "assets/file-tree.json")
+    assert registry.sources == (FileReference("test", "assets/guide.txt", "text/plain"),)
+
+    mismatched_path = puzzle_root / "other" / "assets" / "file-tree.json"
+    mismatched_path.parent.mkdir(parents=True)
+    mismatched_path.write_text(manifest_path.read_text(encoding="utf-8"), encoding="utf-8")
+    with pytest.raises(RegistryError, match="module does not match"):
+        registry.register_json_tree_asset("other", "assets/file-tree.json")
+    with pytest.raises(RegistryError, match="canonical module-relative"):
+        registry.register_json_tree_asset("test", "../file-tree.json")

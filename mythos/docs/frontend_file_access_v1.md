@@ -8,7 +8,7 @@
 
 | 版本 | 来源 | 含义 |
 | --- | --- | --- |
-| `tree_version` | `GET /api/v1/files/version` | 冻结后的静态 FileTree Catalog 版本。文件 Node、revision、路径、下载名、媒体类型和 RustFS 对象版本变化时更新。 |
+| `tree_version` | `GET /api/v1/files/version` | 冻结后的静态 FileTree Catalog 版本。目录/文件 Node、路径、revision、展示参数、下载名、媒体类型和 RustFS 对象版本变化时更新。 |
 | `progress.version` | `GET /api/v1/progress` | 当前玩家进度版本。它变化时，文件可见性可能变化。 |
 
 `tree_version` 不包含玩家进度。`progress.version` 不包含静态 FileTree 发布状态。
@@ -19,7 +19,8 @@
 
 ```text
 GET /api/v1/files/version
-GET /api/v1/files?path=<absolute virtual path>
+GET /api/v1/files/ls?path=<absolute virtual path>
+GET /api/v1/files/tree?path=<absolute virtual path>
 GET /api/v1/files/{file_id}
 GET /api/v1/files/{file_id}/{content_token}/content-url
 GET /api/v1/files/{file_id}/{content_token}/download-url
@@ -54,12 +55,17 @@ Vary: Authorization
 
 ### 2.2 目录列表
 
-`GET /files?path=/docs` 返回该目录的直接可见子项：
+`GET /files/ls?path=/docs` 返回该目录的直接可见子项：
 
 ```json
 {
   "path": "/docs",
-  "directories": ["/docs/notes"],
+  "directories": [
+    {
+      "path": "/docs/notes",
+      "display": {"label": "Notes", "description": null, "icon": "folder", "sort_order": 0}
+    }
+  ],
   "files": [
     {
       "file_id": "f1_...",
@@ -67,16 +73,17 @@ Vary: Authorization
       "revision": "2",
       "media_type": "text/plain; charset=utf-8",
       "size_bytes": 128,
-      "content_token": "ct1_..."
+      "content_token": "ct1_...",
+      "display": {"label": "Guide", "description": null, "icon": "document", "sort_order": 0}
     }
   ],
   "tree_version": "ft1_..."
 }
 ```
 
-FileService 当前不提供完整树快照。前端按目录缓存，每个目录缓存记录关联的 `tree_version` 和 `progress.version`。
+`GET /files/tree?path=/docs` 返回相同 DTO 的嵌套目录树，适合初始化完整文件导航。`ls` 适合按需展开。两者均只返回当前玩家可访问的 Node，并允许可访问空目录。前端按目录或子树缓存，每个缓存记录关联的 `tree_version` 和 `progress.version`。
 
-已知路径不在本地缓存中时，直接请求 `GET /files?path=<path>`。返回 `404` 表示目录不存在或对当前玩家不可见；客户端不应尝试区分这两种情况。
+已知路径不在本地缓存中时，直接请求 `GET /files/ls?path=<path>` 或 `GET /files/tree?path=<path>`。返回 `404` 表示目录不存在或对当前玩家不可见；客户端不应尝试区分这两种情况。可访问空目录返回 `200` 与空子项。
 
 ### 2.3 文件元数据
 
@@ -125,6 +132,7 @@ fileTreeVersion: string | null
 fileTreeEtag: string | null
 progressVersion: number | null
 directoryCache: Map<path, DirectoryListing>
+treeCache: Map<path, DirectoryTree>
 fileCache: Map<file_id, FileMetadata>
 ```
 

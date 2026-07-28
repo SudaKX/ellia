@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
@@ -22,12 +23,15 @@ class RuntimeCatalogs:
 
 
 class RegistryBundle:
-    def __init__(self) -> None:
-        self.files = FileRegistry()
+    def __init__(self, puzzle_root: Path | None = None) -> None:
+        self.files = FileRegistry(puzzle_root)
         self.progress = ProgressRegistry()
         self.scripts = ScriptRegistry()
         self.validations = ValidationRegistry()
         self._catalogs: RuntimeCatalogs | None = None
+
+    def configure_puzzle_root(self, puzzle_root: Path) -> None:
+        self.files.configure_puzzle_root(puzzle_root)
 
     def freeze(self, file_ids: FileIdCodec) -> RuntimeCatalogs:
         if self._catalogs is not None:

@@ -40,7 +40,7 @@ Router 不自行构造 Service 或 Catalog。它通过 FastAPI 依赖取得 `App
 | --- | --- | --- | --- |
 | 无状态读取 | `GET /health` | 否 | 否 |
 | 认证 | `POST /auth/register`、`login`、`refresh`、`logout` | 注册时初始化 entry；其余写认证状态 | 否 |
-| 只读内容 | `GET /files`、`GET /files/{file_id}`、`GET /scripts`、`GET /progress` | 否 | 否 |
+| 只读内容 | `GET /files/ls`、`GET /files/tree`、`GET /files/{file_id}`、`GET /scripts`、`GET /progress` | 否 | 否 |
 | 缓存版本校验 | `GET /files/version` | 否 | 否 |
 | 只读内容操作 | `GET /files/{file_id}/{content_token}/content-url`、`download-url` | 否 | 否 |
 | 命令 | `POST /validations/{validation_id}/attempts` | 可写 | 是 |
@@ -71,12 +71,20 @@ flowchart LR
 ### 3.1 FileService
 
 ```text
-GET /files?path=/
-  -> FileService.list_directory(player, path)
-  -> FileTree.directory_chain(path)
-  -> 按路径链执行每个 Node access_rule(player)
-  -> DirectoryListing
-  -> {path, directories, files}
+GET /files/ls?path=/
+   -> FileService.list_directory(player, path)
+   -> FileTree.directory_chain(path)
+   -> 按路径链执行每个 Node access_rule(player)
+   -> 仅检查直接子 Node access_rule(player)
+   -> DirectoryListing
+   -> {path, directories, files}
+
+GET /files/tree?path=/
+   -> FileService.directory_tree(player, path)
+   -> FileTree.directory_chain(path)
+   -> 按路径链执行每个 Node access_rule(player)
+   -> 递归构造当前玩家可见的子树
+   -> {path, display, directories, files}
 
 GET /files/{file_id}
   -> FileService.metadata(player, file_id)

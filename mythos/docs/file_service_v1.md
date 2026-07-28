@@ -34,15 +34,22 @@ registries.files.register_node(
         source_locator=readme,
         download_name="README.txt",
         access_rule=lambda player: player.progress.current_account == "PLAYER",
+        display=DisplayParams(label="Read me", icon="document"),
     )
 )
 ```
 
 `FileReference.source_locator` is derived from `module` and `relative_path`, for example `intro:assets/README.txt`. At startup the publisher reads `puzzles/<module>/<relative_path>`, checks the SQLite static-file registration, uploads missing or mtime-changed files to RustFS, and produces an `ObjectReference`. `freeze()` then combines the resolved ObjectReference with the Node download name into runtime `FileContent`.
 
-Directory Nodes use `VirtualNode.directory(...)` and have no source. They can carry an `access_rule`, but have no public `file_id`, metadata or download URL. Empty explicit directories are rejected at freeze time.
+Every `VirtualNode` carries a required `DisplayParams(label, description, icon, sort_order)`. It is returned to the frontend for both files and directories. `icon` is a semantic frontend token, never an asset URL or SVG. A display-only change changes `tree_version` but does not change a file `content_token`.
+
+Directory Nodes use `VirtualNode.directory(...)` and have no source. They can carry an `access_rule`, but have no public `file_id`, metadata or download URL. Empty explicit directories are valid and remain visible to players allowed to access them.
 
 Registration rejects duplicate stable IDs, duplicate virtual paths, duplicate source locators, file/directory conflicts, file Nodes with child Nodes, non-canonical paths and unsafe download names. Every file Node must bind one registered source, and every source must bind at least one file Node. `FileRegistry.freeze()` creates an immutable `FileTree` with a private public-ID lookup map for file Nodes.
+
+For declarative modules, `FileRegistry.register_json_tree(document, path_prefix="/", access_rules=...)` parses a schema-versioned JSON tree with the strict Pydantic `FileTreeManifest` model, resolves symbolic access-rule names from the supplied mapping, registers sources, then registers Nodes through the same single-item APIs. `FileTreeManifest.model_json_schema()` exposes the JSON Schema for editor and CI tooling. The JSON tree derives virtual paths from nested `name` fields; it cannot embed Python access-rule code. Parsing and registration are atomic.
+
+`FileRegistry.register_json_tree_asset(module, relative_asset_path, ...)` reads a manifest from `Settings.puzzle_root / module / relative_asset_path`. The asset path must remain within that module directory, and the manifest `module` field must match the API argument. This keeps module registrations independent of `Path(__file__)` while preserving the existing source location convention.
 
 ## 3. Authorization
 
@@ -53,12 +60,13 @@ The access rule receives the concrete request-level `Player`. It must be a pure 
 - It must not mutate global state, query HTTP state or call external services.
 - It must return `True` or `False`.
 
-All file-content and directory routes load Player with `writable=False`. `GET /files/version` only verifies the caller identity because `tree_version` is a static Catalog value. File authorization checks every Node from the root to the target file. A denied directory blocks its whole subtree without evaluating child rules; after an allowed directory, unguarded children are visible and guarded children are checked recursively.
+All file-content and directory routes load Player with `writable=False`. `GET /files/version` only verifies the caller identity because `tree_version` is a static Catalog value. File authorization checks every Node from the root to the requested target. A denied directory blocks its whole subtree without evaluating child rules. `ls` evaluates only direct children after this path check; `tree` evaluates one child rule at each recursive level.
 
 ## 4. API
 
 ```text
-GET  /api/v1/files?path=/
+GET  /api/v1/files/ls?path=/
+GET  /api/v1/files/tree?path=/
 GET  /api/v1/files/{file_id}
 GET  /api/v1/files/version
 GET  /api/v1/files/{file_id}/{content_token}/content-url
@@ -67,7 +75,7 @@ GET  /api/v1/files/{file_id}/{content_token}/download-url
 
 `FileTree` is built from virtual paths when the registry freezes. It exposes an opaque `tree_version` derived only from static Node definitions and resolved object versions. It does not include player progress. Every file summary and metadata response carries an opaque `content_token` derived from its stable ID, Node revision, RustFS key/VersionId/media type, and download name. A change to access-rule behavior must also increment the affected Node revision.
 
-The directory endpoint traverses the requested subtree, returning only visible files and directories with visible descendants. Invisible files and directories with no visible descendants are omitted. The versioned content URL endpoint validates that `content_token` still matches the current FileTree; stale tokens return `412`.
+`GET /files/ls` returns only direct visible children. It verifies the requested path's full ancestor chain, then evaluates only each direct child's access rule; allowed empty directories and allowed directories with no visible descendants are returned. `GET /files/tree` returns the complete nested subtree using the same local rule at every level. Both responses include display parameters and omit denied Nodes. The versioned content URL endpoint validates that `content_token` still matches the current FileTree; stale tokens return `412`.
 
 Metadata, content URL and download URL requests re-evaluate authorization. Missing public IDs return `404`; inaccessible existing files return `403`.
 
