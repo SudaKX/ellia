@@ -45,17 +45,15 @@ const router = createRouter({
  * 守卫 1：路径规范化 — 无斜杠 URL 自动补 `/`
  *
  * 例如访问 `/console` → 重定向到 `/console/`
- * 解决生产端 EISDIR 错误和开发端 Vite 提示。
  */
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to, _from) => {
   const base = import.meta.env.BASE_URL // '/console/'
   const baseWithoutSlash = base.replace(/\/$/, '') // '/console'
 
   if (to.fullPath === baseWithoutSlash) {
-    next(base)
-    return
+    return base
   }
-  next()
+  return true
 })
 
 /**
@@ -66,27 +64,24 @@ router.beforeEach((to, _from, next) => {
  */
 import { useAuth } from '@/composables/useAuth'
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   if (to.name === 'desktop') {
     const auth = useAuth()
 
     if (auth.isAuthenticated.value) {
-      next()
-      return
+      return true
     }
 
     // 避免死循环：从 auth-gate 或 login 过来的放行
     if (from.name === 'auth-gate' || from.name === 'login') {
-      next()
-      return
+      return true
     }
 
     // 未认证 → 导向鉴权网关
-    next({ name: 'auth-gate' })
-    return
+    return { name: 'auth-gate' }
   }
 
-  next()
+  return true
 })
 
 export default router

@@ -352,7 +352,8 @@ function stopResize() {
       height: `${height}px`,
       zIndex: window.zIndex,
       filter: filterValue,
-      ...(isDragging ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
+      // 拖拽中/关闭中/入场中 不应用内联 transition，避免覆盖 CSS class 的过渡动画
+      ...(isDragging || isClosing || isEntering ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
     }"
     :role="window.mode === 'modal' ? 'dialog' : undefined"
     :aria-modal="window.mode === 'modal' ? 'true' : undefined"
