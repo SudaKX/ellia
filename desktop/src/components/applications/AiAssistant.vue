@@ -47,6 +47,8 @@ const props = defineProps<{
   voices: string[]
   /** 更新标题栏文本的回调 */
   onSetTitle?: (text: string) => void
+  /** 外部强制覆盖图片 URL（右键"问AI"等场景）。null 时正常轮换 */
+  overrideImage?: string | null
 }>()
 
 const audioService = useAudioService()
@@ -54,7 +56,8 @@ const halftone = useHalftone({ dotSpacing: 3, maxRadius: 2.5, minRadius: 0.6 })
 
 /** 当前图片索引 */
 const currentIndex = ref(0)
-const currentImage = computed(() => props.images[currentIndex.value] || props.images[0])
+/** 当前显示的图片：overrideImage 优先，否则走轮换索引 */
+const currentImage = computed(() => props.overrideImage ?? (props.images[currentIndex.value] || props.images[0]))
 
 /** canvas 引用，用于 halftone.init */
 const canvasRef = ref<HTMLCanvasElement | null>(null)

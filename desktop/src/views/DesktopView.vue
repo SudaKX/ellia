@@ -44,7 +44,7 @@
  * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
  */
 
-import { computed, markRaw, onBeforeUnmount, onMounted, provide, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, provide, reactive, ref } from 'vue'
 import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -176,6 +176,8 @@ const aiMinSize = ref(0)
 const aiMaxSize = ref(0)
 /** AI 窗口标题栏文本（聊天消息），由 AiAssistant 通过 onSetTitle 更新 */
 const aiTitle = ref('')
+/** 右键"问AI"强制覆盖图片 URL，null 时正常轮换 */
+const askAiOverrideImage = ref<string | null>(null)
 
 /** Live2D 窗口标题栏文本 — 暂时隐藏 */
 // const live2dTitle = ref(t('live2d.idle'))
@@ -277,6 +279,7 @@ function initAiWindow() {
         titles: KEI_TITLES.value,
         voices: KEI_VOICES,
         onSetTitle: (text: string) => { aiTitle.value = text },
+        get overrideImage() { return askAiOverrideImage.value },
       },
       defaultWidth: windowWidth,
       defaultHeight: windowHeight,
@@ -401,6 +404,53 @@ function handleShutdown() {
   handleAiCloseRequest()
 }
 
+// ─── 右键上下文菜单 ────────────────────────────────────
+
+const contextMenu = reactive({ visible: false, x: 0, y: 0 })
+
+/** 拦截浏览器默认右键菜单，显示自定义菜单 */
+function handleContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  contextMenu.x = e.clientX
+  contextMenu.y = e.clientY
+  contextMenu.visible = true
+}
+
+/** 右键 → 刷新页面 */
+function handleRefresh() {
+  contextMenu.visible = false
+  location.reload()
+}
+
+/** 右键 → 问AI：提取选中文字和所在窗口，切换 AI 差分和台词 */
+function handleAskAi() {
+  contextMenu.visible = false
+
+  const selection = window.getSelection()
+  const text = selection?.toString().trim() || ''
+
+  // 查找选中文字所在的窗口（向上遍历 anchorNode 找 .window-frame）
+  let windowEl: Element | null = null
+  const anchor = selection?.anchorNode
+  if (anchor) {
+    windowEl = anchor.nodeType === 1
+      ? (anchor as Element).closest('.window-frame')
+      : anchor.parentElement?.closest('.window-frame') ?? null
+  }
+
+  console.log('[ContextMenu] 选中内容:', text || '(无)')
+  console.log('[ContextMenu] 所在窗口元素:', windowEl)
+
+  // 强制切换 AI 窗口差分和台词
+  askAiOverrideImage.value = '/console/images/kei/kei_smile1.webp'
+  aiTitle.value = 'kei不知道哦'
+}
+
+/** 点击菜单外部关闭 */
+function closeContextMenu() {
+  contextMenu.visible = false
+}
+
 function handleNetworkAction(action: NetworkAction) {
   const message = networkMessages[action]
 
@@ -509,7 +559,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="desktop-shell">
+  <main class="desktop-shell" @contextmenu="handleContextMenu" @click="closeContextMenu">
     <DesktopStatusBar :time="time" @network-action="handleNetworkAction" @switch-user="handleSwitchUser" @restart="handleRestart" @shutdown="handleShutdown" />
 
     <section class="desktop-workspace" aria-label="FakeOS desktop workspace">
@@ -554,6 +604,17 @@ onBeforeUnmount(() => {
       @click="handleDockAppClick"
       @show-all="handleShowAll"
     />
+
+    <!-- 右键自定义菜单 -->
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      @click.stop
+    >
+      <button class="context-menu__item" @click="handleRefresh">刷新</button>
+      <button class="context-menu__item" @click="handleAskAi">问AI</button>
+    </div>
   </main>
 </template>
 
@@ -616,5 +677,50 @@ onBeforeUnmount(() => {
   .workspace-grid {
     background-size: 36px 36px;
   }
+}
+
+/* ── 右键上下文菜单 ── */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 140px;
+  border: 1px solid var(--line-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
+  padding: 6px 0;
+  overflow: hidden;
+  animation: context-enter 0.12s ease-out;
+}
+
+@keyframes context-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 16px;
+  border: none;
+  color: var(--text-secondary);
+  background: transparent;
+  font: 13px/1.4 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.context-menu__item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.context-menu__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--line-subtle);
 }
 </style>
