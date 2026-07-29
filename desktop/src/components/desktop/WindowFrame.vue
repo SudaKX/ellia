@@ -283,16 +283,17 @@ function startResizeBL(event: MouseEvent) { startResize(event, 'bl') }
 function onResize(event: MouseEvent) {
   if (!isResizing.value) return
   // 根据缩放角决定 delta 的正负：左/上边角拖拽时，delta 符号需要反转
+  // 例如拖拽左下角向左 → clientX 减小 → rawDeltaX 应为正（窗口变宽）
   const signX = resizeCorner.value.includes('l') ? -1 : 1
   const signY = resizeCorner.value.includes('t') ? -1 : 1
   const rawDeltaX = (event.clientX - dragStartX.value) * signX
   const rawDeltaY = (event.clientY - dragStartY.value) * signY
 
   if (props.aspectRatio === undefined && props.bodyAspectRatio === undefined) {
-    // 自由缩放：直接应用 delta
+    // 自由缩放：delta 直接加到窗口宽高
     const newWidth = Math.max(effectiveMinWidth.value, windowStartWidth.value + rawDeltaX)
     const newHeight = Math.max(effectiveMinHeight.value, windowStartHeight.value + rawDeltaY)
-    // 左/上边角需要同步调整窗口位置
+    // 左/上边角拖拽时窗口位置需要同步偏移，保持右下角不动
     if (resizeCorner.value.includes('l')) {
       x.value = windowStartX.value + (windowStartWidth.value - newWidth)
     }
@@ -304,26 +305,42 @@ function onResize(event: MouseEvent) {
     return
   }
 
-  // 等比缩放
+  // ── 等比缩放 ────────────────────────────────────────
+  //
+  // 两种模式互斥，aspectRatio 优先：
+  //
+  // aspectRatio（约束整个窗口）：
+  //   windowW / windowH = ratio
+  //
+  // bodyAspectRatio（约束内容区域，不含标题栏）：
+  //   bodyW = windowW - borderOffsetW
+  //   bodyH = windowH - borderOffsetH
+  //   bodyW / bodyH = ratio
+  //
+  // 缩放时以鼠标移动方向主导（X 或 Y 中 delta 更大的一方），
+  // 另一方向由 ratio 反算。
   const clampW = (v: number) => clamp(v, effectiveMinWidth.value, effectiveMaxWidth.value)
   const clampH = (v: number) => clamp(v, effectiveMinHeight.value, effectiveMaxHeight.value)
 
-  // aspectRatio：约束整个窗口宽高比；bodyAspectRatio：约束 body 区域宽高比（不含标题栏）
-  const isWindowRatio = props.aspectRatio !== undefined
+  const isWindowRatio = props.aspectRatio !== undefined   // true = 约束窗口；false = 约束 body
   const ratio = isWindowRatio ? props.aspectRatio! : props.bodyAspectRatio!
 
-  // 标题栏 + 边框偏移量（bodyAspectRatio 模式需要扣除）
+  // 标题栏 + 边框偏移量（bodyAspectRatio 模式需要从窗口尺寸中扣除）
+  // 标题栏高度：34px（.window-frame__titlebar）
+  // 边框：左 1px + 右 1px = 2px（width），上 1px + 下 1px = 2px（height 额外）
   const titlebarH = props.hideTitlebar ? 0 : 34
-  const borderOffsetW = 2   // 左 1px + 右 1px
-  const borderOffsetH = titlebarH + 2  // 标题栏 34px + 上下边框各 1px
+  const borderOffsetW = 2                 // 左右边框各 1px
+  const borderOffsetH = titlebarH + 2     // 标题栏 34px + 上下边框各 1px
 
   if (Math.abs(rawDeltaX) >= Math.abs(rawDeltaY)) {
+    // ── X 主导：先确定新宽度，反算高度 ──
     const newWidth = clampW(windowStartWidth.value + rawDeltaX)
     let newHeight: number
     if (isWindowRatio) {
+      // aspectRatio：H = W / ratio
       newHeight = newWidth / ratio
     } else {
-      // body 宽高比：bodyW = windowW - borderOffsetW
+      // bodyAspectRatio：bodyH = bodyW / ratio → windowH = bodyH + borderOffsetH
       const bodyW = newWidth - borderOffsetW
       const bodyH = bodyW / ratio
       newHeight = clampH(bodyH + borderOffsetH)
@@ -331,12 +348,14 @@ function onResize(event: MouseEvent) {
     width.value = newWidth
     height.value = newHeight
   } else {
+    // ── Y 主导：先确定新高度，反算宽度 ──
     const newHeight = clampH(windowStartHeight.value + rawDeltaY)
     let newWidth: number
     if (isWindowRatio) {
+      // aspectRatio：W = H × ratio
       newWidth = newHeight * ratio
     } else {
-      // body 宽高比：bodyH = windowH - borderOffsetH
+      // bodyAspectRatio：bodyW = bodyH × ratio → windowW = bodyW + borderOffsetW
       const bodyH = newHeight - borderOffsetH
       const bodyW = bodyH * ratio
       newWidth = clampW(bodyW + borderOffsetW)
