@@ -202,7 +202,7 @@ let entryRafId: number | undefined
 /** 触发入场动画：添加 --entering class，CSS animation 自动播放 */
 function triggerEnterAnimation() {
   if (isEntering.value || isClosing.value) return
-  console.log(`[动画] 显示 → ${props.window.titleKey}`)
+  // console.log(`[动画] 显示 → ${props.window.titleKey}`)
   enterDone.value = false
   isEntering.value = true
 }
@@ -237,7 +237,7 @@ function handleCloseClick(event: MouseEvent) {
 
 function requestClose() {
   if (!props.window.controls.close) return
-  console.log(`[动画] 隐藏(关闭) → ${props.window.titleKey}`)
+  // console.log(`[动画] 隐藏(关闭) → ${props.window.titleKey}`)
   isClosing.value = true
   isHiding.value = true
 }
@@ -246,15 +246,15 @@ function handleAnimationEnd(event: AnimationEvent) {
   if (event.target !== event.currentTarget) return
 
   if (isClosing.value) {
-    console.log(`[动画] 关闭完成 → ${props.window.titleKey}`)
+    // console.log(`[动画] 关闭完成 → ${props.window.titleKey}`)
     emit('close')                  // X 关闭 → 通知父组件移除窗口
   }
   if (isHiding.value) {
-    console.log(`[动画] 隐藏完成 → ${props.window.titleKey}`)
+    // console.log(`[动画] 隐藏完成 → ${props.window.titleKey}`)
     isHiding.value = false         // 最小化 → 动画结束，--minimized 静默态接管
   }
   if (isEntering.value) {
-    console.log(`[动画] 显示完成 → ${props.window.titleKey}`)
+    // console.log(`[动画] 显示完成 → ${props.window.titleKey}`)
     isEntering.value = false       // 入场完成 → 清除 entering class
     enterDone.value = true         // 入场完成 → 解锁 inline transition
   }

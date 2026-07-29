@@ -379,7 +379,7 @@ function handleRestart() {
 
   if (aiIndex !== -1) {
     const win = windowService.windows.value[aiIndex]
-    console.log(`[触发] 重启隐藏 → ${win.titleKey}`)
+    // console.log(`[触发] 重启隐藏 → ${win.titleKey}`)
     windowService.windows.value.splice(aiIndex, 1, { ...win, isMinimized: true })
   }
 
@@ -390,7 +390,7 @@ function handleRestart() {
 
     if (aiIdx !== -1) {
       const win = windowService.windows.value[aiIdx]
-      console.log(`[触发] 重启恢复 → ${win.titleKey}`)
+      // console.log(`[触发] 重启恢复 → ${win.titleKey}`)
       windowService.windows.value.splice(aiIdx, 1, { ...win, isMinimized: false })
     }
     restartTimer = null
@@ -440,8 +440,8 @@ function handleAskAi() {
       : anchor.parentElement?.closest('.window-frame') ?? null
   }
 
-  console.log('[ContextMenu] 选中内容:', text || '(无)')
-  console.log('[ContextMenu] 所在窗口元素:', windowEl)
+  // console.log('[ContextMenu] 选中内容:', text || '(无)')
+  // console.log('[ContextMenu] 所在窗口元素:', windowEl)
 
   // 强制切换 AI 窗口差分和台词
   askAiOverrideImage.value = '/console/images/kei/kei_smile1.webp'
@@ -484,7 +484,7 @@ function handleNetworkAction(action: NetworkAction) {
 
 function handleWindowClose(windowId: string) {
   const win = windowService.windows.value.find(w => w.id === windowId)
-  console.log(`[触发] 移除窗口 → ${win?.titleKey ?? windowId}`)
+  // console.log(`[触发] 移除窗口 → ${win?.titleKey ?? windowId}`)
   windowService.send({ type: 'close-window', windowId })
   playCue('window-close')
 }
@@ -498,7 +498,7 @@ function handleWindowFocus(windowId: string) {
 
 function handleWindowMinimize(windowId: string) {
   const win = windowService.windows.value.find(w => w.id === windowId)
-  console.log(`[触发] 最小化 → ${win?.titleKey ?? windowId}`)
+  // console.log(`[触发] 最小化 → ${win?.titleKey ?? windowId}`)
   windowService.send({ type: 'minimize-window', windowId })
   playCue('window-minimize')
 }
