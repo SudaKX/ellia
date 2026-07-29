@@ -243,13 +243,17 @@ export function useWindowService() {
   }
 
   function focus(windowId: string) {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (!window) return
+    const idx = windows.value.findIndex((w) => w.id === windowId)
+    if (idx === -1) return
+    const window = windows.value[idx]
 
     const topModalWindow = findTopModalWindow()
     if (topModalWindow && topModalWindow.id !== windowId) return
 
-    window.isMinimized = false
+    if (window.isMinimized) {
+      // splice 创建新对象以触发 shallowRef 响应式（直接 mutate 属性无效）
+      windows.value.splice(idx, 1, { ...window, isMinimized: false })
+    }
     promoteToFront(windowId)
     activeWindowId.value = windowId
   }
@@ -276,14 +280,17 @@ export function useWindowService() {
   }
 
   function minimize(windowId: string) {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (!window || window.mode === 'modal' || !window.controls.minimize || window.isMinimized) return
+    const index = windows.value.findIndex((w) => w.id === windowId)
+    if (index === -1) return
+    const window = windows.value[index]
+    if (window.mode === 'modal' || !window.controls.minimize || window.isMinimized) return
 
-    window.isMinimized = true
+    // splice 创建新对象以触发 shallowRef 响应式（直接 mutate 属性无效）
+    windows.value.splice(index, 1, { ...window, isMinimized: true })
 
-    const index = normalWindowOrder.value.indexOf(windowId)
-    if (index !== -1) {
-      normalWindowOrder.value.splice(index, 1)
+    const orderIndex = normalWindowOrder.value.indexOf(windowId)
+    if (orderIndex !== -1) {
+      normalWindowOrder.value.splice(orderIndex, 1)
       normalWindowOrder.value.unshift(windowId)
     }
     assignZIndexes()

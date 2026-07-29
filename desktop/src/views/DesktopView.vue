@@ -379,6 +379,7 @@ function handleRestart() {
 
   if (aiIndex !== -1) {
     const win = windowService.windows.value[aiIndex]
+    console.log(`[触发] 重启隐藏 → ${win.titleKey}`)
     windowService.windows.value.splice(aiIndex, 1, { ...win, isMinimized: true })
   }
 
@@ -389,6 +390,7 @@ function handleRestart() {
 
     if (aiIdx !== -1) {
       const win = windowService.windows.value[aiIdx]
+      console.log(`[触发] 重启恢复 → ${win.titleKey}`)
       windowService.windows.value.splice(aiIdx, 1, { ...win, isMinimized: false })
     }
     restartTimer = null
@@ -481,6 +483,8 @@ function handleNetworkAction(action: NetworkAction) {
 }
 
 function handleWindowClose(windowId: string) {
+  const win = windowService.windows.value.find(w => w.id === windowId)
+  console.log(`[触发] 移除窗口 → ${win?.titleKey ?? windowId}`)
   windowService.send({ type: 'close-window', windowId })
   playCue('window-close')
 }
@@ -493,6 +497,8 @@ function handleWindowFocus(windowId: string) {
 }
 
 function handleWindowMinimize(windowId: string) {
+  const win = windowService.windows.value.find(w => w.id === windowId)
+  console.log(`[触发] 最小化 → ${win?.titleKey ?? windowId}`)
   windowService.send({ type: 'minimize-window', windowId })
   playCue('window-minimize')
 }
@@ -580,6 +586,7 @@ onBeforeUnmount(() => {
         :title="window.id === aiWindowId ? aiTitle : undefined"
         :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
         :translucent="window.id === aiWindowId ? true : undefined"
+        :skip-enter-animation="window.id === aiWindowId ? true : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

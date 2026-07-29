@@ -111,6 +111,13 @@ const props = defineProps<{
   closeAction?: () => void
   /** 窗口背景半透明（内容保持完全不透明）。 */
   translucent?: boolean
+  /**
+   * 跳过首次挂载时的入场动画。
+   * 适用于页面加载时已经处于显示态的窗口（如 AI 助手），
+   * 它们无需播放入场动画（因为没有经历"打开"这个过程）。
+   * 不传时默认播放入场动画，现有窗口不受影响。
+   */
+  skipEnterAnimation?: boolean
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -153,7 +160,22 @@ const isResizing = ref(false)
 type ResizeCorner = 'br' | 'bl' | 'tr' | 'tl'
 const resizeCorner = ref<ResizeCorner>('br')
 const isClosing = ref(false)
-const isEntering = ref(true)
+/** 统一隐藏动画（关闭 / 最小化 均走 scale-out transition） */
+const isHiding = ref(false)
+/** 控制 --entering CSS class：窗口从隐藏变为显示时触发入场动画 */
+const isEntering = ref(false)
+/** 入场动画是否已完成（transitionend 触发），用于解除 inline transition 屏蔽 */
+const enterDone = ref(false)
+
+onMounted(() => {
+  // 非特殊窗口（skipEnterAnimation 未设置）且当前为显示态 → 播放入场动画
+  if (!props.skipEnterAnimation && !props.window.isMinimized) {
+    triggerEnterAnimation()
+  } else if (props.skipEnterAnimation) {
+    // 特殊窗口（如 AI 助手）：直接标记就绪，跳过入场动画
+    enterDone.value = true
+  }
+})
 const rootRef = ref<HTMLElement | null>(null)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
@@ -161,7 +183,6 @@ const windowStartX = ref(0)
 const windowStartY = ref(0)
 const windowStartWidth = ref(0)
 const windowStartHeight = ref(0)
-let entryFrameId: number | undefined
 
 const filterValue = computed(() => {
   return (
@@ -176,17 +197,32 @@ const filterValue = computed(() => {
   )
 })
 
-onMounted(() => {
-  rootRef.value?.getBoundingClientRect()
-  entryFrameId = window.requestAnimationFrame(() => {
-    isEntering.value = false
-  })
+let entryRafId: number | undefined
+
+/** 触发入场动画：添加 --entering class，CSS animation 自动播放 */
+function triggerEnterAnimation() {
+  if (isEntering.value || isClosing.value) return
+  console.log(`[动画] 显示 → ${props.window.titleKey}`)
+  enterDone.value = false
+  isEntering.value = true
+}
+
+/** 窗口最小化/恢复时播放入场/退场动画 */
+watch(() => props.window.isMinimized, (minimized) => {
+  if (minimized) {
+    // 可见 → 隐藏：播放 scale-out
+    if (!isHiding.value) {
+      console.log(`[动画] 隐藏(最小化) → ${props.window.titleKey}`)
+      isHiding.value = true
+    }
+  } else {
+    // 隐藏 → 可见：播放 scale-in
+    triggerEnterAnimation()
+  }
 })
 
 onBeforeUnmount(() => {
-  if (entryFrameId !== undefined) {
-    window.cancelAnimationFrame(entryFrameId)
-  }
+  if (entryRafId !== undefined) cancelAnimationFrame(entryRafId)
 })
 
 function handleMouseDown() {
@@ -201,12 +237,26 @@ function handleCloseClick(event: MouseEvent) {
 
 function requestClose() {
   if (!props.window.controls.close) return
+  console.log(`[动画] 隐藏(关闭) → ${props.window.titleKey}`)
   isClosing.value = true
+  isHiding.value = true
 }
 
-function handleTransitionEnd(event: TransitionEvent) {
-  if (event.target === event.currentTarget && event.propertyName === 'transform' && isClosing.value) {
-    emit('close')
+function handleAnimationEnd(event: AnimationEvent) {
+  if (event.target !== event.currentTarget) return
+
+  if (isClosing.value) {
+    console.log(`[动画] 关闭完成 → ${props.window.titleKey}`)
+    emit('close')                  // X 关闭 → 通知父组件移除窗口
+  }
+  if (isHiding.value) {
+    console.log(`[动画] 隐藏完成 → ${props.window.titleKey}`)
+    isHiding.value = false         // 最小化 → 动画结束，--minimized 静默态接管
+  }
+  if (isEntering.value) {
+    console.log(`[动画] 显示完成 → ${props.window.titleKey}`)
+    isEntering.value = false       // 入场完成 → 清除 entering class
+    enterDone.value = true         // 入场完成 → 解锁 inline transition
   }
 }
 
@@ -392,7 +442,7 @@ function stopResize() {
       'window-frame--active': isActive,
       'window-frame--modal': window.mode === 'modal',
       'window-frame--entering': isEntering,
-      'window-frame--closing': isClosing,
+      'window-frame--hiding': isHiding,
       'window-frame--minimized': window.isMinimized,
       'window-frame--dragging': isDragging,
       'window-frame--resizing': isResizing,
@@ -405,13 +455,13 @@ function stopResize() {
       height: `${height}px`,
       zIndex: window.zIndex,
       filter: filterValue,
-      // 拖拽中/缩放中/关闭中/入场中 不应用内联 transition，避免覆盖 CSS class 的过渡动画
-      ...(isDragging || isResizing || isClosing || isEntering ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
+      // 拖拽中/缩放中/隐藏动画中/入场未完成 → 不输出 inline transition
+      ...(isDragging || isResizing || isHiding || !enterDone ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
     }"
     :role="window.mode === 'modal' ? 'dialog' : undefined"
     :aria-modal="window.mode === 'modal' ? 'true' : undefined"
     @mousedown="handleMouseDown"
-    @transitionend="handleTransitionEnd"
+    @animationend="handleAnimationEnd"
   >
     <header
       v-if="!hideTitlebar"
@@ -479,18 +529,22 @@ function stopResize() {
 }
 
 .window-frame--minimized {
-  animation: glitch-tear 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  box-shadow:
-    4px 0 0 rgba(200, 50, 50, 0.22),
-    -4px 0 0 rgba(50, 200, 200, 0.22);
+  transform: scaleY(0.003);
+  opacity: 0;
   pointer-events: none;
 }
 
-.window-frame--entering,
-.window-frame--closing {
-  transform: scale(0.4);
-  opacity: 0;
+.window-frame--entering {
+  animation: window-open 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   pointer-events: none;
+}
+
+.window-frame--hiding {
+  animation: glitch-tear 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  pointer-events: none;
+  box-shadow:
+    4px 0 0 rgba(200, 50, 50, 0.22),
+    -4px 0 0 rgba(50, 200, 200, 0.22);
 }
 
 .window-frame--dragging,
@@ -613,9 +667,9 @@ function stopResize() {
   bottom: 3px;
   border-bottom: 1px solid var(--text-muted);
 }
-</style>
 
-<style>
+/* ── 窗口动画 ──────────────────────────────────────────── */
+
 @keyframes glitch-tear {
   /* 阶段 1：信号干扰抖动 */
   0%, 5%, 10%   { transform: scaleY(1) translateX(0);   opacity: 1; }
@@ -623,14 +677,19 @@ function stopResize() {
   7.5%          { transform: scaleY(1) translateX(-3px); opacity: 1; }
   12%           { transform: scaleY(1) translateX(1px);  opacity: 1; }
 
-  /* 阶段 2：色差撕裂 */
+  /* 阶段 2：色差撕裂保持 */
   15%           { transform: scaleY(1) translateX(0);    opacity: 1; }
-  45%           { transform: scaleY(1) translateX(0);    opacity: 0.85; }
+  45%           { transform: scaleY(1) translateX(0);    opacity: 1; }
 
   /* 阶段 3：扫描线压缩 */
   75%           { transform: scaleY(0.003) translateX(0); opacity: 0.4; }
 
   /* 阶段 4：消失 */
   100%          { transform: scaleY(0.003) translateX(0); opacity: 0; }
+}
+
+@keyframes window-open {
+  0%   { transform: scale(0.85) translateY(-8px); opacity: 0; }
+  100% { transform: scale(1)    translateY(0);    opacity: 1; }
 }
 </style>
