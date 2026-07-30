@@ -39,9 +39,14 @@ class CommandTransactionExecutor:
 
         try:
             async with session.begin():
+                player = await self._player_factory.create(
+                    session, identity.player_id, writable=True
+                )
+                await player.load_progress()
+                await player.load_artifacts()
                 context = CommandContext(
                     identity=identity,
-                    player=await self._player_factory.load(session, identity.player_id, writable=True),
+                    player=player,
                     request_id=request_id,
                 )
                 response = await operation(context)

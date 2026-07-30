@@ -13,7 +13,7 @@ from mythos.core.commands import CommandRejected, RequestInProgressError, Reques
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
-from mythos.players.dependencies import get_read_context
+from mythos.players.dependencies import PlayerInterfaces, get_context
 from mythos.players.factory import PlayerNotFoundError
 from mythos.services.progress.service import CheckpointIncompatibleError, CheckpointNotFoundError
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/progress", tags=["progress"])
 
 @router.get("")
 async def get_progress(
-    context: Annotated[RequestContext, Depends(get_read_context)],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, object]:
     return runtime.services.progress.snapshot(context.player).body()

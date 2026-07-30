@@ -7,16 +7,11 @@ from mythos.core.commands import CommandRejected, ResponseFormatError, ResponseS
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import FollowupFormatError
 from mythos.players.context import CommandContext, RequestContext
-from mythos.players.interfaces import (
-    ArtifactInterface,
-    ProgressInterface,
-    ReadOnlyPlayerError,
-)
+from mythos.players.interfaces import ProgressInterface, ReadOnlyPlayerError
 from mythos.players.player import Player
 from mythos.persistence.models import PlayerProgress, PlayerProgressFrontierNode, PlayerProgressUnlockedNode
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
-from _helpers.object_store import FakeObjectStore
 
 
 _REGISTRIES = RegistryBundle()
@@ -26,36 +21,27 @@ _CATALOGS = _REGISTRIES.freeze(FileIdCodec("test-file-id-secret"))
 
 
 def _player(*, writable: bool) -> Player:
-    return Player(
-        id=uuid4(),
-        progress=ProgressInterface(
-            PlayerProgress(
-                player_id=uuid4(),
-                current_account="PLAYER",
-                version=1,
-                unlocked_nodes=[
-                    PlayerProgressUnlockedNode(
-                        node_id=_CATALOGS.progress.node_ids_by_str_id["start"]
-                    )
-                ],
-                frontier_nodes=[
-                    PlayerProgressFrontierNode(
-                        node_id=_CATALOGS.progress.node_ids_by_str_id["start"]
-                    )
-                ],
-            ),
-            writable=writable,
-            catalogs=_CATALOGS,
-        ),
-        artifacts=ArtifactInterface(
+    player = Player(uuid4(), None, None, writable=writable)  # type: ignore[arg-type]
+    player._progress = ProgressInterface(
+        PlayerProgress(
             player_id=uuid4(),
-            catalog=_CATALOGS.artifacts,
-            object_store=FakeObjectStore(),
-            file_ids=FileIdCodec("test-file-id-secret"),
-            session=None,  # type: ignore[arg-type]
-            writable=writable,
+            current_account="PLAYER",
+            version=1,
+            unlocked_nodes=[
+                PlayerProgressUnlockedNode(
+                    node_id=_CATALOGS.progress.node_ids_by_str_id["start"]
+                )
+            ],
+            frontier_nodes=[
+                PlayerProgressFrontierNode(
+                    node_id=_CATALOGS.progress.node_ids_by_str_id["start"]
+                )
+            ],
         ),
+        writable=writable,
+        catalogs=_CATALOGS,
     )
+    return player
 
 
 def test_read_context_cannot_modify_progress() -> None:
