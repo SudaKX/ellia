@@ -1,4 +1,6 @@
-# Mythos 后端设计 V2
+# 历史：Mythos 后端设计 V2
+
+> 本文早于 Artifact Interface 和第五类 Registry，不能作为当前实现依据。请使用 [运行时组装](../architecture/runtime-and-composition.md)、[Player 与请求上下文](../architecture/player-and-request-context.md) 和 [命令事务](../architecture/command-transactions.md)。
 
 本文取代 V1 中与玩家访问、Action、Effect、Service 和注册器有关的约定。认证、异步 SQLite、JWT、Refresh Cookie 和 Request-ID 短时去重保持不变。
 

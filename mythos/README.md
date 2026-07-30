@@ -24,7 +24,7 @@ Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认
 
 ## 本地开发
 
-完整的启动步骤、路径约束和 RustFS 前置条件见 [docs/development_runtime_v1.md](docs/development_runtime_v1.md)。以下命令从 `mythos/` 目录执行。
+完整的启动步骤、路径约束和 RustFS 前置条件见 [docs/operations/development-and-storage.md](docs/operations/development-and-storage.md)。后端文档索引见 [docs/README.md](docs/README.md)。以下命令从 `mythos/` 目录执行。
 
 项目使用根目录的 `.venv` 虚拟环境。安装开发依赖：
 

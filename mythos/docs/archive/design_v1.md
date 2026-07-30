@@ -1,4 +1,6 @@
-# Mythos 后端设计 V1
+# 历史：Mythos 后端设计 V1
+
+> 本文保留早期设计背景，不描述当前实现。请使用 [文档索引](../README.md) 和 `architecture/`、`systems/`、`api/` 下的当前文档。
 
 ## 1. 目标与原则
 

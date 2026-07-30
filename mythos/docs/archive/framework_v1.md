@@ -1,4 +1,6 @@
-# Mythos 后端框架 V1
+# 历史：Mythos 后端框架 V1
+
+> 本文包含已移除的 Action、Effect 和通用 callback 设计，不描述当前实现。请使用 [文档索引](../README.md)。
 
 本文记录 V1 的框架基线。Player Interface、Service、Registry 与 Effect 语义已由 [设计 V2](design_v2.md) 取代；认证、异步数据库和短期请求去重约定仍适用。
 

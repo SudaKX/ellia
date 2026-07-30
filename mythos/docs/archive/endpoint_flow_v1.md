@@ -1,4 +1,6 @@
-# Endpoint Flow V1
+# 历史：Endpoint Flow V1
+
+> 本文未覆盖当前的 Artifact 和动态文件路径，且包含已替换的 Player 加载描述。请使用 [API 索引](../api/README.md) 和 [命令事务](../architecture/command-transactions.md)。
 
 本文描述当前 Mythos API 从 HTTP 端点入口到响应返回的调用链，以及请求在 Router、依赖、Runtime、Player、Service、Catalog、数据库事务和 checkpoint 文件系统之间的流动方式。
 
