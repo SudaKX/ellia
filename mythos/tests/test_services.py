@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-from datetime import UTC, datetime, timedelta
 
 import httpx
 from pydantic import SecretStr
@@ -10,44 +8,9 @@ from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import DisplayParams, FileReference, ObjectReference, VirtualNode
+from mythos.registry.files import DisplayParams, FileReference, StaticNode
 from mythos.registry.scripts import Script
-from mythos.services.object_store.service import PresignedObjectUrl
-
-
-class FakeObjectStore:
-    def __init__(self) -> None:
-        self.requests: list[tuple[str, str, str]] = []
-        self.uploads: list[str] = []
-
-    async def presign_get(
-        self,
-        reference,
-        *,
-        expires_in_seconds: int,
-        content_disposition: str,
-        response_cache_control: str,
-        response_expires_at,
-    ) -> PresignedObjectUrl:
-        self.requests.append(
-            (reference.key, content_disposition, response_cache_control, response_expires_at)
-        )
-        return PresignedObjectUrl(
-            url=f"https://objects.test/{reference.key}?expires={expires_in_seconds}",
-            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
-        )
-
-
-    async def put_file(self, source_path, *, object_key: str, media_type: str) -> ObjectReference:
-        content = source_path.read_bytes()
-        self.uploads.append(object_key)
-        return ObjectReference(
-            object_key,
-            f"sha256:{hashlib.sha256(content).hexdigest()}",
-            media_type,
-            len(content),
-            f"test-version-{len(self.uploads)}",
-        )
+from _helpers.object_store import FakeObjectStore
 
 
 def test_global_services_read_frozen_registered_content(tmp_path) -> None:
@@ -82,7 +45,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 FileReference("test", source_path, "text/plain")
             )
             registries.files.register_node(
-                VirtualNode.file(
+                StaticNode.file(
                     stable_id,
                     path,
                     "1",
@@ -96,7 +59,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
         register_file("test.readme", "/README.txt", "assets/readme.txt", "README.txt", "hello")
         register_file("test.guide", "/docs/guide.txt", "assets/guide.txt", "guide.txt", "guide")
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.private-directory",
                 "/private",
                 "1",
@@ -113,7 +76,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             child_rule,
         )
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.open-directory",
                 "/open",
                 "1",
@@ -123,7 +86,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
         )
         register_file("test.open-file", "/open/public.txt", "assets/open-public.txt", "public.txt", "public")
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.hidden-directory",
                 "/open/hidden",
                 "1",
@@ -139,7 +102,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             "hidden",
         )
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.hidden-by-path-directory",
                 "/open/hidden-by-path",
                 "1",
@@ -156,7 +119,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             "hidden by path",
         )
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.empty-directory",
                 "/empty",
                 "1",
@@ -164,7 +127,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             )
         )
         registries.files.register_node(
-            VirtualNode.directory(
+            StaticNode.directory(
                 "test.visible-empty-directory",
                 "/visible-empty",
                 "1",
@@ -372,7 +335,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 )
                 assert private_url.status_code == 403
                 assert child_rule_calls == 0
-                assert object_store.uploads == [
+                assert object_store.upload_keys == [
                     "static/test/assets/readme.txt",
                     "static/test/assets/guide.txt",
                     "static/test/assets/private.txt",

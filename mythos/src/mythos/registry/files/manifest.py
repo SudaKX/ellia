@@ -6,7 +6,7 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from mythos.registry.errors import RegistryError
-from mythos.registry.files.definitions import DisplayParams, FileReference, NodeAccessRule, VirtualNode
+from mythos.registry.files.definitions import DisplayParams, FileReference, NodeAccessRule, StaticNode
 
 
 class _ManifestModel(BaseModel):
@@ -100,13 +100,13 @@ def parse_json_file_tree(
     path_prefix: str,
     access_rules: Mapping[str, NodeAccessRule],
     expected_module: str | None = None,
-) -> tuple[tuple[FileReference, ...], tuple[VirtualNode, ...]]:
+) -> tuple[tuple[FileReference, ...], tuple[StaticNode, ...]]:
     manifest = _parse_manifest(document)
     if expected_module is not None and manifest.module != expected_module:
         raise RegistryError("File tree manifest module does not match its asset path.")
     prefix = _canonical_directory_path(path_prefix)
     sources_by_locator: dict[str, FileReference] = {}
-    nodes: list[VirtualNode] = []
+    nodes: list[StaticNode] = []
     stable_ids: set[str] = set()
     paths: set[str] = set()
 
@@ -123,7 +123,7 @@ def parse_json_file_tree(
 
         if isinstance(node, DirectoryManifest):
             nodes.append(
-                VirtualNode.directory(
+                StaticNode.directory(
                     node.stable_id,
                     path,
                     node.revision,
@@ -142,7 +142,7 @@ def parse_json_file_tree(
             raise RegistryError("File tree manifest sources must agree on media type.")
         sources_by_locator[reference.source_locator] = reference
         nodes.append(
-            VirtualNode.file(
+            StaticNode.file(
                 node.stable_id,
                 path,
                 node.revision,

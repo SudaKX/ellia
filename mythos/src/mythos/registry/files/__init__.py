@@ -1,4 +1,11 @@
-from mythos.registry.files.definitions import DisplayParams, FileContent, FileReference, ObjectReference, VirtualNode
+from mythos.registry.files.definitions import (
+    DisplayParams,
+    FileContent,
+    FileReference,
+    ObjectReference,
+    StaticNode,
+    VirtualNode,
+)
 from mythos.registry.files.manifest import FileTreeManifest
 from mythos.registry.files.registry import FileRegistry
 from mythos.registry.files.tree import FileTree, FileTreeDirectoryNotFoundError, TreeNode
@@ -12,6 +19,7 @@ __all__ = [
     "FileTreeManifest",
     "FileTreeDirectoryNotFoundError",
     "ObjectReference",
+    "StaticNode",
     "TreeNode",
     "VirtualNode",
 ]

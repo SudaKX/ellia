@@ -7,11 +7,16 @@ from mythos.core.commands import CommandRejected, ResponseFormatError, ResponseS
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import FollowupFormatError
 from mythos.players.context import CommandContext, RequestContext
-from mythos.players.interfaces import ProgressInterface, ReadOnlyPlayerError
+from mythos.players.interfaces import (
+    ArtifactInterface,
+    ProgressInterface,
+    ReadOnlyPlayerError,
+)
 from mythos.players.player import Player
 from mythos.persistence.models import PlayerProgress, PlayerProgressFrontierNode, PlayerProgressUnlockedNode
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
+from _helpers.object_store import FakeObjectStore
 
 
 _REGISTRIES = RegistryBundle()
@@ -41,6 +46,14 @@ def _player(*, writable: bool) -> Player:
             ),
             writable=writable,
             catalogs=_CATALOGS,
+        ),
+        artifacts=ArtifactInterface(
+            player_id=uuid4(),
+            catalog=_CATALOGS.artifacts,
+            object_store=FakeObjectStore(),
+            file_ids=FileIdCodec("test-file-id-secret"),
+            session=None,  # type: ignore[arg-type]
+            writable=writable,
         ),
     )
 

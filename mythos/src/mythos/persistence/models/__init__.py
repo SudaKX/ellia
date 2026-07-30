@@ -1,4 +1,5 @@
 from mythos.persistence.models.auth import PlayerAuth
+from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode
 from mythos.persistence.models.player import PlayerRecord
 from mythos.persistence.models.progress import (
     PlayerProgress,
@@ -9,6 +10,8 @@ from mythos.persistence.models.progress import (
 from mythos.persistence.models.static_files import StaticFileRegistration
 
 __all__ = [
+    "PlayerArtifact",
+    "PlayerArtifactNode",
     "PlayerAuth",
     "PlayerProgress",
     "PlayerProgressCheckpoint",

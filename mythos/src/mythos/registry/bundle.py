@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
+from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
+from mythos.registry.errors import DuplicateStableIdError
 from mythos.registry.files import FileRegistry, FileTree
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
@@ -20,6 +22,7 @@ class RuntimeCatalogs:
     progress: ProgressGraph
     scripts: ScriptCatalog
     validations: ValidationCatalog
+    artifacts: ArtifactCatalog
 
 
 class RegistryBundle:
@@ -28,6 +31,7 @@ class RegistryBundle:
         self.progress = ProgressRegistry()
         self.scripts = ScriptRegistry()
         self.validations = ValidationRegistry()
+        self.artifacts = ArtifactRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -38,11 +42,17 @@ class RegistryBundle:
             if self._catalogs.files.file_id_key_fingerprint != file_ids.key_fingerprint:
                 raise RuntimeError("RegistryBundle is already frozen with a different file ID key.")
             return self._catalogs
+        static_ids = set(self.files._nodes_by_stable_id)
+        artifact_ids = set(self.artifacts._node_templates)
+        duplicates = static_ids & artifact_ids
+        if duplicates:
+            raise DuplicateStableIdError(next(iter(sorted(duplicates))))
         self._catalogs = RuntimeCatalogs(
             files=self.files.freeze(file_ids),
             progress=self.progress.freeze(),
             scripts=self.scripts.freeze(),
             validations=self.validations.freeze(),
+            artifacts=self.artifacts.freeze(),
         )
         return self._catalogs
 

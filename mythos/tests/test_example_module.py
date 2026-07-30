@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -11,41 +9,7 @@ from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.registry.files import ObjectReference
-from mythos.services.object_store.service import PresignedObjectUrl
-
-
-class FakeObjectStore:
-    def __init__(self) -> None:
-        self.uploads: list[tuple[str, bytes]] = []
-        self.requests: list[str] = []
-
-    async def put_file(self, source_path, *, object_key: str, media_type: str) -> ObjectReference:
-        content = source_path.read_bytes()
-        self.uploads.append((object_key, content))
-        return ObjectReference(
-            object_key,
-            f"sha256:{hashlib.sha256(content).hexdigest()}",
-            media_type,
-            len(content),
-            f"test-version-{len(self.uploads)}",
-        )
-
-    async def presign_get(
-        self,
-        reference: ObjectReference,
-        *,
-        expires_in_seconds: int,
-        content_disposition: str,
-        response_cache_control: str,
-        response_expires_at,
-    ) -> PresignedObjectUrl:
-        del content_disposition, response_cache_control, response_expires_at
-        self.requests.append(reference.key)
-        return PresignedObjectUrl(
-            url=f"https://objects.test/{reference.key}?expires={expires_in_seconds}",
-            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
-        )
+from _helpers.object_store import FakeObjectStore
 
 
 def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -> None:
@@ -155,10 +119,11 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
                 assert resubmitted.json() == {"content": {"accepted": True}, "followups": []}
                 assert (await client.get("/api/v1/progress", headers=headers)).json() == completed_progress.json()
 
-        assert [key for key, _ in object_store.uploads] == [
+        assert object_store.upload_keys == [
             "static/example/assets/public/README.txt",
             "static/example/assets/archive/result.txt",
         ]
-        assert object_store.requests == ["static/example/assets/archive/result.txt"]
+
+        assert object_store.request_keys == ["static/example/assets/archive/result.txt"]
 
     asyncio.run(scenario())

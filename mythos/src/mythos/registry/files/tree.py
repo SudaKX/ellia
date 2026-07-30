@@ -7,7 +7,7 @@ from types import MappingProxyType
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import RegistryError
-from mythos.registry.files.definitions import FileContent, VirtualNode
+from mythos.registry.files.definitions import FileContent, StaticNode, VirtualNode
 
 
 class FileTreeDirectoryNotFoundError(RegistryError):
@@ -45,7 +45,7 @@ class FileTree:
     @classmethod
     def build(
         cls,
-        nodes: Mapping[str, VirtualNode],
+        nodes: Mapping[str, StaticNode],
         contents_by_stable_id: Mapping[str, FileContent],
         file_ids: FileIdCodec,
     ) -> FileTree:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.progress import ProgressInterface
 
 
@@ -10,3 +11,4 @@ from mythos.players.interfaces.progress import ProgressInterface
 class Player:
     id: UUID
     progress: ProgressInterface
+    artifacts: ArtifactInterface

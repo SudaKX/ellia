@@ -49,8 +49,20 @@ class StaticObjectWriter(Protocol):
     ) -> ObjectReference: ...
 
 
-class ObjectStore(ObjectStoreReader, StaticObjectWriter, Protocol):
-    pass
+class ObjectWriter(StaticObjectWriter, Protocol):
+    async def put_bytes(
+        self,
+        data: bytes,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference: ...
+
+
+class ObjectStore(ObjectStoreReader, ObjectWriter, Protocol):
+    async def list_objects(self, prefix: str) -> list[str]: ...
+
+    async def delete_object(self, key: str, version_id: str | None = None) -> None: ...
 
 
 class UnconfiguredObjectStore:
@@ -74,6 +86,24 @@ class UnconfiguredObjectStore:
         media_type: str,
     ) -> ObjectReference:
         del source_path, object_key, media_type
+        raise ObjectStoreUnavailableError("Object storage is not configured.")
+
+    async def put_bytes(
+        self,
+        data: bytes,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference:
+        del data, object_key, media_type
+        raise ObjectStoreUnavailableError("Object storage is not configured.")
+
+    async def list_objects(self, prefix: str) -> list[str]:
+        del prefix
+        raise ObjectStoreUnavailableError("Object storage is not configured.")
+
+    async def delete_object(self, key: str, version_id: str | None = None) -> None:
+        del key, version_id
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
 
@@ -148,6 +178,74 @@ class Boto3ObjectStore:
             size_bytes=size_bytes,
             version_id=version_id,
         )
+
+    async def put_bytes(
+        self,
+        data: bytes,
+        *,
+        object_key: str,
+        media_type: str,
+    ) -> ObjectReference:
+        return await asyncio.to_thread(self._put_bytes_sync, data, object_key, media_type)
+
+    def _put_bytes_sync(self, data: bytes, object_key: str, media_type: str) -> ObjectReference:
+        digest = hashlib.sha256(data).hexdigest()
+        try:
+            response = self._client.put_object(  # type: ignore[union-attr]
+                Bucket=self._bucket,
+                Key=object_key,
+                Body=data,
+                ContentType=media_type,
+            )
+        except Exception as error:
+            raise ObjectStoreError("Unable to upload a dynamic object.") from error
+        version_id = response.get("VersionId") if isinstance(response, dict) else None
+        if not isinstance(version_id, str) or not version_id:
+            raise ObjectStoreError("Object storage did not return a version ID for the uploaded object.")
+        return ObjectReference(
+            key=object_key,
+            content_digest=f"sha256:{digest}",
+            media_type=media_type,
+            size_bytes=len(data),
+            version_id=version_id,
+        )
+
+    async def list_objects(self, prefix: str) -> list[str]:
+        keys: list[str] = []
+        continuation_token: str | None = None
+        while True:
+            params: dict[str, object] = {"Bucket": self._bucket, "Prefix": prefix}
+            if continuation_token is not None:
+                params["ContinuationToken"] = continuation_token
+            try:
+                response = await asyncio.to_thread(
+                    self._client.list_objects_v2,  # type: ignore[union-attr]
+                    **params,
+                )
+            except Exception as error:
+                raise ObjectStoreError("Unable to list objects.") from error
+            for obj in response.get("Contents", []):
+                key = obj.get("Key")
+                if isinstance(key, str):
+                    keys.append(key)
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+            if not isinstance(continuation_token, str):
+                break
+        return keys
+
+    async def delete_object(self, key: str, version_id: str | None = None) -> None:
+        params: dict[str, object] = {"Bucket": self._bucket, "Key": key}
+        if isinstance(version_id, str):
+            params["VersionId"] = version_id
+        try:
+            await asyncio.to_thread(
+                self._client.delete_object,  # type: ignore[union-attr]
+                **params,
+            )
+        except Exception as error:
+            raise ObjectStoreError("Unable to delete object.") from error
 
 
 def create_object_store(settings: Settings) -> ObjectStore:

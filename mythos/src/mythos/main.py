@@ -51,7 +51,7 @@ def create_app(
             )
         )
         catalogs = registered_content.freeze(file_ids)
-        player_factory = PlayerFactory(catalogs)
+        player_factory = PlayerFactory(catalogs, resolved_object_store, file_ids)
         checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
         command_executor = CommandTransactionExecutor(
@@ -77,6 +77,7 @@ def create_app(
                 resolved_settings.file_content_cache_max_age_seconds,
                 resolved_settings.file_download_url_ttl_seconds,
                 checkpoint_store,
+                file_ids,
             ),
             object_store=resolved_object_store,
             command_executor=command_executor,

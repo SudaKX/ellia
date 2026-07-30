@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 
 from mythos.players.player import Player
 from mythos.registry.files import DisplayParams, FileTree, FileTreeDirectoryNotFoundError, TreeNode
+from mythos.registry.files.player_tree import PlayerFileTree
+from mythos.core.file_ids import FileIdCodec
 from mythos.services.object_store.service import ObjectStoreReader, PresignedObjectUrl
 
 
@@ -59,16 +61,20 @@ class DirectoryTree:
     files: tuple[FileSummary, ...]
 
 
+type _ReadableFileTree = FileTree | PlayerFileTree
+
+
 class FileService:
     def __init__(
         self,
-        tree: FileTree,
+        static_tree: FileTree,
         object_store: ObjectStoreReader,
         content_url_ttl_seconds: int,
         content_cache_max_age_seconds: int,
         download_url_ttl_seconds: int,
+        file_ids: FileIdCodec,
     ) -> None:
-        self._tree = tree
+        self._static_tree = static_tree
         self._object_store = object_store
         self._content_url_ttl_seconds = content_url_ttl_seconds
         self._content_cache_control = (
@@ -76,18 +82,31 @@ class FileService:
         )
         self._content_object_cache_control = "private, must-revalidate"
         self._download_url_ttl_seconds = download_url_ttl_seconds
+        self._file_ids = file_ids
 
     @property
     def tree_version(self) -> str:
-        return self._tree.tree_version
+        return self._static_tree.tree_version
+
+    def player_tree_version(self, player: Player) -> str:
+        return self._player_tree(player).tree_version
 
     @property
     def content_url_cache_control(self) -> str:
         return self._content_cache_control
 
+    def _player_tree(self, player: Player) -> PlayerFileTree:
+        return player.artifacts.get_tree(self._static_tree, self._file_ids)
+
     def list_directory(self, player: Player, path: str = "/") -> DirectoryListing:
+        return self._list_directory(self._static_tree, player, path)
+
+    def list_dynamic_directory(self, player: Player, path: str = "/") -> DirectoryListing:
+        return self._list_directory(self._player_tree(player), player, path)
+
+    def _list_directory(self, tree: _ReadableFileTree, player: Player, path: str) -> DirectoryListing:
         try:
-            directory_chain = self._tree.directory_chain(path)
+            directory_chain = tree.directory_chain(path)
         except FileTreeDirectoryNotFoundError as error:
             raise FileDirectoryNotFoundError from error
         if not self._is_allowed_chain(player, directory_chain):
@@ -107,20 +126,29 @@ class FileService:
             path=directory.path,
             directories=tuple(sorted(directories, key=self._sort_by_display)),
             files=tuple(sorted(files, key=self._sort_by_display)),
-            tree_version=self._tree.tree_version,
+            tree_version=tree.tree_version,
         )
 
     def directory_tree(self, player: Player, path: str = "/") -> DirectoryTree:
+        return self._directory_tree(self._static_tree, player, path)
+
+    def dynamic_directory_tree(self, player: Player, path: str = "/") -> DirectoryTree:
+        return self._directory_tree(self._player_tree(player), player, path)
+
+    def _directory_tree(self, tree: _ReadableFileTree, player: Player, path: str) -> DirectoryTree:
         try:
-            directory_chain = self._tree.directory_chain(path)
+            directory_chain = tree.directory_chain(path)
         except FileTreeDirectoryNotFoundError as error:
             raise FileDirectoryNotFoundError from error
         if not self._is_allowed_chain(player, directory_chain):
             raise FileDirectoryNotFoundError
-        return self._directory_tree(player, directory_chain[-1])
+        return self._build_directory_tree(player, tree, directory_chain[-1])
 
     def metadata(self, player: Player, file_id: str) -> FileMetadata:
-        file = self._authorized_file(player, file_id)
+        return self._metadata(self._player_tree(player), player, file_id)
+
+    def _metadata(self, tree: _ReadableFileTree, player: Player, file_id: str) -> FileMetadata:
+        file = self._authorized_file(tree, player, file_id)
         assert file.definition is not None
         assert file.content is not None
         return FileMetadata(
@@ -136,6 +164,7 @@ class FileService:
         content_token: str,
     ) -> PresignedObjectUrl:
         return await self._issue_url(
+            self._player_tree(player),
             player,
             file_id,
             content_token,
@@ -152,6 +181,7 @@ class FileService:
         content_token: str,
     ) -> PresignedObjectUrl:
         return await self._issue_url(
+            self._player_tree(player),
             player,
             file_id,
             content_token,
@@ -163,6 +193,7 @@ class FileService:
 
     async def _issue_url(
         self,
+        tree: _ReadableFileTree,
         player: Player,
         file_id: str,
         content_token: str,
@@ -172,7 +203,7 @@ class FileService:
         response_cache_control: str,
         response_expires_at: datetime | None,
     ) -> PresignedObjectUrl:
-        file = self._authorized_file(player, file_id)
+        file = self._authorized_file(tree, player, file_id)
         assert file.definition is not None
         assert file.content is not None
         if file.content.content_token != content_token:
@@ -185,13 +216,13 @@ class FileService:
             response_expires_at=response_expires_at,
         )
 
-    def _authorized_file(self, player: Player, file_id: str) -> TreeNode:
-        file = self._tree.file(file_id)
-        if not self._is_allowed_chain(player, self._tree.file_chain(file_id)):
+    def _authorized_file(self, tree: _ReadableFileTree, player: Player, file_id: str) -> TreeNode:
+        file = tree.file(file_id)
+        if not self._is_allowed_chain(player, tree.file_chain(file_id)):
             raise FileAccessDeniedError
         return file
 
-    def _directory_tree(self, player: Player, directory: TreeNode) -> DirectoryTree:
+    def _build_directory_tree(self, player: Player, tree: _ReadableFileTree, directory: TreeNode) -> DirectoryTree:
         directories: list[DirectoryTree] = []
         files: list[FileSummary] = []
         for child in directory.children.values():
@@ -200,7 +231,7 @@ class FileService:
             if child.is_file:
                 files.append(self._summary(child))
             else:
-                directories.append(self._directory_tree(player, child))
+                directories.append(self._build_directory_tree(player, tree, child))
         return DirectoryTree(
             path=directory.path,
             display=self._display(directory),

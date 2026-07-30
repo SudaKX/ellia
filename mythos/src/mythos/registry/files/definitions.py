@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 import re
@@ -77,15 +78,23 @@ class FileReference:
 
 
 @dataclass(frozen=True)
-class VirtualNode:
+class VirtualNode(ABC):
     stable_id: str
     path: str
     revision: str
     display: DisplayParams
     access_rule: NodeAccessRule | None = None
-    source_locator: str | None = None
-    download_name: str | None = None
     hidden: bool = False
+    download_name: str | None = None
+
+    @property
+    @abstractmethod
+    def is_file(self) -> bool: ...
+
+
+@dataclass(frozen=True)
+class StaticNode(VirtualNode):
+    source_locator: str | None = None
 
     @classmethod
     def file(
@@ -99,16 +108,16 @@ class VirtualNode:
         *,
         display: DisplayParams,
         hidden: bool = False,
-    ) -> VirtualNode:
+    ) -> StaticNode:
         return cls(
             stable_id=stable_id,
             path=path,
             revision=revision,
             display=display,
             access_rule=access_rule,
-            source_locator=source_locator,
-            download_name=download_name,
             hidden=hidden,
+            download_name=download_name,
+            source_locator=source_locator,
         )
 
     @classmethod
@@ -121,7 +130,7 @@ class VirtualNode:
         *,
         display: DisplayParams,
         hidden: bool = False,
-    ) -> VirtualNode:
+    ) -> StaticNode:
         return cls(
             stable_id=stable_id,
             path=path,
@@ -129,6 +138,8 @@ class VirtualNode:
             display=display,
             access_rule=access_rule,
             hidden=hidden,
+            download_name=None,
+            source_locator=None,
         )
 
     @property

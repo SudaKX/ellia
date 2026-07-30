@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from mythos.core.file_ids import FileIdCodec
 from mythos.registry.files import FileTree
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
@@ -33,6 +34,7 @@ class ServiceContainer:
         file_content_cache_max_age_seconds: int,
         file_download_url_ttl_seconds: int,
         checkpoint_store: LocalCheckpointStore,
+        file_ids: FileIdCodec,
     ) -> ServiceContainer:
         return cls(
             files=FileService(
@@ -41,6 +43,7 @@ class ServiceContainer:
                 file_content_url_ttl_seconds,
                 file_content_cache_max_age_seconds,
                 file_download_url_ttl_seconds,
+                file_ids,
             ),
             progress=ProgressService(progress_graph, checkpoint_store),
             scripts=ScriptService(script_catalog),

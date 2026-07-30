@@ -10,14 +10,14 @@ from mythos.registry.files.definitions import (
     FileReference,
     NodeAccessRule,
     ObjectReference,
-    VirtualNode,
+    StaticNode,
 )
 from mythos.registry.files.tree import FileTree
 
 
 class FileRegistry:
     def __init__(self, puzzle_root: Path | None = None) -> None:
-        self._nodes_by_stable_id: dict[str, VirtualNode] = {}
+        self._nodes_by_stable_id: dict[str, StaticNode] = {}
         self._sources_by_locator: dict[str, FileReference] = {}
         self._file_paths: set[str] = set()
         self._explicit_directory_paths: set[str] = set()
@@ -46,7 +46,7 @@ class FileRegistry:
         self._sources_by_locator[source_locator] = reference
         return source_locator
 
-    def register_node(self, node: VirtualNode) -> None:
+    def register_node(self, node: StaticNode) -> None:
         self._ensure_mutable()
         self._validate_node(node)
         if node.stable_id in self._nodes_by_stable_id:
@@ -99,7 +99,7 @@ class FileRegistry:
     def _register_manifest(
         self,
         sources: tuple[FileReference, ...],
-        nodes: tuple[VirtualNode, ...],
+        nodes: tuple[StaticNode, ...],
     ) -> None:
         snapshot = (
             dict(self._nodes_by_stable_id),
@@ -200,7 +200,7 @@ class FileRegistry:
         self._tree = FileTree.build(self._nodes_by_stable_id, contents_by_stable_id, file_ids)
         return self._tree
 
-    def _validate_node(self, node: VirtualNode) -> None:
+    def _validate_node(self, node: StaticNode) -> None:
         if not node.stable_id or not node.revision or not _is_canonical_virtual_path(node.path):
             raise RegistryError("Virtual nodes require a stable ID, revision, and canonical absolute path.")
         if not isinstance(node.hidden, bool):
@@ -223,14 +223,14 @@ class FileRegistry:
         if unused := set(self._sources_by_locator) - referenced_locators:
             raise RegistryError(f"Static file sources are not bound to a virtual file: {sorted(unused)!r}")
 
-    def _register_directory(self, node: VirtualNode) -> None:
+    def _register_directory(self, node: StaticNode) -> None:
         if node.path in self._file_paths or node.path in self._explicit_directory_paths:
             raise RegistryError("Virtual node paths must be unique.")
         self._ensure_no_file_ancestor(node.path)
         self._explicit_directory_paths.add(node.path)
         self._directory_paths.update(_directory_paths_for(node.path, include_self=True))
 
-    def _register_file(self, node: VirtualNode) -> None:
+    def _register_file(self, node: StaticNode) -> None:
         if node.path in self._file_paths or node.path in self._directory_paths:
             raise RegistryError("A virtual file cannot also be a directory.")
         self._ensure_no_file_ancestor(node.path)

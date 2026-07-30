@@ -34,6 +34,23 @@ class FileIdCodec:
         )
         return self._encode("file-content:v1", payload, prefix="ct1_")
 
+    def encode_artifact_content_token(
+        self,
+        player_id: str,
+        stable_id: str,
+        revision: str,
+        object_key: str,
+        object_version_id: str,
+        media_type: str,
+        download_name: str,
+    ) -> str:
+        payload = json.dumps(
+            (player_id, stable_id, revision, object_key, object_version_id, media_type, download_name),
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        return self._encode("artifact-content:v1", payload, prefix="act1_")
+
     def encode_tree_version(self, entries: Sequence[tuple[str, ...]]) -> str:
         payload = json.dumps(entries, ensure_ascii=True, separators=(",", ":"))
         return self._encode("file-tree:v1", payload, prefix="ft1_")
