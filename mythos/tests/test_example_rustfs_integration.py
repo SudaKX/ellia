@@ -103,6 +103,26 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
                     )
                     assert b"ARCHIVE UNLOCKED" in await asyncio.to_thread(_read_url, result_url.json()["url"])
 
+                    dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
+                    dynamic_archive = next(
+                        directory
+                        for directory in dynamic_tree.json()["directories"]
+                        if directory["path"] == "/archive"
+                    )
+                    report = next(
+                        file
+                        for file in dynamic_archive["files"]
+                        if file["path"] == "/archive/recovery-report.txt"
+                    )
+                    report_url = await client.get(
+                        f"/api/v1/files/{report['file_id']}/{report['content_token']}/content-url",
+                        headers=headers,
+                    )
+                    assert b"EXAMPLE RECOVERY REPORT" in await asyncio.to_thread(
+                        _read_url,
+                        report_url.json()["url"],
+                    )
+
         asyncio.run(scenario())
     finally:
         if bucket_created:

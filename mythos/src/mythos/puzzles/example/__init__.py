@@ -5,7 +5,9 @@ from typing import Any
 
 from mythos.players.context import CommandContext
 from mythos.players.player import Player
+from mythos.registry.artifacts import ArtifactNode, ArtifactNodeTemplate, ArtifactTemplate, RawArtifact
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.files import DisplayParams
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationOutcome
@@ -14,6 +16,8 @@ MODULE_ID = "example"
 ENTRY_NODE_ID = "example.entry"
 COMPLETED_NODE_ID = "example.completed"
 VALIDATION_ID = "example-answer"
+RECOVERY_REPORT_ARTIFACT_ID = "example.recovery-report"
+RECOVERY_REPORT_NODE_ID = "example.recovery-report-file"
 _ANSWER = "echo-7"
 
 
@@ -24,6 +28,31 @@ def register(registries: RegistryBundle) -> None:
         MODULE_ID,
         "assets/file-tree.json",
         access_rules={"completed": _has_completed_example},
+    )
+    registries.artifacts.register_template(
+        ArtifactTemplate(
+            artifact_id=RECOVERY_REPORT_ARTIFACT_ID,
+            revision="1",
+            media_type="text/plain; charset=utf-8",
+            download_name="recovery-report.txt",
+            generator=_generate_recovery_report,
+        )
+    )
+    registries.artifacts.register_node(
+        ArtifactNodeTemplate(
+            stable_id=RECOVERY_REPORT_NODE_ID,
+            path="/archive/recovery-report.txt",
+            revision="1",
+            artifact_locator=RECOVERY_REPORT_ARTIFACT_ID,
+            display=DisplayParams(
+                label="recovery-report.txt",
+                description="Player-specific recovery report",
+                icon="document",
+                sort_order=1,
+            ),
+            access_rule=_has_completed_example,
+            node_generator=_generate_recovery_report_node,
+        )
     )
     registries.scripts.register(
         Script(
@@ -59,6 +88,24 @@ def _has_completed_example(player: Player) -> bool:
     return player.progress.is_unlocked(COMPLETED_NODE_ID)
 
 
+async def _generate_recovery_report(context: CommandContext) -> RawArtifact:
+    return RawArtifact(
+        (
+            "EXAMPLE RECOVERY REPORT\n\n"
+            f"Player: {context.player.id}\n"
+            "Status: archive recovered\n"
+        ).encode(),
+        meta={"completed_node": COMPLETED_NODE_ID},
+    )
+
+
+async def _generate_recovery_report_node(
+    _context: CommandContext,
+    node: ArtifactNode,
+) -> ArtifactNode:
+    return node
+
+
 async def _submit_answer(
     context: CommandContext,
     payload: Mapping[str, Any],
@@ -71,4 +118,5 @@ async def _submit_answer(
     if not context.player.progress.is_frontier(ENTRY_NODE_ID):
         return ValidationOutcome(accepted=False)
     context.player.progress.push(COMPLETED_NODE_ID)
+    await context.player.artifacts.generate(RECOVERY_REPORT_ARTIFACT_ID, context)
     return ValidationOutcome(accepted=True)

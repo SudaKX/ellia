@@ -1,10 +1,12 @@
 import asyncio
+import hashlib
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 from pydantic import SecretStr
 
+from mythos.auth.tokens import decode_access_token
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
@@ -12,7 +14,7 @@ from mythos.persistence.base import Base
 from _helpers.object_store import FakeObjectStore
 
 
-def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -> None:
+def test_example_module_unlocks_archive_and_generates_report_with_fake_object_store(tmp_path: Path) -> None:
     async def scenario() -> None:
         settings = Settings(
             environment="test",
@@ -38,7 +40,9 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
                     json={"username": "example-player", "password": "correct-horse-battery"},
                 )
                 assert registration.status_code == 201
-                headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
+                access_token = registration.json()["access_token"]
+                headers = {"Authorization": f"Bearer {access_token}"}
+                player_id = decode_access_token(access_token, settings).player_id
 
                 initial_progress = await client.get("/api/v1/progress", headers=headers)
                 assert initial_progress.json()["unlocked_nodes"] == ["example.entry"]
@@ -48,6 +52,9 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
                 initial_tree = await client.get("/api/v1/files/tree", headers=headers)
                 assert [directory["path"] for directory in initial_tree.json()["directories"]] == ["/public"]
                 assert (await client.get("/api/v1/files/ls", params={"path": "/archive"}, headers=headers)).status_code == 404
+                initial_dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
+                assert [directory["path"] for directory in initial_dynamic_tree.json()["directories"]] == ["/public"]
+                assert initial_dynamic_tree.json()["tree_version"] == initial_tree.json()["tree_version"]
 
                 initial_scripts = await client.get("/api/v1/scripts", headers=headers)
                 assert initial_scripts.json()["items"] == [
@@ -96,6 +103,7 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
 
                 completed_tree = await client.get("/api/v1/files/tree", headers=headers)
                 directories = {item["path"]: item for item in completed_tree.json()["directories"]}
+                assert [item["path"] for item in directories["/archive"]["files"]] == ["/archive/result.txt"]
                 result_file = directories["/archive"]["files"][0]
                 content_url = await client.get(
                     f"/api/v1/files/{result_file['file_id']}/{result_file['content_token']}/content-url",
@@ -104,6 +112,43 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
                 assert content_url.json()["url"] == (
                     "https://objects.test/static/example/assets/archive/result.txt?expires=43200"
                 )
+
+                dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
+                dynamic_directories = {item["path"]: item for item in dynamic_tree.json()["directories"]}
+                report_file = next(
+                    item
+                    for item in dynamic_directories["/archive"]["files"]
+                    if item["path"] == "/archive/recovery-report.txt"
+                )
+                assert [item["path"] for item in dynamic_directories["/archive"]["files"]] == [
+                    "/archive/result.txt",
+                    "/archive/recovery-report.txt",
+                ]
+                assert report_file["content_token"].startswith("act1_")
+                assert dynamic_tree.json()["tree_version"] != completed_tree.json()["tree_version"]
+
+                report_metadata = await client.get(
+                    f"/api/v1/files/{report_file['file_id']}",
+                    headers=headers,
+                )
+                assert report_metadata.json()["download_name"] == "recovery-report.txt"
+                assert report_metadata.json()["path"] == "/archive/recovery-report.txt"
+
+                expected_report = (
+                    "EXAMPLE RECOVERY REPORT\n\n"
+                    f"Player: {player_id}\n"
+                    "Status: archive recovered\n"
+                ).encode()
+                artifact_key = (
+                    f"artifacts/{player_id}/example.recovery-report/1/"
+                    f"{hashlib.sha256(expected_report).hexdigest()}"
+                )
+                report_content_url = await client.get(
+                    f"/api/v1/files/{report_file['file_id']}/{report_file['content_token']}/content-url",
+                    headers=headers,
+                )
+                assert report_content_url.json()["url"] == f"https://objects.test/{artifact_key}?expires=43200"
+                assert object_store.objects[artifact_key] == expected_report
 
                 completed_scripts = await client.get("/api/v1/scripts", headers=headers)
                 assert [item["stable_id"] for item in completed_scripts.json()["items"]] == [
@@ -122,8 +167,12 @@ def test_example_module_unlocks_archive_with_fake_object_store(tmp_path: Path) -
         assert object_store.upload_keys == [
             "static/example/assets/public/README.txt",
             "static/example/assets/archive/result.txt",
+            artifact_key,
         ]
 
-        assert object_store.request_keys == ["static/example/assets/archive/result.txt"]
+        assert object_store.request_keys == [
+            "static/example/assets/archive/result.txt",
+            artifact_key,
+        ]
 
     asyncio.run(scenario())

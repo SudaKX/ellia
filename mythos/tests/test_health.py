@@ -56,3 +56,4 @@ def test_development_serves_example_assets() -> None:
     assert "body {" in stylesheet.text
     assert script.status_code == 200
     assert 'const API_BASE = "/api/v1";' in script.text
+    assert 'callApi("/files/d/tree?path=/")' in script.text

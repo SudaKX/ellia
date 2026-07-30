@@ -154,8 +154,8 @@ async function loadWorkspace() {
   try {
     const [progress, version, tree, scripts] = await Promise.all([
       callApi("/progress").then(readJson),
-      callApi("/files/version").then(readJson),
-      callApi("/files/tree?path=/").then(readJson),
+      callApi("/files/d/version").then(readJson),
+      callApi("/files/d/tree?path=/").then(readJson),
       callApi("/scripts").then(readJson),
     ]);
     state.progress = progress;
