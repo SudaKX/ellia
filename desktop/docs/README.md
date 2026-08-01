@@ -34,6 +34,10 @@ src/
 - [FilterService](services/filter-service.md)：创建、预热、更新和销毁动态 SVG filter。
 - [WindowService](services/window-service.md)：注册应用、创建窗口、管理焦点、模态层和窗口命令。
 
+## 前后端对接
+
+- [前后端对接](backend-integration.md)：与 `mythos/` 后端的对接点清单、对接方式与约束。
+
 ## 注册表
 
 - `src/registries/applications.ts`：应用标题、图标、异步内容组件和默认窗口尺寸。
