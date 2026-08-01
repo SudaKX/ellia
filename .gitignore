@@ -11,6 +11,8 @@ __pycache__/
 /refs/
 /mythos/data/*
 !/mythos/data/.gitkeep
+.trae/*
+.trae/
 
 # Shared Vue/Vite project artifacts (editor and desktop)
 **/logs/
