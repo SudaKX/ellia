@@ -24,30 +24,38 @@ const languageOptions: { value: SupportedLocale; labelKey: string }[] = [
   { value: 'binary', labelKey: 'settings.languageOptions.binary' },
 ]
 
-const langOpen = ref(false)
-const themeOpen = ref(false)
 /** 当前主题，与 <html data-theme> 同步 */
 const currentTheme = ref<Theme>(
   (document.documentElement.dataset.theme as Theme) || 'night',
 )
 
+/**
+ * 当前展开的下拉菜单：'language' | 'theme'，null 表示全部收起。
+ * 使用单开模式（与顶部状态栏的 activeMenuId 一致）：同一时间只允许一个下拉展开，
+ * 打开一个会自动收起另一个，避免两个下拉菜单互相覆盖。
+ */
+const openMenu = ref<'language' | 'theme' | null>(null)
+
+function toggleMenu(menu: 'language' | 'theme') {
+  openMenu.value = openMenu.value === menu ? null : menu
+}
+
 function selectLang(option: { value: SupportedLocale }) {
-  langOpen.value = false
+  openMenu.value = null
   setLocale(option.value)
 }
 
 function selectTheme(theme: Theme) {
-  themeOpen.value = false
+  openMenu.value = null
   currentTheme.value = theme
   setTheme(theme)
 }
 
-/** 点击设置面板非下拉区域时关闭所有下拉，不阻塞滚轮等事件 */
+/** 点击设置面板非下拉区域时收起所有下拉，不阻塞滚轮等事件 */
 function handleSettingsClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   if (!target.closest('.dropdown')) {
-    langOpen.value = false
-    themeOpen.value = false
+    openMenu.value = null
   }
 }
 </script>
@@ -63,12 +71,12 @@ function handleSettingsClick(e: MouseEvent) {
     <div class="settings__field">
       <span class="settings__field-label">{{ t('settings.language') }}</span>
       <span class="settings__field-description">{{ t('settings.languageDescription') }}</span>
-      <div class="dropdown" :class="{ 'dropdown--open': langOpen }">
-        <button class="dropdown__trigger" @click="langOpen = !langOpen">
+      <div class="dropdown" :class="{ 'dropdown--open': openMenu === 'language' }">
+        <button class="dropdown__trigger" @click="toggleMenu('language')">
           <span>{{ t(languageOptions.find(o => o.value === locale)?.labelKey ?? '') }}</span>
           <ChevronDown :size="14" :stroke-width="1.8" class="dropdown__chevron" />
         </button>
-        <div v-if="langOpen" class="dropdown__menu">
+        <div v-if="openMenu === 'language'" class="dropdown__menu">
           <button
             v-for="option in languageOptions"
             :key="option.value"
@@ -86,12 +94,12 @@ function handleSettingsClick(e: MouseEvent) {
     <div class="settings__field">
       <span class="settings__field-label">{{ t('settings.theme') }}</span>
       <span class="settings__field-description">{{ t('settings.themeDescription') }}</span>
-      <div class="dropdown" :class="{ 'dropdown--open': themeOpen }">
-        <button class="dropdown__trigger" @click="themeOpen = !themeOpen">
+      <div class="dropdown" :class="{ 'dropdown--open': openMenu === 'theme' }">
+        <button class="dropdown__trigger" @click="toggleMenu('theme')">
           <span>{{ t(THEMES.find(t => t.key === currentTheme)?.i18nKey ?? '') }}</span>
           <ChevronDown :size="14" :stroke-width="1.8" class="dropdown__chevron" />
         </button>
-        <div v-if="themeOpen" class="dropdown__menu">
+        <div v-if="openMenu === 'theme'" class="dropdown__menu">
           <button
             v-for="theme in THEMES"
             :key="theme.key"
