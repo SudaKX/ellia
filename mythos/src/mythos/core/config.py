@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     file_download_url_ttl_seconds: int = 900
     puzzle_root: Path = PROJECT_ROOT / "src" / "mythos" / "puzzles"
     checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
+    artifact_template_snapshot_path: Path | None = None
 
     @model_validator(mode="after")
     def configure_secrets(self) -> Settings:
@@ -126,6 +127,22 @@ class Settings(BaseSettings):
     @property
     def object_store_configured(self) -> bool:
         return self.object_store_endpoint is not None
+
+    @property
+    def artifact_snapshot_path(self) -> Path:
+        if self.artifact_template_snapshot_path is not None:
+            return self.artifact_template_snapshot_path
+        database_path = make_database_path(self.database_url)
+        if database_path is not None:
+            return database_path.parent / "artifact-template-catalog.json"
+        return PROJECT_ROOT / "data" / "artifact-template-catalog.json"
+
+
+def make_database_path(database_url: str) -> Path | None:
+    parsed = urlparse(database_url)
+    if not parsed.scheme.startswith("sqlite") or not parsed.path or parsed.path == "/:memory:":
+        return None
+    return Path(parsed.path.lstrip("/"))
 
 
 @lru_cache

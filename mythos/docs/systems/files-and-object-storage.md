@@ -15,7 +15,7 @@
 - `FileContent`：对象引用、下载名、content token。
 - `StaticNode`：文件或目录；`access_rule` 是纯读取函数。
 
-启动期 `StaticAssetPublisher` 仅上传新文件或 mtime 改变的文件到 `static/<module>/<relative_path>`，再将已解析对象写入 FileTree。`f1_` file ID 只是公开定位符，不是授权凭据；静态 content token 使用 `ct1_`。
+启动期 `StaticAssetPublisher` 仅上传新文件或 mtime 改变的文件到 `static/<module>/<relative_path>`，再将已解析对象写入 FileTree。`f1_` file ID 只是公开定位符，不是授权凭据；静态 content token 使用 `ct2_`。
 
 ## Service 与端点
 

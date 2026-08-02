@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands.cache import RequestCache
 from mythos.core.commands.models import CachedResponse, ResponseSpec
-from mythos.players.context import CommandContext
+from mythos.players.context import ArtifactGenerationContext, CommandContext
 from mythos.players.factory import PlayerFactory
 
 CommandPreCommitHook: TypeAlias = Callable[[AsyncSession, CommandContext], Awaitable[None]]
+ArtifactReconciliationOperation: TypeAlias = Callable[[ArtifactGenerationContext], Awaitable[None]]
 
 
 class CommandTransactionExecutor:
@@ -69,3 +70,15 @@ class CommandTransactionExecutor:
 
         self._request_cache.complete(request_id, completed)
         return completed
+
+    async def execute_artifact_reconciliation(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        operation: ArtifactReconciliationOperation,
+    ) -> None:
+        async with session.begin():
+            player = await self._player_factory.create(session, player_id, writable=True)
+            await player.load_progress()
+            await player.load_artifacts()
+            await operation(ArtifactGenerationContext(player))

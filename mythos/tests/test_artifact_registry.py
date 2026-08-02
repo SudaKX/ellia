@@ -6,6 +6,7 @@ from mythos.registry.artifacts import (
     ArtifactRegistry,
     ArtifactTemplate,
     RawArtifact,
+    module_handler,
 )
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
 from mythos.registry.files import DisplayParams
@@ -15,10 +16,12 @@ def _display(label: str) -> DisplayParams:
     return DisplayParams(label=label, icon="document")
 
 
+@module_handler("test")(1)
 def _artifact_generator(_context):
     return RawArtifact(b"content")
 
 
+@module_handler("test")(1)
 async def _node_generator(_context, node):
     node.path = "/dynamic/result.txt"
     return node
@@ -29,7 +32,6 @@ def test_artifact_registry_registers_templates_and_nodes() -> None:
     registry.register_template(
         ArtifactTemplate(
             artifact_id="test.report",
-            revision="1",
             media_type="text/plain",
             download_name="report.txt",
             generator=_artifact_generator,
@@ -39,7 +41,6 @@ def test_artifact_registry_registers_templates_and_nodes() -> None:
         ArtifactNodeTemplate(
             stable_id="test.report-node",
             path="/report.txt",
-            revision="1",
             artifact_locator="test.report",
             display=_display("Report"),
             node_generator=_node_generator,
@@ -54,7 +55,6 @@ def test_artifact_registry_rejects_duplicate_template_id() -> None:
     registry = ArtifactRegistry()
     template = ArtifactTemplate(
         artifact_id="test.report",
-        revision="1",
         media_type="text/plain",
         download_name="report.txt",
         generator=_artifact_generator,
@@ -69,7 +69,6 @@ def test_artifact_registry_rejects_duplicate_node_stable_id() -> None:
     registry.register_template(
         ArtifactTemplate(
             artifact_id="test.report",
-            revision="1",
             media_type="text/plain",
             download_name="report.txt",
             generator=_artifact_generator,
@@ -78,7 +77,6 @@ def test_artifact_registry_rejects_duplicate_node_stable_id() -> None:
     node_template = ArtifactNodeTemplate(
         stable_id="test.report-node",
         path="/report.txt",
-        revision="1",
         artifact_locator="test.report",
         display=_display("Report"),
         node_generator=_node_generator,
@@ -95,11 +93,34 @@ def test_artifact_registry_rejects_node_without_artifact() -> None:
             ArtifactNodeTemplate(
                 stable_id="test.report-node",
                 path="/report.txt",
-                revision="1",
                 artifact_locator="test.report",
                 display=_display("Report"),
                 node_generator=_node_generator,
             )
+        )
+
+
+def test_artifact_templates_require_marked_callbacks() -> None:
+    async def unmarked_artifact_generator(_context):
+        return RawArtifact(b"content")
+
+    async def unmarked_node_generator(_context, node):
+        return node
+
+    with pytest.raises(ValueError, match="module_handler"):
+        ArtifactTemplate(
+            artifact_id="test.report",
+            media_type="text/plain",
+            download_name="report.txt",
+            generator=unmarked_artifact_generator,
+        )
+    with pytest.raises(ValueError, match="module_handler"):
+        ArtifactNodeTemplate(
+            stable_id="test.report-node",
+            path="/report.txt",
+            artifact_locator="test.report",
+            display=_display("Report"),
+            node_generator=unmarked_node_generator,
         )
 
 
@@ -108,7 +129,6 @@ def test_artifact_registry_freezes() -> None:
     registry.register_template(
         ArtifactTemplate(
             artifact_id="test.report",
-            revision="1",
             media_type="text/plain",
             download_name="report.txt",
             generator=_artifact_generator,
@@ -119,7 +139,6 @@ def test_artifact_registry_freezes() -> None:
         registry.register_template(
             ArtifactTemplate(
                 artifact_id="test.other",
-                revision="1",
                 media_type="text/plain",
                 download_name="other.txt",
                 generator=_artifact_generator,
@@ -131,7 +150,6 @@ def test_artifact_node_template_produces_runtime_node() -> None:
     template = ArtifactNodeTemplate(
         stable_id="test.report-node",
         path="/report.txt",
-        revision="1",
         artifact_locator="test.report",
         display=_display("Report"),
         node_generator=_node_generator,
@@ -147,7 +165,6 @@ def test_artifact_node_generator_can_mutate_runtime_node() -> None:
     template = ArtifactNodeTemplate(
         stable_id="test.report-node",
         path="/report.txt",
-        revision="1",
         artifact_locator="test.report",
         display=_display("Report"),
         node_generator=_node_generator,
@@ -158,13 +175,12 @@ def test_artifact_node_generator_can_mutate_runtime_node() -> None:
 
     def generator(_context, node):
         node.path = "/dynamic/moved.txt"
-        node.revision = "2"
         node.hidden = True
         return node
 
     modified = generator(None, runtime)
     assert modified.path == "/dynamic/moved.txt"
-    assert modified.revision == "2"
+    assert modified.version == template.version
     assert modified.hidden is True
 
 
@@ -172,7 +188,6 @@ def test_artifact_node_stable_id_and_locator_are_immutable() -> None:
     template = ArtifactNodeTemplate(
         stable_id="test.report-node",
         path="/report.txt",
-        revision="1",
         artifact_locator="test.report",
         display=_display("Report"),
         node_generator=_node_generator,
@@ -182,3 +197,5 @@ def test_artifact_node_stable_id_and_locator_are_immutable() -> None:
         runtime.stable_id = "other"
     with pytest.raises(AttributeError):
         runtime.artifact_locator = "other"
+    with pytest.raises(AttributeError):
+        runtime.version = "other"

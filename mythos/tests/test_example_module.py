@@ -54,7 +54,8 @@ def test_example_module_unlocks_archive_and_generates_report_with_fake_object_st
                 assert (await client.get("/api/v1/files/ls", params={"path": "/archive"}, headers=headers)).status_code == 404
                 initial_dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
                 assert [directory["path"] for directory in initial_dynamic_tree.json()["directories"]] == ["/public"]
-                assert initial_dynamic_tree.json()["tree_version"] == initial_tree.json()["tree_version"]
+                assert initial_dynamic_tree.json()["tree_version"].startswith("pft2_")
+                assert initial_dynamic_tree.json()["tree_version"] != initial_tree.json()["tree_version"]
 
                 initial_scripts = await client.get("/api/v1/scripts", headers=headers)
                 assert initial_scripts.json()["items"] == [
@@ -124,7 +125,7 @@ def test_example_module_unlocks_archive_and_generates_report_with_fake_object_st
                     "/archive/result.txt",
                     "/archive/recovery-report.txt",
                 ]
-                assert report_file["content_token"].startswith("act1_")
+                assert report_file["content_token"].startswith("act2_")
                 assert dynamic_tree.json()["tree_version"] != completed_tree.json()["tree_version"]
 
                 report_metadata = await client.get(
@@ -139,8 +140,11 @@ def test_example_module_unlocks_archive_and_generates_report_with_fake_object_st
                     f"Player: {player_id}\n"
                     "Status: archive recovered\n"
                 ).encode()
+                artifact_version = app.state.runtime.catalogs.artifacts.template(
+                    "example.recovery-report"
+                ).version
                 artifact_key = (
-                    f"artifacts/{player_id}/example.recovery-report/1/"
+                    f"artifacts/{player_id}/example.recovery-report/{artifact_version}/"
                     f"{hashlib.sha256(expected_report).hexdigest()}"
                 )
                 report_content_url = await client.get(

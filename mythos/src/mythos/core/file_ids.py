@@ -21,39 +21,62 @@ class FileIdCodec:
     def encode_content_token(
         self,
         stable_id: str,
-        revision: str,
+        version: str,
         object_key: str,
         object_version_id: str,
         media_type: str,
         download_name: str,
     ) -> str:
         payload = json.dumps(
-            (stable_id, revision, object_key, object_version_id, media_type, download_name),
+            (stable_id, version, object_key, object_version_id, media_type, download_name),
             ensure_ascii=True,
             separators=(",", ":"),
         )
-        return self._encode("file-content:v1", payload, prefix="ct1_")
+        return self._encode("file-content:v2", payload, prefix="ct2_")
 
     def encode_artifact_content_token(
         self,
         player_id: str,
         stable_id: str,
-        revision: str,
+        artifact_version: str,
+        artifact_node_version: str,
         object_key: str,
         object_version_id: str,
         media_type: str,
         download_name: str,
     ) -> str:
         payload = json.dumps(
-            (player_id, stable_id, revision, object_key, object_version_id, media_type, download_name),
+            (
+                player_id,
+                stable_id,
+                artifact_version,
+                artifact_node_version,
+                object_key,
+                object_version_id,
+                media_type,
+                download_name,
+            ),
             ensure_ascii=True,
             separators=(",", ":"),
         )
-        return self._encode("artifact-content:v1", payload, prefix="act1_")
+        return self._encode("artifact-content:v2", payload, prefix="act2_")
 
     def encode_tree_version(self, entries: Sequence[tuple[str, ...]]) -> str:
         payload = json.dumps(entries, ensure_ascii=True, separators=(",", ":"))
         return self._encode("file-tree:v1", payload, prefix="ft1_")
+
+    def encode_player_tree_version(
+        self,
+        static_tree_version: str,
+        template_version: str,
+        player_version: int,
+    ) -> str:
+        payload = json.dumps(
+            (static_tree_version, template_version, player_version),
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        return self._encode("player-file-tree:v2", payload, prefix="pft2_")
 
     def _encode(self, scope: str, *parts: str, prefix: str = "f1_") -> str:
         payload = ":".join((scope, *parts)).encode()

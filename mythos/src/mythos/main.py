@@ -23,6 +23,8 @@ from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHoo
 from mythos.services.progress.router import router as progress_router
 from mythos.services.validations.router import router as validations_router
 from mythos.services.files.static_assets import StaticAssetPublisher
+from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunner
+from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 
 
 def create_app(
@@ -62,6 +64,13 @@ def create_app(
             ),
             (checkpoint_hook,),
         )
+        await ArtifactReconciliationRunner(
+            database.session_factory,
+            command_executor,
+            catalogs.artifacts,
+            ArtifactTemplateSnapshotStore(resolved_settings.artifact_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
         application.state.settings = resolved_settings
         application.state.database = database
         application.state.runtime = ApplicationRuntime(

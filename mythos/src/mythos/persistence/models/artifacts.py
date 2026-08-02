@@ -20,7 +20,7 @@ class PlayerArtifact(Base):
         primary_key=True,
     )
     artifact_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    revision: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(255), nullable=False)
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     object_version_id: Mapped[str] = mapped_column(String(1024), nullable=False)
     content_digest: Mapped[str] = mapped_column(String(71), nullable=False)
@@ -58,7 +58,7 @@ class PlayerArtifactNode(Base):
     node_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     artifact_id: Mapped[str] = mapped_column(String(255), nullable=False)
     path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    revision: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(255), nullable=False)
     display: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     hidden: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -74,3 +74,13 @@ class PlayerArtifactNode(Base):
     )
 
     artifact: Mapped[PlayerArtifact] = relationship(back_populates="nodes")
+
+
+class PlayerArtifactState(Base):
+    __tablename__ = "player_artifact_states"
+
+    player_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+    )
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

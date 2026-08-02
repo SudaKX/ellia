@@ -12,6 +12,6 @@ POST /auth/register 或 /auth/login
   -> 直接 fetch 预签名对象 URL
 ```
 
-初始动态树只有 `/public`；正确提交 `echo-7` 后，动态 `/archive` 包含静态 `result.txt` 和玩家专属 `recovery-report.txt`。报告 token 使用 `act1_`。相同 Request-ID 用于网络重试，成功后新的用户提交使用新的 ID。
+初始动态树只有 `/public`；正确提交 `echo-7` 后，动态 `/archive` 包含静态 `result.txt` 和玩家专属 `recovery-report.txt`。报告 token 使用 `act2_`。相同 Request-ID 用于网络重试，成功后新的用户提交使用新的 ID。
 
 Example 页面不会读取 `/files/tree` 或 `/files/version` 来展示文件，因为二者不包含 Artifact。完整系统行为见 [Example 模块](../modules/example.md)。

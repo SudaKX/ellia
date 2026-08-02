@@ -221,7 +221,7 @@ def _tree_version_entry(node: VirtualNode, content: FileContent | None) -> tuple
     return (
         node.stable_id,
         node.path,
-        node.revision,
+        node.version,
         "file" if node.is_file else "directory",
         "hidden" if node.hidden else "visible",
         node.download_name or "",

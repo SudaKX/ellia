@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 
@@ -40,6 +39,9 @@ class PlayerFileTree:
         static_tree: FileTree,
         artifact_nodes: Sequence[TreeNode],
         file_ids: FileIdCodec,
+        *,
+        template_version: str,
+        player_version: int,
     ) -> PlayerFileTree:
         root = _copy_static_node(static_tree.root)
         for artifact_node in sorted(artifact_nodes, key=lambda node: node.path):
@@ -50,7 +52,12 @@ class PlayerFileTree:
 
         files_by_public_id: dict[str, TreeNode] = {}
         frozen_root = _freeze_node(root, files_by_public_id)
-        tree_version = _build_tree_version(static_tree, artifact_nodes)
+        tree_version = _build_tree_version(
+            static_tree,
+            file_ids,
+            template_version,
+            player_version,
+        )
         return cls(
             frozen_root,
             files_by_public_id,
@@ -116,19 +123,17 @@ def _copy_static_node(node: TreeNode) -> _MutableTreeNode:
     )
 
 
-def _build_tree_version(static_tree: FileTree, artifact_nodes: Sequence[TreeNode]) -> str:
-    if not artifact_nodes:
-        return static_tree.tree_version
-    artifact_entries = tuple(
-        (
-            node.file_id,
-            node.path,
-            node.content.content_token if node.content is not None else "",
-        )
-        for node in sorted(artifact_nodes, key=lambda node: node.path)
+def _build_tree_version(
+    static_tree: FileTree,
+    file_ids: FileIdCodec,
+    template_version: str,
+    player_version: int,
+) -> str:
+    return file_ids.encode_player_tree_version(
+        static_tree.tree_version,
+        template_version,
+        player_version,
     )
-    artifact_hash = hashlib.sha256(str(artifact_entries).encode()).hexdigest()
-    return f"{static_tree.tree_version}:{artifact_hash}"
 
 
 def _path_segments(path: str) -> tuple[str, ...]:

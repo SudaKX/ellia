@@ -20,20 +20,20 @@
 
 ```json
 {
-  "file_id":"f1_...","path":"/archive/recovery-report.txt","revision":"1",
+  "file_id":"f1_...","path":"/archive/recovery-report.txt","version":"anv1_...",
   "media_type":"text/plain; charset=utf-8","size_bytes":96,
-  "content_token":"act1_...",
+  "content_token":"act2_...",
   "display":{"label":"recovery-report.txt","description":"Player-specific recovery report","icon":"document","sort_order":1}
 }
 ```
 
-metadata 额外返回 `content_digest`、`download_name` 和合并树 `tree_version`。静态 token 使用 `ct1_`，Artifact token 使用绑定玩家的 `act1_`；两者均为不透明值。
+metadata 额外返回 `content_digest`、`download_name` 和合并树 `tree_version`。静态 token 使用 `ct2_`，Artifact token 使用绑定玩家的 `act2_`；两者均为不透明值。
 
 ## 预签名 URL、缓存和错误
 
 content URL 响应为 `{url, expires_at, content_token}`，带 `ETag`（token）、`Vary: Authorization` 与私有、可重新验证缓存策略。download URL 使用 `no-store`。前端先使用 Bearer 调 Mythos，再以返回 URL 直接读取 RustFS/S3；不要把 URL 持久化。
 
-`/version` 与 `/d/version` 支持 `If-None-Match`，命中返回 `304`。动态 tree version 在 Artifact 节点或对象版本变化时变化；静态 tree version 不包含 Artifact。
+`/version` 与 `/d/version` 支持 `If-None-Match`，命中返回 `304`。动态 tree version 是 StaticTreeVersion、冻结 TemplateVersion 与玩家 PlayerVersion 的不透明组合；静态 tree version 不包含 Artifact。
 
 | 状态 | 含义与动作 |
 | --- | --- |

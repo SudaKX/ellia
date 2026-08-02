@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from mythos.players.player import Player
 
 NodeAccessRule: TypeAlias = Callable[["Player"], bool]
+StaticNodeVersion: TypeAlias = str
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,7 @@ class FileReference:
 class VirtualNode(ABC):
     stable_id: str
     path: str
-    revision: str
+    version: str
     display: DisplayParams
     access_rule: NodeAccessRule | None = None
     hidden: bool = False
@@ -101,7 +102,7 @@ class StaticNode(VirtualNode):
         cls,
         stable_id: str,
         path: str,
-        revision: str,
+        version: str,
         source_locator: str,
         download_name: str,
         access_rule: NodeAccessRule | None = None,
@@ -112,7 +113,7 @@ class StaticNode(VirtualNode):
         return cls(
             stable_id=stable_id,
             path=path,
-            revision=revision,
+            version=version,
             display=display,
             access_rule=access_rule,
             hidden=hidden,
@@ -125,7 +126,7 @@ class StaticNode(VirtualNode):
         cls,
         stable_id: str,
         path: str,
-        revision: str,
+        version: str,
         access_rule: NodeAccessRule | None = None,
         *,
         display: DisplayParams,
@@ -134,7 +135,7 @@ class StaticNode(VirtualNode):
         return cls(
             stable_id=stable_id,
             path=path,
-            revision=revision,
+            version=version,
             display=display,
             access_rule=access_rule,
             hidden=hidden,

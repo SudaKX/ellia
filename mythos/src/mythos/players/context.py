@@ -24,6 +24,11 @@ class RequestContext:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
+class ArtifactGenerationContext:
+    player: Player
+
+
+@dataclass(frozen=True, slots=True, eq=False)
 class CommandContext(RequestContext):
     request_id: UUID
 

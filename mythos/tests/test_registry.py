@@ -8,6 +8,7 @@ from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactRegistry,
     ArtifactTemplate,
+    module_handler,
 )
 from mythos.registry.errors import (
     DuplicateStableIdError,
@@ -35,12 +36,14 @@ def _display(label: str, icon: str = "document") -> DisplayParams:
     return DisplayParams(label=label, icon=icon)
 
 
-def _artifact_generator(_context):
+@module_handler("test")(1)
+async def _artifact_generator(_context):
     from mythos.registry.artifacts import RawArtifact
 
     return RawArtifact(b"content")
 
 
+@module_handler("test")(1)
 async def _artifact_node_generator(_context, node):
     return node
 
@@ -182,17 +185,17 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
     assert empty_directory.freeze(file_ids).directory_chain("/empty")[-1].path == "/empty"
 
 
-def test_file_tree_versions_follow_node_revision_and_object_version() -> None:
+def test_file_tree_versions_follow_node_version_and_object_version() -> None:
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
 
-    def build_tree(*, revision: str, object_version_id: str):
+    def build_tree(*, version: str, object_version_id: str):
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
         registry.register_node(
             StaticNode.file(
                 "test.file",
                 "/file.txt",
-                revision,
+                version,
                 source_locator,
                 "file.txt",
                 display=_display("File"),
@@ -211,20 +214,20 @@ def test_file_tree_versions_follow_node_revision_and_object_version() -> None:
         )
         return registry.freeze(file_ids)
 
-    first = build_tree(revision="1", object_version_id="object-v1")
-    changed_object = build_tree(revision="1", object_version_id="object-v2")
-    changed_revision = build_tree(revision="2", object_version_id="object-v1")
+    first = build_tree(version="1", object_version_id="object-v1")
+    changed_object = build_tree(version="1", object_version_id="object-v2")
+    changed_version = build_tree(version="2", object_version_id="object-v1")
 
     first_id = first.file_id_for_stable_id("test.file")
     assert changed_object.file_id_for_stable_id("test.file") == first_id
-    assert changed_revision.file_id_for_stable_id("test.file") == first_id
+    assert changed_version.file_id_for_stable_id("test.file") == first_id
     assert first.file(first_id).content is not None
     assert changed_object.file(first_id).content is not None
-    assert changed_revision.file(first_id).content is not None
+    assert changed_version.file(first_id).content is not None
     assert first.file(first_id).content.content_token != changed_object.file(first_id).content.content_token
-    assert first.file(first_id).content.content_token != changed_revision.file(first_id).content.content_token
+    assert first.file(first_id).content.content_token != changed_version.file(first_id).content.content_token
     assert first.tree_version != changed_object.tree_version
-    assert first.tree_version != changed_revision.tree_version
+    assert first.tree_version != changed_version.tree_version
 
 
 def test_file_content_token_follows_representation_metadata() -> None:
@@ -344,7 +347,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "directory",
                 "stable_id": "test.docs",
                 "name": "docs",
-                "revision": "1",
+                "version": "1",
                 "display": {"label": "Docs", "icon": "folder"},
                 "access_rule": "docs-visible",
                 "hidden": True,
@@ -353,7 +356,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                         "kind": "file",
                         "stable_id": "test.guide",
                         "name": "guide.txt",
-                        "revision": "1",
+                        "version": "1",
                         "display": {"label": "Guide", "icon": "document"},
                         "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
                         "download_name": "guide.txt",
@@ -364,7 +367,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "directory",
                 "stable_id": "test.empty",
                 "name": "empty",
-                "revision": "1",
+                "version": "1",
                 "display": {"label": "Empty", "icon": "folder"},
                 "children": [],
             },
@@ -386,7 +389,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "file",
                 "stable_id": "test.guide",
                 "name": "other.txt",
-                "revision": "1",
+                "version": "1",
                 "display": {"label": "Other", "icon": "document"},
                 "source": {"relative_path": "assets/other.txt", "media_type": "text/plain"},
                 "download_name": "other.txt",
@@ -428,7 +431,7 @@ def test_file_registry_reads_json_tree_assets_from_puzzle_root(tmp_path) -> None
                         "kind": "file",
                         "stable_id": "test.guide",
                         "name": "guide.txt",
-                        "revision": "1",
+                        "version": "1",
                         "display": {"label": "Guide", "icon": "document"},
                         "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
                         "download_name": "guide.txt",
@@ -469,7 +472,6 @@ def test_registry_bundle_rejects_cross_registry_stable_id_collision() -> None:
     registries.artifacts.register_template(
         ArtifactTemplate(
             artifact_id="test.artifact",
-            revision="1",
             media_type="text/plain",
             download_name="artifact.txt",
             generator=_artifact_generator,
@@ -479,7 +481,6 @@ def test_registry_bundle_rejects_cross_registry_stable_id_collision() -> None:
         ArtifactNodeTemplate(
             stable_id="test.shared",
             path="/artifact.txt",
-            revision="1",
             artifact_locator="test.artifact",
             display=_display("Artifact"),
             node_generator=_artifact_node_generator,

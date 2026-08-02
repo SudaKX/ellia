@@ -17,6 +17,7 @@ from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactRegistry,
     ArtifactTemplate,
+    module_handler,
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.files import DisplayParams, FileReference, StaticNode
@@ -28,12 +29,14 @@ def _display(label: str) -> DisplayParams:
     return DisplayParams(label=label, icon="document")
 
 
+@module_handler("test")(1)
 async def _artifact_generator(_context):
     from mythos.registry.artifacts import RawArtifact
 
     return RawArtifact(b"generated", meta={"ok": True})
 
 
+@module_handler("test")(1)
 async def _node_generator(_context, node):
     node.path = "/dynamic/result.txt"
     return node
@@ -56,34 +59,35 @@ def _setup_registries():
             display=_display("Static"),
         )
     )
-    registries.artifacts.register_template(
-        ArtifactTemplate(
-            artifact_id="test.artifact",
-            revision="1",
-            media_type="text/plain",
-            download_name="result.txt",
-            generator=_artifact_generator,
-        )
+    artifact_template = ArtifactTemplate(
+        artifact_id="test.artifact",
+        media_type="text/plain",
+        download_name="result.txt",
+        generator=_artifact_generator,
     )
-    registries.artifacts.register_node(
-        ArtifactNodeTemplate(
-            stable_id="test.artifact-node",
-            path="/dynamic/result.txt",
-            revision="1",
-            artifact_locator="test.artifact",
-            display=_display("Result"),
-            node_generator=_node_generator,
-        )
+    registries.artifacts.register_template(artifact_template)
+    node_template = ArtifactNodeTemplate(
+        stable_id="test.artifact-node",
+        path="/dynamic/result.txt",
+        artifact_locator="test.artifact",
+        display=_display("Result"),
+        node_generator=_node_generator,
     )
-    return registries
+    registries.artifacts.register_node(node_template)
+    return registries, artifact_template, node_template
 
 
-async def _seed_artifact(session: AsyncSession, player_id: UUID) -> None:
+async def _seed_artifact(
+    session: AsyncSession,
+    player_id: UUID,
+    artifact_version: str,
+    node_version: str,
+) -> None:
     artifact = PlayerArtifact(
         player_id=player_id,
         artifact_id="test.artifact",
-        revision="1",
-        object_key=f"artifacts/{player_id}/test.artifact/1/sha256",
+        version=artifact_version,
+        object_key=f"artifacts/{player_id}/test.artifact/{artifact_version}/sha256",
         object_version_id="test-version-1",
         content_digest="sha256:" + "a" * 64,
         media_type="text/plain",
@@ -96,7 +100,7 @@ async def _seed_artifact(session: AsyncSession, player_id: UUID) -> None:
         node_id="test.artifact-node",
         artifact_id="test.artifact",
         path="/dynamic/result.txt",
-        revision="1",
+        version=node_version,
         display=_display("Result").as_dict(),
         hidden=False,
     )
@@ -109,7 +113,7 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
     source_file = puzzle_root / "test" / "assets" / "file.txt"
     source_file.parent.mkdir(parents=True)
     source_file.write_text("static", encoding="utf-8")
-    registries = _setup_registries()
+    registries, artifact_template, node_template = _setup_registries()
     object_store = FakeObjectStore()
     settings = Settings(
         environment="test",
@@ -139,7 +143,12 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             headers = {"Authorization": f"Bearer {access_token}"}
 
             async with database.session_factory() as session:
-                await _seed_artifact(session, player_id)
+                await _seed_artifact(
+                    session,
+                    player_id,
+                    artifact_template.version,
+                    node_template.version,
+                )
 
             static_listing = await client.get("/api/v1/files/ls", headers=headers)
             assert static_listing.json()["directories"] == [{"path": "/static", "display": {"label": "static", "description": None, "icon": "folder", "sort_order": 0}}]
@@ -148,8 +157,7 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             assert dynamic_root.status_code == 200
             assert [item["path"] for item in dynamic_root.json()["directories"]] == ["/dynamic", "/static"]
             dynamic_tree_version = dynamic_root.json()["tree_version"]
-            assert dynamic_tree_version.startswith("ft1_")
-            assert ":" in dynamic_tree_version
+            assert dynamic_tree_version.startswith("pft2_")
 
             dynamic_dir = await client.get("/api/v1/files/d/ls", params={"path": "/dynamic"}, headers=headers)
             assert dynamic_dir.status_code == 200
@@ -169,12 +177,16 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             assert metadata.json()["tree_version"] == dynamic_tree_version
 
             content_token = metadata.json()["content_token"]
+            assert content_token.startswith("act2_")
             content_url = await client.get(
                 f"/api/v1/files/{file_id}/{content_token}/content-url",
                 headers=headers,
             )
             assert content_url.status_code == 200
-            assert content_url.json()["url"] == f"https://objects.test/artifacts/{player_id}/test.artifact/1/sha256?expires=43200"
+            assert content_url.json()["url"] == (
+                f"https://objects.test/artifacts/{player_id}/test.artifact/"
+                f"{artifact_template.version}/sha256?expires=43200"
+            )
 
             version = await client.get("/api/v1/files/d/version", headers=headers)
             assert version.status_code == 200

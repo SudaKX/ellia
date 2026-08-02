@@ -3,6 +3,7 @@ from mythos.registry.files.definitions import (
     FileContent,
     FileReference,
     ObjectReference,
+    StaticNodeVersion,
     StaticNode,
     VirtualNode,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "FileTreeDirectoryNotFoundError",
     "ObjectReference",
     "StaticNode",
+    "StaticNodeVersion",
     "TreeNode",
     "VirtualNode",
 ]

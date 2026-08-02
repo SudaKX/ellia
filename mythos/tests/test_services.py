@@ -192,7 +192,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 readme_id = listing.json()["files"][0]["file_id"]
                 readme_token = listing.json()["files"][0]["content_token"]
                 assert listing.json()["tree_version"].startswith("ft1_")
-                assert readme_token.startswith("ct1_")
+                assert readme_token.startswith("ct2_")
                 assert "stable_id" not in listing.json()["files"][0]
                 assert listing.json()["files"][0]["display"]["label"] == "README.txt"
                 assert hidden_leaf_rule_calls == 0
@@ -241,7 +241,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     {
                         "file_id": app.state.runtime.catalogs.files.file_id_for_stable_id("test.open-file"),
                         "path": "/open/public.txt",
-                        "revision": "1",
+                        "version": "1",
                         "media_type": "text/plain",
                         "size_bytes": 6,
                         "content_token": open_listing["files"][0]["content_token"],
@@ -253,7 +253,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                         },
                     }
                 ]
-                assert open_listing["files"][0]["content_token"].startswith("ct1_")
+                assert open_listing["files"][0]["content_token"].startswith("ct2_")
 
                 hidden_by_path_listing = await client.get(
                     "/api/v1/files/ls",
@@ -285,7 +285,8 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert metadata.headers["vary"] == "Authorization"
                 assert metadata.json()["download_name"] == "README.txt"
                 assert metadata.json()["content_token"] == readme_token
-                assert metadata.json()["tree_version"] == listing.json()["tree_version"]
+                assert metadata.json()["tree_version"].startswith("pft2_")
+                assert metadata.json()["tree_version"] != listing.json()["tree_version"]
                 assert metadata.json()["display"]["label"] == "README.txt"
                 version = await client.get("/api/v1/files/version", headers=headers)
                 assert version.json() == {"tree_version": listing.json()["tree_version"]}
@@ -307,7 +308,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert content_url.json()["content_token"] == readme_token
                 assert content_url.json()["url"] == "https://objects.test/static/test/assets/readme.txt?expires=60"
                 stale_content_url = await client.get(
-                    f"/api/v1/files/{readme_id}/ct1_stale/content-url",
+                    f"/api/v1/files/{readme_id}/ct2_stale/content-url",
                     headers=headers,
                 )
                 assert stale_content_url.status_code == 412

@@ -190,7 +190,7 @@ class FileRegistry:
                 download_name=node.download_name,
                 content_token=file_ids.encode_content_token(
                     node.stable_id,
-                    node.revision,
+                    node.version,
                     object_reference.key,
                     object_reference.version_id,
                     object_reference.media_type,
@@ -201,8 +201,8 @@ class FileRegistry:
         return self._tree
 
     def _validate_node(self, node: StaticNode) -> None:
-        if not node.stable_id or not node.revision or not _is_canonical_virtual_path(node.path):
-            raise RegistryError("Virtual nodes require a stable ID, revision, and canonical absolute path.")
+        if not node.stable_id or not node.version or not _is_canonical_virtual_path(node.path):
+            raise RegistryError("Virtual nodes require a stable ID, version, and canonical absolute path.")
         if not isinstance(node.hidden, bool):
             raise RegistryError("Virtual node hidden flags must be booleans.")
         if node.is_file:

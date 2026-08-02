@@ -50,7 +50,7 @@ class SourceManifest(_ManifestModel):
 class _NodeManifest(_ManifestModel):
     stable_id: Annotated[str, Field(min_length=1)]
     name: Annotated[str, Field(min_length=1)]
-    revision: Annotated[str, Field(min_length=1)]
+    version: Annotated[str, Field(min_length=1)]
     display: DisplayManifest
     access_rule: str | None = None
     hidden: bool = False
@@ -126,7 +126,7 @@ def parse_json_file_tree(
                 StaticNode.directory(
                     node.stable_id,
                     path,
-                    node.revision,
+                    node.version,
                     access_rule,
                     display=display,
                     hidden=node.hidden,
@@ -145,7 +145,7 @@ def parse_json_file_tree(
             StaticNode.file(
                 node.stable_id,
                 path,
-                node.revision,
+                node.version,
                 reference.source_locator,
                 node.download_name,
                 access_rule,

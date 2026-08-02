@@ -3,26 +3,29 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import utcnow
-from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode
-from mythos.registry.artifacts import ArtifactCatalog, ArtifactNode, ArtifactNodeTemplate, ArtifactTemplate
+from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
+from mythos.registry.artifacts import (
+    ArtifactGenerationContext,
+    ArtifactNode,
+    ArtifactNodeTemplate,
+    ArtifactTemplate,
+)
+from mythos.registry.artifacts.catalog import ArtifactCatalog
 from mythos.registry.files import FileTree
 from mythos.registry.files.definitions import DisplayParams, FileContent, ObjectReference
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.registry.files.tree import TreeNode
 from mythos.services.object_store.service import ObjectStore
-
-if TYPE_CHECKING:
-    from mythos.players.context import CommandContext
 
 
 class ReadOnlyArtifactError(Exception):
@@ -41,6 +44,7 @@ class ArtifactInterface:
         writable: bool,
         artifacts: Mapping[str, PlayerArtifact] | None = None,
         nodes: Mapping[str, PlayerArtifactNode] | None = None,
+        player_version: int = 0,
     ) -> None:
         self._player_id = player_id
         self._catalog = catalog
@@ -50,11 +54,16 @@ class ArtifactInterface:
         self._writable = writable
         self._artifacts: dict[str, PlayerArtifact] = dict(artifacts or {})
         self._nodes: dict[str, PlayerArtifactNode] = dict(nodes or {})
+        self._player_version = player_version
         self._player_tree_cache: PlayerFileTree | None = None
 
     @property
     def player_id(self) -> UUID:
         return self._player_id
+
+    @property
+    def player_version(self) -> int:
+        return self._player_version
 
     def has_artifact(self, artifact_id: str) -> bool:
         return artifact_id in self._artifacts
@@ -68,6 +77,8 @@ class ArtifactInterface:
                 static_tree,
                 self.tree_nodes(),
                 file_ids,
+                template_version=self._catalog.template_version,
+                player_version=self._player_version,
             )
         return self._player_tree_cache
 
@@ -75,42 +86,169 @@ class ArtifactInterface:
     def _artifact_object_key(
         player_id: UUID,
         artifact_id: str,
-        revision: str,
+        version: str,
         content_digest: str,
     ) -> str:
-        return f"artifacts/{player_id}/{artifact_id}/{revision}/{content_digest}"
+        return f"artifacts/{player_id}/{artifact_id}/{version}/{content_digest}"
 
-    async def generate(self, artifact_id: str, context: CommandContext) -> tuple[ArtifactNode, ...]:
-        if not self._writable:
-            raise ReadOnlyArtifactError("Read-only players cannot generate artifacts.")
-        template = self._catalog.template(artifact_id)
-        node_templates = self._catalog.node_templates_for_artifact(artifact_id)
-        if not node_templates:
-            raise RuntimeError(f"Artifact {artifact_id!r} has no registered node templates.")
+    async def generate_artifact(
+        self,
+        artifact_id: str,
+        context: ArtifactGenerationContext,
+    ) -> PlayerArtifact:
+        self._ensure_writable()
+        existing = self._artifacts.get(artifact_id)
+        if existing is not None:
+            return existing
+        artifact = await self._materialize_artifact(self._catalog.template(artifact_id), context)
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return artifact
 
-        raw = await template.generator(context)
-        content = raw.data
-        digest = hashlib.sha256(content).hexdigest()
-        object_key = self._artifact_object_key(
-            self._player_id,
-            artifact_id,
-            template.revision,
-            digest,
+    async def generate_node(
+        self,
+        node_id: str,
+        context: ArtifactGenerationContext,
+    ) -> ArtifactNode:
+        self._ensure_writable()
+        existing = self._nodes.get(node_id)
+        if existing is not None:
+            return self._runtime_node(existing)
+        node = await self._materialize_node(self._catalog.node_template(node_id), context)
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return node
+
+    async def refresh_artifact(
+        self,
+        artifact_id: str,
+        context: ArtifactGenerationContext,
+    ) -> PlayerArtifact | None:
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None:
+            return None
+        template = self._catalog.template_or_none(artifact_id)
+        if template is None:
+            await self.remove_artifact(artifact_id)
+            return None
+        if artifact.version == template.version:
+            return artifact
+        refreshed = await self._materialize_artifact(template, context)
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return refreshed
+
+    async def refresh_node(
+        self,
+        node_id: str,
+        context: ArtifactGenerationContext,
+    ) -> ArtifactNode | None:
+        node = self._nodes.get(node_id)
+        template = self._catalog.node_template_or_none(node_id)
+        if template is None:
+            if node is not None:
+                await self.remove_node(node_id)
+            return None
+        if node is None:
+            if template.artifact_locator not in self._artifacts:
+                return None
+            refreshed = await self._materialize_node(template, context)
+            await self._bump_player_version()
+            self._player_tree_cache = None
+            return refreshed
+        if node.version == template.version and node.artifact_id == template.artifact_locator:
+            return self._runtime_node(node)
+        if template.artifact_locator not in self._artifacts:
+            await self.remove_node(node_id)
+            return None
+        refreshed = await self._materialize_node(template, context)
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return refreshed
+
+    async def remove_artifact(self, artifact_id: str) -> bool:
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None:
+            return False
+        await self._session.execute(
+            delete(PlayerArtifact).where(
+                PlayerArtifact.player_id == self._player_id,
+                PlayerArtifact.artifact_id == artifact_id,
+            )
         )
+        self._artifacts.pop(artifact_id, None)
+        self._nodes = {
+            node_id: node
+            for node_id, node in self._nodes.items()
+            if node.artifact_id != artifact_id
+        }
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return True
+
+    async def remove_node(self, node_id: str) -> bool:
+        if node_id not in self._nodes:
+            return False
+        await self._session.execute(
+            delete(PlayerArtifactNode).where(
+                PlayerArtifactNode.player_id == self._player_id,
+                PlayerArtifactNode.node_id == node_id,
+            )
+        )
+        self._nodes.pop(node_id, None)
+        await self._bump_player_version()
+        self._player_tree_cache = None
+        return True
+
+    async def refresh_stale(self, context: ArtifactGenerationContext) -> None:
+        for artifact_id in tuple(self._artifacts):
+            await self.refresh_artifact(artifact_id, context)
+
+        for artifact_id in tuple(self._artifacts):
+            for template in self._catalog.node_templates_for_artifact(artifact_id):
+                await self.refresh_node(template.stable_id, context)
+
+        for node_id, node in tuple(self._nodes.items()):
+            template = self._catalog.node_template_or_none(node_id)
+            if template is None or template.artifact_locator != node.artifact_id:
+                await self.remove_node(node_id)
+
+    async def _materialize_artifact(
+        self,
+        template: ArtifactTemplate,
+        context: ArtifactGenerationContext,
+    ) -> PlayerArtifact:
+        raw = await template.generator(context)
+        digest = hashlib.sha256(raw.data).hexdigest()
         object_ref = await self._object_store.put_bytes(
-            content,
-            object_key=object_key,
+            raw.data,
+            object_key=self._artifact_object_key(
+                self._player_id,
+                template.artifact_id,
+                template.version,
+                digest,
+            ),
             media_type=template.media_type,
         )
+        return await self._upsert_artifact(template, object_ref, raw.meta)
 
-        artifact = await self._upsert_artifact(template, object_ref, raw.meta)
-        generated_nodes: list[ArtifactNode] = []
-        for node_template in node_templates:
-            runtime_node = await self._generate_node(node_template, artifact, context)
-            generated_nodes.append(runtime_node)
-
-        self._player_tree_cache = None
-        return tuple(generated_nodes)
+    async def _materialize_node(
+        self,
+        template: ArtifactNodeTemplate,
+        context: ArtifactGenerationContext,
+    ) -> ArtifactNode:
+        if template.artifact_locator not in self._artifacts:
+            raise RuntimeError(f"Artifact {template.artifact_locator!r} must exist before creating a node.")
+        runtime_node = template.to_runtime_node()
+        runtime_node = await template.node_generator(context, runtime_node)
+        if runtime_node.stable_id != template.stable_id:
+            raise RuntimeError("Artifact node generator modified the stable_id.")
+        if runtime_node.artifact_locator != template.artifact_locator:
+            raise RuntimeError("Artifact node generator modified the artifact_locator.")
+        if runtime_node.version != template.version:
+            raise RuntimeError("Artifact node generator modified the version.")
+        await self._upsert_node(template, runtime_node)
+        return runtime_node
 
     async def _upsert_artifact(
         self,
@@ -121,7 +259,7 @@ class ArtifactInterface:
         values = {
             "player_id": self._player_id,
             "artifact_id": template.artifact_id,
-            "revision": template.revision,
+            "version": template.version,
             "object_key": object_ref.key,
             "object_version_id": object_ref.version_id,
             "content_digest": object_ref.content_digest,
@@ -134,20 +272,7 @@ class ArtifactInterface:
         stmt = sqlite_insert(PlayerArtifact).values(values)
         stmt = stmt.on_conflict_do_update(
             index_elements=["player_id", "artifact_id"],
-            set_={
-                column: stmt.excluded[column]
-                for column in (
-                    "revision",
-                    "object_key",
-                    "object_version_id",
-                    "content_digest",
-                    "media_type",
-                    "size_bytes",
-                    "download_name",
-                    "meta",
-                    "generated_at",
-                )
-            },
+            set_={column: stmt.excluded[column] for column in values if column not in {"player_id", "artifact_id"}},
         )
         await self._session.execute(stmt)
         artifact = await self._session.scalar(
@@ -157,34 +282,23 @@ class ArtifactInterface:
                 PlayerArtifact.artifact_id == template.artifact_id,
             )
             .options(selectinload(PlayerArtifact.nodes))
+            .execution_options(populate_existing=True)
         )
         if artifact is None:
             raise RuntimeError(f"Artifact upsert failed for {template.artifact_id!r}.")
-        await self._session.refresh(artifact)
+        await self._session.refresh(artifact, attribute_names=["nodes"])
         self._artifacts[template.artifact_id] = artifact
         for node in artifact.nodes:
             self._nodes[node.node_id] = node
         return artifact
 
-    async def _generate_node(
-        self,
-        node_template: ArtifactNodeTemplate,
-        artifact: PlayerArtifact,
-        context: CommandContext,
-    ) -> ArtifactNode:
-        runtime_node = node_template.to_runtime_node()
-        runtime_node = await node_template.node_generator(context, runtime_node)
-        if runtime_node.stable_id != node_template.stable_id:
-            raise RuntimeError("Artifact node generator modified the stable_id.")
-        if runtime_node.artifact_locator != node_template.artifact_locator:
-            raise RuntimeError("Artifact node generator modified the artifact_locator.")
-
+    async def _upsert_node(self, template: ArtifactNodeTemplate, runtime_node: ArtifactNode) -> None:
         values = {
             "player_id": self._player_id,
-            "node_id": node_template.stable_id,
-            "artifact_id": artifact.artifact_id,
+            "node_id": template.stable_id,
+            "artifact_id": template.artifact_locator,
             "path": runtime_node.path,
-            "revision": runtime_node.revision,
+            "version": template.version,
             "display": runtime_node.display.as_dict(),
             "hidden": runtime_node.hidden,
             "created_at": utcnow(),
@@ -195,27 +309,44 @@ class ArtifactInterface:
             index_elements=["player_id", "node_id"],
             set_={
                 column: stmt.excluded[column]
-                for column in (
-                    "artifact_id",
-                    "path",
-                    "revision",
-                    "display",
-                    "hidden",
-                    "updated_at",
-                )
+                for column in ("artifact_id", "path", "version", "display", "hidden", "updated_at")
             },
         )
         await self._session.execute(stmt)
-        node_record = await self._session.scalar(
+        node = await self._session.scalar(
             select(PlayerArtifactNode).where(
                 PlayerArtifactNode.player_id == self._player_id,
-                PlayerArtifactNode.node_id == node_template.stable_id,
-            )
+                PlayerArtifactNode.node_id == template.stable_id,
+            ).execution_options(populate_existing=True)
         )
-        if node_record is None:
-            raise RuntimeError(f"Artifact node upsert failed for {node_template.stable_id!r}.")
-        self._nodes[node_template.stable_id] = node_record
-        return runtime_node
+        if node is None:
+            raise RuntimeError(f"Artifact node upsert failed for {template.stable_id!r}.")
+        await self._session.refresh(node)
+        self._nodes[node.node_id] = node
+
+    async def _bump_player_version(self) -> None:
+        stmt = sqlite_insert(PlayerArtifactState).values(player_id=self._player_id, version=1)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["player_id"],
+            set_={"version": PlayerArtifactState.version + 1},
+        ).returning(PlayerArtifactState.version)
+        version = await self._session.scalar(stmt)
+        if version is None:
+            raise RuntimeError("Player artifact version increment failed.")
+        self._player_version = version
+
+    def _runtime_node(self, node_record: PlayerArtifactNode) -> ArtifactNode:
+        template = self._catalog.node_template(node_record.node_id)
+        return ArtifactNode(
+            stable_id=node_record.node_id,
+            path=node_record.path,
+            version=node_record.version,
+            display=DisplayParams(**node_record.display),
+            access_rule=template.access_rule,
+            hidden=node_record.hidden,
+            download_name=template.download_name,
+            artifact_locator=node_record.artifact_id,
+        )
 
     def tree_nodes(self) -> tuple[TreeNode, ...]:
         nodes: list[TreeNode] = []
@@ -223,7 +354,9 @@ class ArtifactInterface:
             artifact = self._artifacts.get(node_record.artifact_id)
             if artifact is None:
                 continue
-            node_template = self._catalog.node_template(node_record.node_id)
+            template = self._catalog.node_template_or_none(node_record.node_id)
+            if template is None:
+                continue
             object_ref = ObjectReference(
                 key=artifact.object_key,
                 content_digest=artifact.content_digest,
@@ -237,23 +370,15 @@ class ArtifactInterface:
                 content_token=self._file_ids.encode_artifact_content_token(
                     str(self._player_id),
                     node_record.node_id,
-                    node_record.revision,
+                    artifact.version,
+                    node_record.version,
                     object_ref.key,
                     object_ref.version_id,
                     object_ref.media_type,
                     artifact.download_name,
                 ),
             )
-            runtime_node = ArtifactNode(
-                stable_id=node_record.node_id,
-                path=node_record.path,
-                revision=node_record.revision,
-                display=DisplayParams(**node_record.display),
-                access_rule=node_template.access_rule,
-                hidden=node_record.hidden,
-                download_name=artifact.download_name,
-                artifact_locator=artifact.artifact_id,
-            )
+            runtime_node = self._runtime_node(node_record)
             nodes.append(
                 TreeNode(
                     path=node_record.path,
@@ -265,31 +390,9 @@ class ArtifactInterface:
             )
         return tuple(sorted(nodes, key=lambda node: node.path))
 
-    def version_hash(self) -> str:
-        entries = []
-        for node_record in sorted(self._nodes.values(), key=lambda record: record.node_id):
-            artifact = self._artifacts.get(node_record.artifact_id)
-            content_token = ""
-            if artifact is not None:
-                content_token = self._file_ids.encode_artifact_content_token(
-                    str(self._player_id),
-                    node_record.node_id,
-                    node_record.revision,
-                    artifact.object_key,
-                    artifact.object_version_id,
-                    artifact.media_type,
-                    artifact.download_name,
-                )
-            entries.append(
-                (
-                    node_record.node_id,
-                    node_record.path,
-                    node_record.revision,
-                    "hidden" if node_record.hidden else "visible",
-                    content_token,
-                )
-            )
-        return hashlib.sha256(str(entries).encode()).hexdigest()
+    def _ensure_writable(self) -> None:
+        if not self._writable:
+            raise ReadOnlyArtifactError("Read-only players cannot generate artifacts.")
 
     @classmethod
     async def load(
@@ -313,6 +416,7 @@ class ArtifactInterface:
             artifact_dict[artifact.artifact_id] = artifact
             for node in artifact.nodes:
                 node_dict[node.node_id] = node
+        state = await session.get(PlayerArtifactState, player_id)
         return cls(
             player_id,
             catalog,
@@ -322,4 +426,5 @@ class ArtifactInterface:
             writable=writable,
             artifacts=artifact_dict,
             nodes=node_dict,
+            player_version=state.version if state is not None else 0,
         )

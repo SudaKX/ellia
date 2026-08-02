@@ -5,7 +5,14 @@ from typing import Any
 
 from mythos.players.context import CommandContext
 from mythos.players.player import Player
-from mythos.registry.artifacts import ArtifactNode, ArtifactNodeTemplate, ArtifactTemplate, RawArtifact
+from mythos.registry.artifacts import (
+    ArtifactGenerationContext,
+    ArtifactNode,
+    ArtifactNodeTemplate,
+    ArtifactTemplate,
+    RawArtifact,
+    module_handler,
+)
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.files import DisplayParams
 from mythos.registry.progress import NormalProgressNode
@@ -19,6 +26,7 @@ VALIDATION_ID = "example-answer"
 RECOVERY_REPORT_ARTIFACT_ID = "example.recovery-report"
 RECOVERY_REPORT_NODE_ID = "example.recovery-report-file"
 _ANSWER = "echo-7"
+_handler = module_handler(MODULE_ID)
 
 
 def register(registries: RegistryBundle) -> None:
@@ -32,7 +40,6 @@ def register(registries: RegistryBundle) -> None:
     registries.artifacts.register_template(
         ArtifactTemplate(
             artifact_id=RECOVERY_REPORT_ARTIFACT_ID,
-            revision="1",
             media_type="text/plain; charset=utf-8",
             download_name="recovery-report.txt",
             generator=_generate_recovery_report,
@@ -42,7 +49,6 @@ def register(registries: RegistryBundle) -> None:
         ArtifactNodeTemplate(
             stable_id=RECOVERY_REPORT_NODE_ID,
             path="/archive/recovery-report.txt",
-            revision="1",
             artifact_locator=RECOVERY_REPORT_ARTIFACT_ID,
             display=DisplayParams(
                 label="recovery-report.txt",
@@ -84,11 +90,13 @@ def register(registries: RegistryBundle) -> None:
     )
 
 
+@_handler(1)
 def _has_completed_example(player: Player) -> bool:
     return player.progress.is_unlocked(COMPLETED_NODE_ID)
 
 
-async def _generate_recovery_report(context: CommandContext) -> RawArtifact:
+@_handler(1)
+async def _generate_recovery_report(context: ArtifactGenerationContext) -> RawArtifact:
     return RawArtifact(
         (
             "EXAMPLE RECOVERY REPORT\n\n"
@@ -99,8 +107,9 @@ async def _generate_recovery_report(context: CommandContext) -> RawArtifact:
     )
 
 
+@_handler(1)
 async def _generate_recovery_report_node(
-    _context: CommandContext,
+    _context: ArtifactGenerationContext,
     node: ArtifactNode,
 ) -> ArtifactNode:
     return node
@@ -118,5 +127,6 @@ async def _submit_answer(
     if not context.player.progress.is_frontier(ENTRY_NODE_ID):
         return ValidationOutcome(accepted=False)
     context.player.progress.push(COMPLETED_NODE_ID)
-    await context.player.artifacts.generate(RECOVERY_REPORT_ARTIFACT_ID, context)
+    await context.player.artifacts.generate_artifact(RECOVERY_REPORT_ARTIFACT_ID, context)
+    await context.player.artifacts.generate_node(RECOVERY_REPORT_NODE_ID, context)
     return ValidationOutcome(accepted=True)

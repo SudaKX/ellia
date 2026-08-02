@@ -6,7 +6,7 @@
       "kind": "directory",
       "stable_id": "example.public",
       "name": "public",
-      "revision": "1",
+      "version": "1",
       "display": {
         "label": "Public",
         "description": "Recovery materials",
@@ -18,7 +18,7 @@
           "kind": "file",
           "stable_id": "example.readme",
           "name": "README.txt",
-          "revision": "1",
+          "version": "1",
           "display": {
             "label": "README.txt",
             "description": "Recovery instructions",
@@ -37,7 +37,7 @@
       "kind": "directory",
       "stable_id": "example.archive",
       "name": "archive",
-      "revision": "1",
+      "version": "1",
       "display": {
         "label": "Archive",
         "description": "Unlocked recovery output",
@@ -50,7 +50,7 @@
           "kind": "file",
           "stable_id": "example.archive-result",
           "name": "result.txt",
-          "revision": "1",
+          "version": "1",
           "display": {
             "label": "result.txt",
             "description": "Recovery result",

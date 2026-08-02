@@ -26,7 +26,7 @@ class FileContentVersionMismatchError(Exception):
 class FileSummary:
     file_id: str
     path: str
-    revision: str
+    version: str
     media_type: str
     size_bytes: int
     content_token: str
@@ -271,7 +271,7 @@ class FileService:
         return FileSummary(
             file_id=file.file_id,
             path=file.definition.path,
-            revision=file.definition.revision,
+            version=file.definition.version,
             media_type=file.content.object_ref.media_type,
             size_bytes=file.content.object_ref.size_bytes,
             content_token=file.content.content_token,

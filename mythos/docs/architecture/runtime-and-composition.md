@@ -12,6 +12,7 @@ Settings + RegistryBundle
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
   -> PlayerFactory + checkpoint hook + CommandTransactionExecutor
+  -> ArtifactReconciliationRunner
   -> ServiceContainer + ApplicationRuntime
 ```
 
@@ -27,7 +28,7 @@ Settings + RegistryBundle
 | 验证 | `ValidationService` | `/api/v1/validations` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
-Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。开发环境额外挂载静态交互页面 `/example/`。
+Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
 
 ## 数据对象与 Example
 

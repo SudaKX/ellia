@@ -258,7 +258,7 @@ def _file_summary(item: FileSummary) -> dict[str, object]:
     return {
         "file_id": item.file_id,
         "path": item.path,
-        "revision": item.revision,
+        "version": item.version,
         "media_type": item.media_type,
         "size_bytes": item.size_bytes,
         "content_token": item.content_token,
