@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
 
 from mythos.registry.files.definitions import DisplayParams, NodeAccessRule, VirtualNode
 from mythos.registry.artifacts.versions import artifact_node_version, artifact_version, callback_id
+from mythos.registry.catalog_snapshots import TemplateSnapshotEntry
 
 if TYPE_CHECKING:
     from mythos.players.player import Player
@@ -58,6 +59,22 @@ class ArtifactTemplate:
             self.generator,
         )
 
+    def snapshot_entry(self) -> TemplateSnapshotEntry:
+        return TemplateSnapshotEntry(
+            kind="artifact",
+            template_id=self.artifact_id,
+            version=self.version,
+            definition={
+                "artifact_id": self.artifact_id,
+                "media_type": self.media_type,
+                "download_name": self.download_name,
+                "generator_callback_id": callback_id(
+                    self.generator,
+                    field_name="Artifact generator",
+                ),
+            },
+        )
+
 
 @dataclass(frozen=True, kw_only=True)
 class ArtifactNodeTemplate:
@@ -98,6 +115,33 @@ class ArtifactNodeTemplate:
             self.download_name,
             self.node_generator,
             self.access_rule,
+        )
+
+    def snapshot_entry(self) -> TemplateSnapshotEntry:
+        return TemplateSnapshotEntry(
+            kind="artifact_node",
+            template_id=self.stable_id,
+            version=self.version,
+            definition={
+                "stable_id": self.stable_id,
+                "artifact_locator": self.artifact_locator,
+                "path": self.path,
+                "display": self.display.as_dict(),
+                "hidden": self.hidden,
+                "download_name": self.download_name,
+                "node_generator_callback_id": callback_id(
+                    self.node_generator,
+                    field_name="Artifact node generator",
+                ),
+                "access_rule_callback_id": (
+                    callback_id(
+                        self.access_rule,
+                        field_name="Artifact node access rule",
+                    )
+                    if self.access_rule is not None
+                    else None
+                ),
+            },
         )
 
     def to_runtime_node(self) -> ArtifactNode:

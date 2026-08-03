@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from pwdlib import PasswordHash
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +18,7 @@ from mythos.auth.tokens import (
     issue_access_token,
     parse_refresh_credential,
 )
+from mythos.auth.passwords import password_hasher
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
@@ -27,11 +27,9 @@ from mythos.persistence.models import (
     PlayerProgressFrontierNode,
     PlayerProgressUnlockedNode,
     PlayerRecord,
+    PlayerVirtualAccountState,
 )
 from mythos.registry.progress import ProgressGraph
-
-password_hasher = PasswordHash.recommended()
-
 
 class UsernameAlreadyExistsError(Exception):
     pass
@@ -98,8 +96,12 @@ class AuthService:
         try:
             async with self.session.begin():
                 self.session.add_all((player, auth, progress))
+                await self.session.flush()
+                self.session.add(PlayerVirtualAccountState(player_id=player.id))
         except IntegrityError as error:
-            raise UsernameAlreadyExistsError from error
+            if "players.username_normalized" in str(error).lower():
+                raise UsernameAlreadyExistsError from error
+            raise
 
         return AuthenticationResult(
             access_token=issue_access_token(player.id, self.settings),

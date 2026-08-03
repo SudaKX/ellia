@@ -7,6 +7,7 @@ from mythos.registry.files import FileTree
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
 from mythos.registry.validations import ValidationCatalog
+from mythos.services.accounts.service import AccountService
 from mythos.services.files.service import FileService
 from mythos.services.object_store.service import ObjectStoreReader
 from mythos.services.progress.checkpoint_store import LocalCheckpointStore
@@ -17,6 +18,7 @@ from mythos.services.validations.service import ValidationService
 
 @dataclass(frozen=True)
 class ServiceContainer:
+    accounts: AccountService
     files: FileService
     progress: ProgressService
     scripts: ScriptService
@@ -37,6 +39,7 @@ class ServiceContainer:
         file_ids: FileIdCodec,
     ) -> ServiceContainer:
         return cls(
+            accounts=AccountService(),
             files=FileService(
                 file_tree,
                 object_store,

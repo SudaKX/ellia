@@ -39,7 +39,6 @@ async def _seed_player(session, player_id):
     session.add(
         PlayerProgress(
             player_id=player_id,
-            current_account="PLAYER",
             version=1,
         )
     )
@@ -57,6 +56,7 @@ async def test_player_factory_create_does_not_load_interfaces(session) -> None:
     player = await _factory().create(session, player_id, writable=False)
     assert player._progress is None
     assert player._artifacts is None
+    assert player._accounts is None
 
 
 async def test_player_accessing_uninitialized_progress_raises(session) -> None:
@@ -77,6 +77,16 @@ async def test_player_accessing_uninitialized_artifacts_raises(session) -> None:
     player = await _factory().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="artifacts interface not loaded"):
         _ = player.artifacts
+
+
+async def test_player_accessing_uninitialized_accounts_raises(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    with pytest.raises(PlayerInterfaceNotLoadedError, match="accounts interface not loaded"):
+        _ = player.accounts
 
 
 async def test_player_load_progress_caches_and_returns_interface(session) -> None:
@@ -102,6 +112,17 @@ async def test_player_load_artifacts_creates_empty_interface(session) -> None:
     assert artifacts.tree_nodes() == ()
 
 
+async def test_player_load_accounts_creates_empty_interface(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    accounts = await player.load_accounts()
+    assert player._accounts is accounts
+    assert accounts.accounts == ()
+
+
 async def test_player_factory_load_initializes_both_interfaces(session) -> None:
     player_id = uuid4()
     await _seed_player(session, player_id)
@@ -110,8 +131,10 @@ async def test_player_factory_load_initializes_both_interfaces(session) -> None:
     player = await _factory().load(session, player_id, writable=False)
     assert player._progress is not None
     assert player._artifacts is not None
+    assert player._accounts is not None
     assert player.progress.version == 1
     assert player.artifacts.tree_nodes() == ()
+    assert player.accounts.accounts == ()
 
 
 async def test_player_factory_load_unknown_player_raises(session) -> None:

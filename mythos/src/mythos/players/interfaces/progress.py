@@ -49,10 +49,6 @@ class ProgressInterface:
         self._pending_checkpoints: list[PendingCheckpoint] = []
 
     @property
-    def current_account(self) -> str:
-        return self._progress.current_account
-
-    @property
     def unlocked_node_ids(self) -> frozenset[int]:
         return frozenset(node.node_id for node in self._progress.unlocked_nodes)
 

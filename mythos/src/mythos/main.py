@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from mythos.auth.router import router as auth_router
+from mythos.services.accounts.router import router as accounts_router
 from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
@@ -25,6 +26,8 @@ from mythos.services.validations.router import router as validations_router
 from mythos.services.files.static_assets import StaticAssetPublisher
 from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunner
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
+from mythos.services.accounts.reconciliation import AccountReconciliationRunner
+from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
 
 
 def create_app(
@@ -71,6 +74,14 @@ def create_app(
             ArtifactTemplateSnapshotStore(resolved_settings.artifact_snapshot_path),
             allow_missing_tables=resolved_settings.environment == "test",
         ).run()
+        await AccountReconciliationRunner(
+            database.session_factory,
+            command_executor,
+            catalogs.accounts,
+            VirtualAccountTemplateSnapshotStore(resolved_settings.virtual_account_snapshot_path),
+            allow_empty_catalog=resolved_settings.allow_empty_virtual_account_catalog_reconciliation,
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
         application.state.settings = resolved_settings
         application.state.database = database
         application.state.runtime = ApplicationRuntime(
@@ -108,6 +119,7 @@ def create_app(
             name="example",
         )
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(accounts_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")

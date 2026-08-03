@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from mythos.players.interfaces.accounts import AccountInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.progress import ProgressInterface
 
@@ -30,6 +31,7 @@ class Player:
         self._writable = writable
         self._progress: ProgressInterface | None = None
         self._artifacts: ArtifactInterface | None = None
+        self._accounts: AccountInterface | None = None
 
     @property
     def id(self) -> UUID:
@@ -47,6 +49,12 @@ class Player:
             raise PlayerInterfaceNotLoadedError("artifacts interface not loaded")
         return self._artifacts
 
+    @property
+    def accounts(self) -> AccountInterface:
+        if self._accounts is None:
+            raise PlayerInterfaceNotLoadedError("accounts interface not loaded")
+        return self._accounts
+
     async def load_progress(self) -> ProgressInterface:
         if self._progress is None:
             self._progress = await self._factory.load_progress(
@@ -60,3 +68,12 @@ class Player:
                 self._session, self._player_id, writable=self._writable
             )
         return self._artifacts
+
+    async def load_accounts(self) -> AccountInterface:
+        if self._accounts is None:
+            self._accounts = await self._factory.load_accounts(
+                self._session,
+                self._player_id,
+                writable=self._writable,
+            )
+        return self._accounts

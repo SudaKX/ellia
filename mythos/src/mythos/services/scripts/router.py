@@ -14,7 +14,10 @@ router = APIRouter(prefix="/scripts", tags=["scripts"])
 
 @router.get("")
 async def list_scripts(
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
+    context: Annotated[
+        RequestContext,
+        Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ACCOUNTS)),
+    ],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, object]:
     return {"items": runtime.services.scripts.visible(context.player)}

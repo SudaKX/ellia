@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
+from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
 from mythos.registry.errors import DuplicateStableIdError
 from mythos.registry.files import FileRegistry, FileTree
@@ -23,6 +24,7 @@ class RuntimeCatalogs:
     scripts: ScriptCatalog
     validations: ValidationCatalog
     artifacts: ArtifactCatalog
+    accounts: VirtualAccountCatalog
 
 
 class RegistryBundle:
@@ -32,6 +34,7 @@ class RegistryBundle:
         self.scripts = ScriptRegistry()
         self.validations = ValidationRegistry()
         self.artifacts = ArtifactRegistry()
+        self.accounts = VirtualAccountRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -53,6 +56,7 @@ class RegistryBundle:
             scripts=self.scripts.freeze(),
             validations=self.validations.freeze(),
             artifacts=self.artifacts.freeze(),
+            accounts=self.accounts.freeze(),
         )
         return self._catalogs
 

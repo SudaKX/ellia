@@ -11,9 +11,11 @@ from mythos.core.commands.cache import RequestCache
 from mythos.core.commands.models import CachedResponse, ResponseSpec
 from mythos.players.context import ArtifactGenerationContext, CommandContext
 from mythos.players.factory import PlayerFactory
+from mythos.players.player import Player
 
 CommandPreCommitHook: TypeAlias = Callable[[AsyncSession, CommandContext], Awaitable[None]]
 ArtifactReconciliationOperation: TypeAlias = Callable[[ArtifactGenerationContext], Awaitable[None]]
+AccountReconciliationOperation: TypeAlias = Callable[[Player], Awaitable[None]]
 
 
 class CommandTransactionExecutor:
@@ -45,6 +47,7 @@ class CommandTransactionExecutor:
                 )
                 await player.load_progress()
                 await player.load_artifacts()
+                await player.load_accounts()
                 context = CommandContext(
                     identity=identity,
                     player=player,
@@ -81,4 +84,18 @@ class CommandTransactionExecutor:
             player = await self._player_factory.create(session, player_id, writable=True)
             await player.load_progress()
             await player.load_artifacts()
+            await player.load_accounts()
             await operation(ArtifactGenerationContext(player))
+
+    async def execute_account_reconciliation(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        operation: AccountReconciliationOperation,
+    ) -> None:
+        async with session.begin():
+            player = await self._player_factory.create(session, player_id, writable=True)
+            await player.load_progress()
+            await player.load_artifacts()
+            await player.load_accounts()
+            await operation(player)

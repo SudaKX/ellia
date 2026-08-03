@@ -29,7 +29,10 @@ router = APIRouter(prefix="/files", tags=["files"])
 @router.get("/ls")
 async def list_files(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
+    context: Annotated[
+        RequestContext,
+        Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ACCOUNTS)),
+    ],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -39,7 +42,10 @@ async def list_files(
 @router.get("/s/ls")
 async def list_static_files(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
+    context: Annotated[
+        RequestContext,
+        Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ACCOUNTS)),
+    ],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -49,7 +55,7 @@ async def list_static_files(
 @router.get("/d/ls")
 async def list_dynamic_files(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -86,7 +92,10 @@ def _list_directory_response(
 @router.get("/tree")
 async def file_tree(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
+    context: Annotated[
+        RequestContext,
+        Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ACCOUNTS)),
+    ],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -96,7 +105,10 @@ async def file_tree(
 @router.get("/s/tree")
 async def static_file_tree(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS))],
+    context: Annotated[
+        RequestContext,
+        Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ACCOUNTS)),
+    ],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -106,7 +118,7 @@ async def static_file_tree(
 @router.get("/d/tree")
 async def dynamic_file_tree(
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     path: Annotated[str, Query()] = "/",
 ) -> dict[str, object]:
@@ -152,7 +164,7 @@ async def file_tree_version(
 
 @router.get("/d/version")
 async def dynamic_file_tree_version(
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     if_none_match: Annotated[str | None, Header()] = None,
 ) -> Response:
@@ -175,7 +187,7 @@ async def issue_content_url(
     file_id: str,
     content_token: str,
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = runtime.services.files.content_url_cache_control
@@ -189,7 +201,7 @@ async def issue_download_url(
     file_id: str,
     content_token: str,
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
@@ -201,7 +213,7 @@ async def issue_download_url(
 async def file_metadata(
     file_id: str,
     response: Response,
-    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS))],
+    context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.ALL))],
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> dict[str, object]:
     response.headers["Cache-Control"] = "no-store"

@@ -3,10 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from mythos.registry.artifacts.definitions import ArtifactNodeTemplate, ArtifactTemplate
-from mythos.registry.artifacts.versions import (
+from mythos.registry.catalog_snapshots import (
     TemplateSnapshot,
-    TemplateSnapshotEntry,
-    callback_id,
     template_snapshot,
 )
 from mythos.registry.errors import RegistryError
@@ -60,53 +58,12 @@ class ArtifactCatalog:
         return self._snapshot
 
     def _build_snapshot(self) -> TemplateSnapshot:
-        entries: list[TemplateSnapshotEntry] = []
-        for template in self._templates.values():
-            entries.append(
-                TemplateSnapshotEntry(
-                    "artifact",
-                    template.artifact_id,
-                    template.version,
-                    {
-                        "artifact_id": template.artifact_id,
-                        "media_type": template.media_type,
-                        "download_name": template.download_name,
-                        "generator_callback_id": callback_id(
-                            template.generator,
-                            field_name="Artifact generator",
-                        ),
-                    },
-                )
+        return template_snapshot(
+            (
+                *(template.snapshot_entry() for template in self._templates.values()),
+                *(template.snapshot_entry() for template in self._node_templates.values()),
             )
-        for template in self._node_templates.values():
-            entries.append(
-                TemplateSnapshotEntry(
-                    "artifact_node",
-                    template.stable_id,
-                    template.version,
-                    {
-                        "stable_id": template.stable_id,
-                        "artifact_locator": template.artifact_locator,
-                        "path": template.path,
-                        "display": template.display.as_dict(),
-                        "hidden": template.hidden,
-                        "download_name": template.download_name,
-                        "node_generator_callback_id": callback_id(
-                            template.node_generator,
-                            field_name="Artifact node generator",
-                        ),
-                        "access_rule_callback_id": (
-                            callback_id(
-                                template.access_rule,
-                                field_name="Artifact node access rule",
-                            )
-                            if template.access_rule is not None
-                            else None
-                        ),
-                    },
-                )
-            )
-        return template_snapshot(tuple(entries))
+        )
 
     @property
     def template_ids(self) -> frozenset[str]:

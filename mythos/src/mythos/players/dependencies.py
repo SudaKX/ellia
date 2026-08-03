@@ -19,7 +19,8 @@ class PlayerInterfaces(IntFlag):
     NONE = 0
     PROGRESS = 1
     ARTIFACTS = 2
-    ALL = PROGRESS | ARTIFACTS
+    ACCOUNTS = 4
+    ALL = PROGRESS | ARTIFACTS | ACCOUNTS
 
 
 def get_context(
@@ -44,6 +45,8 @@ def get_context(
             await player.load_progress()
         if PlayerInterfaces.ARTIFACTS in interfaces:
             await player.load_artifacts()
+        if PlayerInterfaces.ACCOUNTS in interfaces:
+            await player.load_accounts()
 
         return RequestContext(identity=identity, player=player)
 

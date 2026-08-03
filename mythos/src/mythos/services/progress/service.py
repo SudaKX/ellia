@@ -18,7 +18,6 @@ class CheckpointIncompatibleError(Exception):
 
 @dataclass(frozen=True)
 class ProgressSnapshot:
-    current_account: str
     unlocked_nodes: tuple[str, ...]
     frontier_nodes: tuple[str, ...]
     checkpoint_sequence: int
@@ -26,7 +25,6 @@ class ProgressSnapshot:
 
     def body(self) -> dict[str, object]:
         return {
-            "current_account": self.current_account,
             "unlocked_nodes": list(self.unlocked_nodes),
             "frontier_nodes": list(self.frontier_nodes),
             "checkpoint_sequence": self.checkpoint_sequence,
@@ -41,7 +39,6 @@ class ProgressService:
 
     def snapshot(self, player: Player) -> ProgressSnapshot:
         return ProgressSnapshot(
-            current_account=player.progress.current_account,
             unlocked_nodes=self._string_ids(player.progress.unlocked_node_ids),
             frontier_nodes=self._string_ids(player.progress.frontier_node_ids),
             checkpoint_sequence=player.progress.current_checkpoint_sequence,

@@ -1,4 +1,5 @@
 from mythos.persistence.models.auth import PlayerAuth
+from mythos.persistence.models.accounts import PlayerVirtualAccount, PlayerVirtualAccountState
 from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
 from mythos.persistence.models.player import PlayerRecord
 from mythos.persistence.models.progress import (
@@ -14,6 +15,8 @@ __all__ = [
     "PlayerArtifactNode",
     "PlayerArtifactState",
     "PlayerAuth",
+    "PlayerVirtualAccount",
+    "PlayerVirtualAccountState",
     "PlayerProgress",
     "PlayerProgressCheckpoint",
     "PlayerProgressFrontierNode",

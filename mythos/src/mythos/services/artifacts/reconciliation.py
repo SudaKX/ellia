@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,8 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
 from mythos.registry.artifacts.catalog import ArtifactCatalog
-from mythos.registry.artifacts.versions import TemplateSnapshot, TemplateSnapshotEntry
-from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
+from mythos.registry.catalog_snapshots import (
+    TemplateSnapshot,
+    template_snapshot_changed_keys,
+)
+from mythos.services.template_snapshots import TemplateSnapshotStore
 
 
 class ArtifactReconciliationRunner:
@@ -20,7 +22,7 @@ class ArtifactReconciliationRunner:
         session_factory: async_sessionmaker[AsyncSession],
         command_executor: CommandTransactionExecutor,
         catalog: ArtifactCatalog,
-        snapshot_store: ArtifactTemplateSnapshotStore,
+        snapshot_store: TemplateSnapshotStore,
         *,
         allow_missing_tables: bool = False,
     ) -> None:
@@ -77,13 +79,8 @@ class ArtifactReconciliationRunner:
         if previous is None:
             return await self._all_player_ids()
 
-        previous_entries = _entries_by_key(previous.entries)
-        current_entries = _entries_by_key(current.entries)
-        changed_keys = {
-            key
-            for key in previous_entries.keys() | current_entries.keys()
-            if previous_entries.get(key) != current_entries.get(key)
-        }
+        changed_keys = template_snapshot_changed_keys(previous, current)
+        current_entries = {(entry.kind, entry.template_id): entry for entry in current.entries}
         artifact_ids = {
             template_id
             for kind, template_id in changed_keys
@@ -118,12 +115,6 @@ class ArtifactReconciliationRunner:
             if not self._allow_missing_tables or "no such table" not in str(error).lower():
                 raise
             return ()
-
-
-def _entries_by_key(
-    entries: Iterable[TemplateSnapshotEntry],
-) -> dict[tuple[str, str], TemplateSnapshotEntry]:
-    return {(entry.kind, entry.template_id): entry for entry in entries}
 
 
 async def _player_ids_for_artifacts(

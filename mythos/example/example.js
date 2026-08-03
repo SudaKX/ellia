@@ -189,7 +189,6 @@ function renderProgress() {
     return;
   }
   const rows = [
-    ["Account", state.progress.current_account],
     ["Unlocked", state.progress.unlocked_nodes.join(", ") || "--"],
     ["Frontier", state.progress.frontier_nodes.join(", ") || "--"],
     ["Checkpoint", String(state.progress.checkpoint_sequence)],

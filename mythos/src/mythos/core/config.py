@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     puzzle_root: Path = PROJECT_ROOT / "src" / "mythos" / "puzzles"
     checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
     artifact_template_snapshot_path: Path | None = None
+    virtual_account_template_snapshot_path: Path | None = None
+    allow_empty_virtual_account_catalog_reconciliation: bool = False
 
     @model_validator(mode="after")
     def configure_secrets(self) -> Settings:
@@ -136,6 +138,15 @@ class Settings(BaseSettings):
         if database_path is not None:
             return database_path.parent / "artifact-template-catalog.json"
         return PROJECT_ROOT / "data" / "artifact-template-catalog.json"
+
+    @property
+    def virtual_account_snapshot_path(self) -> Path:
+        if self.virtual_account_template_snapshot_path is not None:
+            return self.virtual_account_template_snapshot_path
+        database_path = make_database_path(self.database_url)
+        if database_path is not None:
+            return database_path.parent / "virtual-account-template-catalog.json"
+        return PROJECT_ROOT / "data" / "virtual-account-template-catalog.json"
 
 
 def make_database_path(database_url: str) -> Path | None:

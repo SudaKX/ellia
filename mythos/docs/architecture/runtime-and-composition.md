@@ -12,11 +12,11 @@ Settings + RegistryBundle
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
   -> PlayerFactory + checkpoint hook + CommandTransactionExecutor
-  -> ArtifactReconciliationRunner
+  -> ArtifactReconciliationRunner + AccountReconciliationRunner
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts` 五个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、四个全局 Service、对象存储和命令执行器，挂在 `app.state.runtime`。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts` 六个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、五个全局 Service、对象存储和命令执行器，挂在 `app.state.runtime`。
 
 ## 服务和 HTTP
 
@@ -26,13 +26,14 @@ Settings + RegistryBundle
 | 进度 | `ProgressService` | `/api/v1/progress` |
 | 脚本 | `ScriptService` | `/api/v1/scripts` |
 | 验证 | `ValidationService` | `/api/v1/validations` |
+| VirtualAccount | `AccountService` | `/api/v1/vac` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
 Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
 
 ## 数据对象与 Example
 
-关键对象是 `Settings`、`RegistryBundle`、`RuntimeCatalogs`、`ApplicationRuntime`、`ServiceContainer` 与 `FileIdCodec`。Example 是唯一已注册模块，`register_all()` 调用其 `register()`，覆盖全部五类 Registry。
+关键对象是 `Settings`、`RegistryBundle`、`RuntimeCatalogs`、`ApplicationRuntime`、`ServiceContainer` 与 `FileIdCodec`。Example 是唯一已注册模块，`register_all()` 调用其 `register()`，覆盖已使用的 Registry。
 
 ## 重要约束
 

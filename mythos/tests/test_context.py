@@ -25,7 +25,6 @@ def _player(*, writable: bool) -> Player:
     player._progress = ProgressInterface(
         PlayerProgress(
             player_id=uuid4(),
-            current_account="PLAYER",
             version=1,
             unlocked_nodes=[
                 PlayerProgressUnlockedNode(

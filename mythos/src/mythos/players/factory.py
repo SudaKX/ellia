@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.persistence.models import PlayerArtifact, PlayerProgress, PlayerProgressCheckpoint
+from mythos.persistence.models import (
+    PlayerArtifact,
+    PlayerProgress,
+    PlayerProgressCheckpoint,
+    PlayerVirtualAccount,
+    PlayerVirtualAccountState,
+)
+from mythos.players.interfaces.accounts import AccountInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.progress import ProgressInterface
 from mythos.players.player import Player
@@ -67,9 +74,32 @@ class PlayerFactory:
             writable=writable,
         )
 
+    async def load_accounts(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> AccountInterface:
+        accounts = tuple(
+            (
+                await session.scalars(
+                    select(PlayerVirtualAccount).where(PlayerVirtualAccount.player_id == player_id)
+                )
+            ).all()
+        )
+        state = await session.get(PlayerVirtualAccountState, player_id)
+        if state is None:
+            state = PlayerVirtualAccountState(player_id=player_id)
+            if writable:
+                session.add(state)
+        return AccountInterface(
+            player_id,
+            self._catalogs.accounts,
+            session,
+            state,
+            accounts,
+            writable=writable,
+        )
+
     async def load(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> Player:
-        """Load a fully-initialized player for callers that need both interfaces."""
+        """Load a fully-initialized player for callers that need all interfaces."""
         player = await self.create(session, player_id, writable=writable)
         await player.load_progress()
         await player.load_artifacts()
+        await player.load_accounts()
         return player

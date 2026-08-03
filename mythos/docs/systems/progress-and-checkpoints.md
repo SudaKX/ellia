@@ -2,11 +2,11 @@
 
 ## 持久化与 Model
 
-进度拥有四张表：`player_progress` / `PlayerProgress` 保存账户、版本及 checkpoint 序号；`player_progress_unlocked_nodes` / `PlayerProgressUnlockedNode` 和 `player_progress_frontier_nodes` / `PlayerProgressFrontierNode` 保存数字节点集合；`player_progress_checkpoints` / `PlayerProgressCheckpoint` 保存当前可恢复快照的本地 `storage_key`。所有玩家级行经外键级联删除。
+进度拥有四张表：`player_progress` / `PlayerProgress` 保存版本及 checkpoint 序号；`player_progress_unlocked_nodes` / `PlayerProgressUnlockedNode` 和 `player_progress_frontier_nodes` / `PlayerProgressFrontierNode` 保存数字节点集合；`player_progress_checkpoints` / `PlayerProgressCheckpoint` 保存当前可恢复快照的本地 `storage_key`。所有玩家级行经外键级联删除。
 
 ## Interface 与 Registry
 
-`ProgressInterface` 是 Player 的惰性 Interface，读取 `current_account`、unlocked/frontier、版本和 checkpoint 序号；可写 Player 使用 `push(id, branch_arg)`。它拒绝重复解锁、不可达节点、直接进入 Merge、错误 branch 参数和只读写入。
+`ProgressInterface` 是 Player 的惰性 Interface，读取 unlocked/frontier、版本和 checkpoint 序号；可写 Player 使用 `push(id, branch_arg)`。它拒绝重复解锁、不可达节点、直接进入 Merge、错误 branch 参数和只读写入。
 
 模块向 `ProgressRegistry` 注册 `NormalProgressNode`、`BranchProgressNode` 或 `MergeProgressNode`。冻结的 `ProgressGraph` 将字符串 ID 映射为稳定 63-bit 数字 ID，验证 DAG、entry、分支和 merge，并提供 `structure_hash`。`BranchTargetSelector` 决定 branch 的目标；AND/OR Merge 由 Interface 自动解析。
 
