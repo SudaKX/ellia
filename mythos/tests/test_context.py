@@ -6,7 +6,7 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands import CommandRejected, ResponseFormatError, ResponseSpec
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import FollowupFormatError
-from mythos.players.context import CommandContext, RequestContext
+from mythos.players.context import CommandContext, PlayerContext, RequestContext
 from mythos.players.interfaces import ProgressInterface, ReadOnlyPlayerError
 from mythos.players.player import Player
 from mythos.persistence.models import PlayerProgress, PlayerProgressFrontierNode, PlayerProgressUnlockedNode
@@ -49,6 +49,7 @@ def test_read_context_cannot_modify_progress() -> None:
 
     with pytest.raises(ReadOnlyPlayerError, match="cannot modify"):
         context.player.progress.push("complete")
+    assert isinstance(context, PlayerContext)
 
 
 def test_command_context_writes_progress_and_freezes_followups() -> None:
@@ -62,6 +63,9 @@ def test_command_context_writes_progress_and_freezes_followups() -> None:
     context.player.progress.push("complete")
     context.follow({"event": "checkpoint-set"})
     context.follow({"event": "checkpoint-visible"})
+
+    assert isinstance(context, RequestContext)
+    assert isinstance(context, PlayerContext)
 
     assert context.player.progress.frontier_node_ids == {
         _CATALOGS.progress.node_ids_by_str_id["complete"]

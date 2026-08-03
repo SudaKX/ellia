@@ -2,7 +2,7 @@
 
 ## 注册与玩家状态
 
-模块在启动期向 `VirtualAccountRegistry` 注册 `VirtualAccountTemplate(account_id, display_name, permission, metadata)`。`permission` 是框架原样透传的整数，语义完全由模块定义；模板不保存用户名或密码。
+模块在启动期向 `VirtualAccountRegistry` 注册 `VirtualAccountTemplate(account_id, display_name, permission, metadata)`。`permission` 是框架原样透传的整数，语义完全由模块定义；模板不保存用户名或密码。需要为新玩家初始化账号时，模块在 Lifecycle Construct 回调中调用 `Player.accounts.issue()`。
 
 `PlayerVirtualAccount` 以 `(player_id, account_id)` 标识已发放账号，保存模块指定的 `username`、规范化用户名、Argon2 密码哈希和成功登录统计。用户名只在玩家范围唯一，密码允许重复。`PlayerVirtualAccountState` 保存当前账号和单调版本，复合外键保证当前账号属于同一玩家。
 

@@ -8,12 +8,17 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands.models import CommandRejected
 from mythos.core.followups import FollowupBody, FollowupCollector
 from mythos.players.player import Player
+from mythos.registry.lifecycle.definitions import PlayerLifecycleEvent
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class RequestContext:
-    identity: PlayerIdentity
+class PlayerContext:
     player: Player
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class RequestContext(PlayerContext):
+    identity: PlayerIdentity
     _followups: FollowupCollector = field(default_factory=FollowupCollector, init=False, repr=False, compare=False)
 
     def follow(self, body: FollowupBody) -> None:
@@ -24,13 +29,13 @@ class RequestContext:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class ArtifactGenerationContext:
-    player: Player
-
-
-@dataclass(frozen=True, slots=True, eq=False)
 class CommandContext(RequestContext):
     request_id: UUID
 
     def reject(self, status_code: int, detail: str) -> NoReturn:
         raise CommandRejected(status_code, detail)
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class PlayerLifecycleContext(PlayerContext):
+    event: PlayerLifecycleEvent

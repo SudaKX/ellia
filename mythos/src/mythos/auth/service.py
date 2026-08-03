@@ -5,6 +5,7 @@ import hmac
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
@@ -19,6 +20,7 @@ from mythos.auth.tokens import (
     parse_refresh_credential,
 )
 from mythos.auth.passwords import password_hasher
+from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
@@ -30,6 +32,9 @@ from mythos.persistence.models import (
     PlayerVirtualAccountState,
 )
 from mythos.registry.progress import ProgressGraph
+from mythos.registry.lifecycle import PlayerConstructEvent
+from mythos.services.lifecycle import PlayerLifecycleDispatcher
+from mythos.players.context import PlayerLifecycleContext
 
 class UsernameAlreadyExistsError(Exception):
     pass
@@ -63,10 +68,19 @@ def _is_expired(value: datetime | None) -> bool:
 
 
 class AuthService:
-    def __init__(self, session: AsyncSession, settings: Settings, progress_graph: ProgressGraph) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        progress_graph: ProgressGraph,
+        command_executor: CommandTransactionExecutor,
+        lifecycle_dispatcher: PlayerLifecycleDispatcher,
+    ) -> None:
         self.session = session
         self.settings = settings
         self.progress_graph = progress_graph
+        self.command_executor = command_executor
+        self.lifecycle_dispatcher = lifecycle_dispatcher
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
         password_hash = await asyncio.to_thread(password_hasher.hash, password)
@@ -98,6 +112,8 @@ class AuthService:
                 self.session.add_all((player, auth, progress))
                 await self.session.flush()
                 self.session.add(PlayerVirtualAccountState(player_id=player.id))
+                await self.session.flush()
+                await self._construct(player, "registration")
         except IntegrityError as error:
             if "players.username_normalized" in str(error).lower():
                 raise UsernameAlreadyExistsError from error
@@ -124,6 +140,8 @@ class AuthService:
             is_valid = await asyncio.to_thread(password_hasher.verify, password, auth.password_hash)
             if not is_valid:
                 raise InvalidCredentialsError
+
+            await self._construct(player, "first_login")
 
             credential = create_refresh_credential()
             now = utcnow()
@@ -197,3 +215,36 @@ class AuthService:
                     refresh_rotated_at=None,
                 )
             )
+
+    async def _construct(
+        self,
+        player: PlayerRecord,
+        trigger: Literal["registration", "first_login"],
+    ) -> None:
+        if player.constructed_at is not None:
+            return
+        constructed_at = utcnow()
+        claimed = await self.session.execute(
+            update(PlayerRecord)
+            .where(
+                PlayerRecord.id == player.id,
+                PlayerRecord.constructed_at.is_(None),
+            )
+            .values(constructed_at=constructed_at)
+        )
+        if claimed.rowcount != 1:
+            await self.session.refresh(player, attribute_names=["constructed_at"])
+            return
+        player.constructed_at = constructed_at
+        event = PlayerConstructEvent(
+            player_id=player.id,
+            occurred_at=constructed_at,
+            trigger=trigger,
+        )
+        await self.command_executor.execute_nocache_itx(
+            self.session,
+            player.id,
+            lambda aggregate: self.lifecycle_dispatcher.publish(
+                PlayerLifecycleContext(player=aggregate, event=event)
+            ),
+        )

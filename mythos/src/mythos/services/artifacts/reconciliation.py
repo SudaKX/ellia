@@ -49,10 +49,11 @@ class ArtifactReconciliationRunner:
         )
         for player_id in player_ids:
             async with self._session_factory() as session:
-                await self._command_executor.execute_artifact_reconciliation(
+                await self._command_executor.execute_nocache(
                     session,
                     player_id,
-                    lambda context: context.player.artifacts.refresh_stale(context),
+                    lambda player: player.artifacts.refresh_stale(player),
+                    run_pre_commit_hooks=False,
                 )
         await self._snapshot_store.write(current)
 

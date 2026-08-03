@@ -35,6 +35,16 @@
                 <button id="auth-submit" class="primary" type="submit">Create session</button>
               </form>
               <p id="auth-message" class="notice" aria-live="polite"></p>
+
+              <div id="account-section" class="section" hidden>
+                <div class="panel-header"><h2 class="panel-title">Virtual Account</h2><span id="account-status" class="muted">Not selected</span></div>
+                <form id="account-form" class="stack">
+                  <label><span class="section-label">Username</span><input id="account-username" autocomplete="username" required></label>
+                  <label><span class="section-label">Password</span><input id="account-password" type="password" autocomplete="current-password" required></label>
+                  <button id="account-submit" type="submit">Switch account</button>
+                </form>
+                <p id="account-message" class="notice" aria-live="polite"></p>
+              </div>
             </section>
 
             <section class="section">

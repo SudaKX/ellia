@@ -29,6 +29,6 @@
 
 ## Example 与重要限制
 
-Example manifest 注册 `/public/README.txt` 与受 completed 规则保护的 `/archive/result.txt`。对象存储必须启用 versioning 并返回 VersionId；bucket 保持私有。已签发 URL 无法因后续进度变化而撤销。完整客户端契约见 [文件 API](../api/files.md)。
+Example manifest 注册无登录可见的 `/public/README.txt`、`/public/GUEST_ACCESS.txt`，以及仅 Administrator 可见的 `/admin/CONTROL.txt`。Guest 完成 Echo 后通过 Artifact 系统生成 `/archive/ADMIN_ACCESS.txt`。对象存储必须启用 versioning 并返回 VersionId；bucket 保持私有。已签发 URL 无法因后续账号切换而撤销。完整客户端契约见 [文件 API](../api/files.md)。
 
 相关实现：`registry/files/`、`services/files/`、`services/object_store/service.py`。

@@ -60,7 +60,13 @@ def _token_response(access_token: str, settings: Settings) -> AccessTokenRespons
 
 
 def _auth_service(session: AsyncSession, settings: Settings, runtime: ApplicationRuntime) -> AuthService:
-    return AuthService(session, settings, runtime.catalogs.progress)
+    return AuthService(
+        session,
+        settings,
+        runtime.catalogs.progress,
+        runtime.command_executor,
+        runtime.lifecycle_dispatcher,
+    )
 
 
 @router.post("/register", response_model=AccessTokenResponse, status_code=status.HTTP_201_CREATED)

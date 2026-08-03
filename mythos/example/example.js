@@ -2,6 +2,7 @@ const API_BASE = "/api/v1";
 const state = {
   authMode: "register",
   username: "",
+  currentAccount: null,
   token: null,
   progress: null,
   tree: null,
@@ -13,6 +14,13 @@ const state = {
 };
 
 const elements = {
+  accountForm: document.querySelector("#account-form"),
+  accountMessage: document.querySelector("#account-message"),
+  accountPassword: document.querySelector("#account-password"),
+  accountSection: document.querySelector("#account-section"),
+  accountStatus: document.querySelector("#account-status"),
+  accountSubmit: document.querySelector("#account-submit"),
+  accountUsername: document.querySelector("#account-username"),
   answerForm: document.querySelector("#answer-form"),
   answerInput: document.querySelector("#answer-input"),
   answerLabel: document.querySelector("#answer-label"),
@@ -53,6 +61,7 @@ function setAuthenticated(token, username) {
   elements.statusDot.className = "status-dot active";
   elements.refreshButton.disabled = false;
   elements.logoutButton.disabled = false;
+  elements.accountSection.hidden = false;
 }
 
 function clearSession(message = "Not authenticated") {
@@ -64,10 +73,14 @@ function clearSession(message = "Not authenticated") {
   state.scripts = [];
   state.selectedFile = null;
   state.lastAttempt = null;
+  state.currentAccount = null;
   elements.sessionStatus.textContent = message;
   elements.statusDot.className = "status-dot";
   elements.refreshButton.disabled = true;
   elements.logoutButton.disabled = true;
+  elements.accountSection.hidden = true;
+  elements.accountStatus.textContent = "Not selected";
+  elements.accountPassword.value = "";
   renderWorkspace();
 }
 
@@ -138,7 +151,7 @@ async function refreshAccessToken() {
       return false;
     }
     const payload = await readJson(response);
-    state.token = payload.access_token;
+    setAuthenticated(payload.access_token, state.username || "Restored session");
     return true;
   } catch (_) {
     clearSession("Session unavailable");
@@ -371,12 +384,39 @@ elements.authForm.addEventListener("submit", async (event) => {
     const path = state.authMode === "register" ? "/auth/register" : "/auth/login";
     const payload = await callApi(path, { method: "POST", body: { username, password } }).then(readJson);
     setAuthenticated(payload.access_token, username);
+    state.currentAccount = null;
+    elements.accountStatus.textContent = "Not selected";
+    elements.accountPassword.value = "";
+    setNotice(elements.accountMessage, "");
     setNotice(elements.authMessage, "Session ready.", "success");
     await loadWorkspace();
   } catch (error) {
     setNotice(elements.authMessage, error.message, "error");
   } finally {
     elements.authSubmit.disabled = false;
+  }
+});
+elements.accountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.accountSubmit.disabled = true;
+  try {
+    const payload = await callApi("/vac/login", {
+      method: "POST",
+      headers: { "Request-ID": crypto.randomUUID() },
+      body: {
+        username: elements.accountUsername.value.trim(),
+        password: elements.accountPassword.value,
+      },
+    }).then(readJson);
+    state.currentAccount = payload.content.current_account;
+    elements.accountStatus.textContent = state.currentAccount ? state.currentAccount.display_name : "Not selected";
+    elements.accountPassword.value = "";
+    setNotice(elements.accountMessage, "Account active.", "success");
+    await loadWorkspace();
+  } catch (error) {
+    setNotice(elements.accountMessage, error.message, "error");
+  } finally {
+    elements.accountSubmit.disabled = false;
   }
 });
 elements.answerForm.addEventListener("submit", (event) => {

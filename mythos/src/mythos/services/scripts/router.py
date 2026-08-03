@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends
 from mythos.core.dependencies import get_runtime
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
-from mythos.players.dependencies import PlayerInterfaces, get_context
+from mythos.players.dependencies import get_context
+from mythos.players.interface_selection import PlayerInterfaces
 
 router = APIRouter(prefix="/scripts", tags=["scripts"])
 

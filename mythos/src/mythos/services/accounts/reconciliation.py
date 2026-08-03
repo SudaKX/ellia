@@ -47,10 +47,11 @@ class AccountReconciliationRunner:
         if stale_ids:
             for player_id in await self._player_ids_for_accounts(stale_ids):
                 async with self._session_factory() as session:
-                    await self._command_executor.execute_account_reconciliation(
+                    await self._command_executor.execute_nocache(
                         session,
                         player_id,
                         lambda player: player.accounts.remove_unregistered(stale_ids),
+                        run_pre_commit_hooks=False,
                     )
         if changed:
             await self._snapshot_store.write(current)

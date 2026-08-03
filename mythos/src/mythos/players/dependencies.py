@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from enum import IntFlag
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -13,18 +12,11 @@ from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
 from mythos.players.factory import PlayerNotFoundError
-
-
-class PlayerInterfaces(IntFlag):
-    NONE = 0
-    PROGRESS = 1
-    ARTIFACTS = 2
-    ACCOUNTS = 4
-    ALL = PROGRESS | ARTIFACTS | ACCOUNTS
+from mythos.players.interface_selection import PlayerInterfaces
 
 
 def get_context(
-    interfaces: PlayerInterfaces,
+    interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
 ) -> Callable[..., Awaitable[RequestContext]]:
     async def _resolve_context(
         identity: Annotated[PlayerIdentity, Depends(get_current_player)],
@@ -41,12 +33,7 @@ def get_context(
                 detail="Player progress not found.",
             ) from error
 
-        if PlayerInterfaces.PROGRESS in interfaces:
-            await player.load_progress()
-        if PlayerInterfaces.ARTIFACTS in interfaces:
-            await player.load_artifacts()
-        if PlayerInterfaces.ACCOUNTS in interfaces:
-            await player.load_accounts()
+        await player.load_interfaces(interfaces)
 
         return RequestContext(identity=identity, player=player)
 

@@ -10,7 +10,6 @@ from mythos.core.config import Settings
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
-from mythos.players.context import ArtifactGenerationContext
 from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactTemplate,
@@ -71,9 +70,8 @@ async def _create_artifact(app, player_id: UUID) -> tuple[str, int]:
     async with app.state.database.session_factory() as session:
         async with session.begin():
             player = await app.state.runtime.player_factory.load(session, player_id, writable=True)
-            context = ArtifactGenerationContext(player)
-            artifact = await player.artifacts.generate_artifact("reconciliation.report", context)
-            await player.artifacts.generate_node("reconciliation.report-file", context)
+            artifact = await player.artifacts.generate_artifact("reconciliation.report", player)
+            await player.artifacts.generate_node("reconciliation.report-file", player)
             return artifact.version, player.artifacts.player_version
 
 

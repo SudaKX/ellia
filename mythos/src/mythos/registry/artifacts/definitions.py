@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from mythos.registry.files.definitions import DisplayParams, NodeAccessRule, VirtualNode
 from mythos.registry.artifacts.versions import artifact_node_version, artifact_version, callback_id
@@ -11,20 +11,14 @@ from mythos.registry.catalog_snapshots import TemplateSnapshotEntry
 if TYPE_CHECKING:
     from mythos.players.player import Player
 
-
-class ArtifactGenerationContext(Protocol):
-    @property
-    def player(self) -> Player: ...
-
-
 @dataclass(frozen=True)
 class RawArtifact:
     data: bytes
     meta: dict[str, Any] = field(default_factory=dict)
 
 
-ArtifactGenerator: TypeAlias = Callable[[ArtifactGenerationContext], Awaitable["RawArtifact"]]
-ArtifactNodeGenerator: TypeAlias = Callable[[ArtifactGenerationContext, "ArtifactNode"], Awaitable["ArtifactNode"]]
+ArtifactGenerator: TypeAlias = Callable[["Player"], Awaitable["RawArtifact"]]
+ArtifactNodeGenerator: TypeAlias = Callable[["Player", "ArtifactNode"], Awaitable["ArtifactNode"]]
 
 
 def _is_canonical_virtual_path(path: str) -> bool:

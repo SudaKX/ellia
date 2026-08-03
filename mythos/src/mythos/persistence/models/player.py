@@ -22,6 +22,7 @@ class PlayerRecord(Base):
     username: Mapped[str] = mapped_column(String(32), nullable=False)
     username_normalized: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    constructed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_accessed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utcnow,

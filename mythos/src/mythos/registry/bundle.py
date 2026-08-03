@@ -9,6 +9,7 @@ from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegist
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
 from mythos.registry.errors import DuplicateStableIdError
 from mythos.registry.files import FileRegistry, FileTree
+from mythos.registry.lifecycle import LifecycleCatalog, LifecycleRegistry
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 from mythos.registry.validations import ValidationCatalog, ValidationRegistry
@@ -25,6 +26,7 @@ class RuntimeCatalogs:
     validations: ValidationCatalog
     artifacts: ArtifactCatalog
     accounts: VirtualAccountCatalog
+    lifecycle: LifecycleCatalog
 
 
 class RegistryBundle:
@@ -35,6 +37,7 @@ class RegistryBundle:
         self.validations = ValidationRegistry()
         self.artifacts = ArtifactRegistry()
         self.accounts = VirtualAccountRegistry()
+        self.lifecycle = LifecycleRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -57,6 +60,7 @@ class RegistryBundle:
             validations=self.validations.freeze(),
             artifacts=self.artifacts.freeze(),
             accounts=self.accounts.freeze(),
+            lifecycle=self.lifecycle.freeze(),
         )
         return self._catalogs
 

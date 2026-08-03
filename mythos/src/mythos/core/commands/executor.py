@@ -4,18 +4,20 @@ from collections.abc import Awaitable, Callable
 from typing import TypeAlias
 from uuid import UUID
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands.cache import RequestCache
 from mythos.core.commands.models import CachedResponse, ResponseSpec
-from mythos.players.context import ArtifactGenerationContext, CommandContext
+from mythos.persistence.models import PlayerRecord
+from mythos.players.context import CommandContext
 from mythos.players.factory import PlayerFactory
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
 
-CommandPreCommitHook: TypeAlias = Callable[[AsyncSession, CommandContext], Awaitable[None]]
-ArtifactReconciliationOperation: TypeAlias = Callable[[ArtifactGenerationContext], Awaitable[None]]
-AccountReconciliationOperation: TypeAlias = Callable[[Player], Awaitable[None]]
+CommandPreCommitHook: TypeAlias = Callable[[AsyncSession, Player], Awaitable[None]]
+NoCacheOperation: TypeAlias = Callable[[Player], Awaitable[None]]
 
 
 class CommandTransactionExecutor:
@@ -35,6 +37,8 @@ class CommandTransactionExecutor:
         identity: PlayerIdentity,
         request_id: UUID,
         operation: Callable[[CommandContext], Awaitable[ResponseSpec]],
+        *,
+        interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
     ) -> CachedResponse:
         cached_response = self._request_cache.reserve(request_id, identity.player_id)
         if cached_response is not None:
@@ -42,12 +46,12 @@ class CommandTransactionExecutor:
 
         try:
             async with session.begin():
-                player = await self._player_factory.create(
-                    session, identity.player_id, writable=True
+                player = await self._load_player(
+                    session,
+                    identity.player_id,
+                    interfaces=interfaces,
+                    writable=True,
                 )
-                await player.load_progress()
-                await player.load_artifacts()
-                await player.load_accounts()
                 context = CommandContext(
                     identity=identity,
                     player=player,
@@ -55,7 +59,7 @@ class CommandTransactionExecutor:
                 )
                 response = await operation(context)
                 for hook in self._pre_commit_hooks:
-                    await hook(session, context)
+                    await hook(session, player)
                 completed = CachedResponse(
                     owner_player_id=identity.player_id,
                     response=ResponseSpec(
@@ -74,28 +78,59 @@ class CommandTransactionExecutor:
         self._request_cache.complete(request_id, completed)
         return completed
 
-    async def execute_artifact_reconciliation(
+    async def execute_nocache(
         self,
         session: AsyncSession,
         player_id: UUID,
-        operation: ArtifactReconciliationOperation,
+        operation: NoCacheOperation,
+        *,
+        interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
+        run_pre_commit_hooks: bool = True,
     ) -> None:
         async with session.begin():
-            player = await self._player_factory.create(session, player_id, writable=True)
-            await player.load_progress()
-            await player.load_artifacts()
-            await player.load_accounts()
-            await operation(ArtifactGenerationContext(player))
+            await self.execute_nocache_itx(
+                session,
+                player_id,
+                operation,
+                interfaces=interfaces,
+                run_pre_commit_hooks=run_pre_commit_hooks,
+            )
 
-    async def execute_account_reconciliation(
+    async def execute_nocache_itx(
         self,
         session: AsyncSession,
         player_id: UUID,
-        operation: AccountReconciliationOperation,
+        operation: NoCacheOperation,
+        *,
+        interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
+        run_pre_commit_hooks: bool = True,
     ) -> None:
-        async with session.begin():
-            player = await self._player_factory.create(session, player_id, writable=True)
-            await player.load_progress()
-            await player.load_artifacts()
-            await player.load_accounts()
-            await operation(player)
+        player = await self._load_player(
+            session,
+            player_id,
+            interfaces=interfaces,
+            writable=True,
+        )
+        await operation(player)
+        if run_pre_commit_hooks:
+            for hook in self._pre_commit_hooks:
+                await hook(session, player)
+
+    async def _load_player(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+        writable: bool,
+    ) -> Player:
+        if writable:
+            # Lock the player row before loading mutable interface state.
+            await session.execute(
+                update(PlayerRecord)
+                .where(PlayerRecord.id == player_id)
+                .values(last_accessed_at=PlayerRecord.last_accessed_at)
+            )
+        player = await self._player_factory.create(session, player_id, writable=writable)
+        await player.load_interfaces(interfaces)
+        return player

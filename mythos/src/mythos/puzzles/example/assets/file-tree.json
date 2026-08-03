@@ -30,38 +30,55 @@
             "media_type": "text/plain; charset=utf-8"
           },
           "download_name": "README.txt"
+        },
+        {
+          "kind": "file",
+          "stable_id": "example.guest-access",
+          "name": "GUEST_ACCESS.txt",
+          "version": "1",
+          "display": {
+            "label": "GUEST_ACCESS.txt",
+            "description": "Guest credentials",
+            "icon": "document",
+            "sort_order": 1
+          },
+          "source": {
+            "relative_path": "assets/public/GUEST_ACCESS.txt",
+            "media_type": "text/plain; charset=utf-8"
+          },
+          "download_name": "GUEST_ACCESS.txt"
         }
       ]
     },
     {
       "kind": "directory",
-      "stable_id": "example.archive",
-      "name": "archive",
+      "stable_id": "example.admin",
+      "name": "admin",
       "version": "1",
       "display": {
-        "label": "Archive",
-        "description": "Unlocked recovery output",
+        "label": "Admin",
+        "description": "Administrator controls",
         "icon": "folder",
         "sort_order": 1
       },
-      "access_rule": "completed",
+      "access_rule": "admin",
       "children": [
         {
           "kind": "file",
-          "stable_id": "example.archive-result",
-          "name": "result.txt",
+          "stable_id": "example.admin-control",
+          "name": "CONTROL.txt",
           "version": "1",
           "display": {
-            "label": "result.txt",
-            "description": "Recovery result",
+            "label": "CONTROL.txt",
+            "description": "Administrator control document",
             "icon": "document",
             "sort_order": 0
           },
           "source": {
-            "relative_path": "assets/archive/result.txt",
+            "relative_path": "assets/admin/CONTROL.txt",
             "media_type": "text/plain; charset=utf-8"
           },
-          "download_name": "result.txt"
+          "download_name": "CONTROL.txt"
         }
       ]
     }

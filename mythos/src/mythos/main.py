@@ -28,6 +28,7 @@ from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunne
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
+from mythos.services.lifecycle import PlayerLifecycleDispatcher
 
 
 def create_app(
@@ -67,6 +68,7 @@ def create_app(
             ),
             (checkpoint_hook,),
         )
+        lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
         await ArtifactReconciliationRunner(
             database.session_factory,
             command_executor,
@@ -101,6 +103,7 @@ def create_app(
             ),
             object_store=resolved_object_store,
             command_executor=command_executor,
+            lifecycle_dispatcher=lifecycle_dispatcher,
         )
         try:
             yield

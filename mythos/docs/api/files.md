@@ -20,10 +20,10 @@
 
 ```json
 {
-  "file_id":"f1_...","path":"/archive/recovery-report.txt","version":"anv1_...",
+  "file_id":"f1_...","path":"/archive/ADMIN_ACCESS.txt","version":"anv1_...",
   "media_type":"text/plain; charset=utf-8","size_bytes":96,
   "content_token":"act2_...",
-  "display":{"label":"recovery-report.txt","description":"Player-specific recovery report","icon":"document","sort_order":1}
+  "display":{"label":"ADMIN_ACCESS.txt","description":"Administrator credentials","icon":"document","sort_order":1}
 }
 ```
 

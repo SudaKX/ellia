@@ -6,15 +6,15 @@ from uuid import uuid4
 import httpx
 from pydantic import SecretStr
 
+from _helpers.object_store import FakeObjectStore
 from mythos.auth.tokens import decode_access_token
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from _helpers.object_store import FakeObjectStore
 
 
-def test_example_module_unlocks_archive_and_generates_report_with_fake_object_store(tmp_path: Path) -> None:
+def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None:
     async def scenario() -> None:
         settings = Settings(
             environment="test",
@@ -46,136 +46,96 @@ def test_example_module_unlocks_archive_and_generates_report_with_fake_object_st
 
                 initial_progress = await client.get("/api/v1/progress", headers=headers)
                 assert initial_progress.json()["unlocked_nodes"] == ["example.entry"]
-                assert initial_progress.json()["frontier_nodes"] == ["example.entry"]
-                assert initial_progress.json()["checkpoint_sequence"] == -1
-
                 initial_tree = await client.get("/api/v1/files/tree", headers=headers)
                 assert [directory["path"] for directory in initial_tree.json()["directories"]] == ["/public"]
-                assert (await client.get("/api/v1/files/ls", params={"path": "/archive"}, headers=headers)).status_code == 404
-                initial_dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
-                assert [directory["path"] for directory in initial_dynamic_tree.json()["directories"]] == ["/public"]
-                assert initial_dynamic_tree.json()["tree_version"].startswith("pft2_")
-                assert initial_dynamic_tree.json()["tree_version"] != initial_tree.json()["tree_version"]
+                assert (await client.get("/api/v1/files/ls", params={"path": "/admin"}, headers=headers)).status_code == 404
+                assert (await client.get("/api/v1/scripts", headers=headers)).json() == {"items": []}
 
-                initial_scripts = await client.get("/api/v1/scripts", headers=headers)
-                assert initial_scripts.json()["items"] == [
-                    {
-                        "stable_id": "example.boot",
-                        "revision": "1",
-                        "body": {
-                            "schema_version": 1,
-                            "kind": "answer-validator",
-                            "validation_id": "example-answer",
-                            "input": {"name": "answer", "label": "Access token"},
-                            "lines": ["Recovery console online.", "Read /public/README.txt."],
-                        },
-                    }
-                ]
-
-                result_file_id = app.state.runtime.catalogs.files.file_id_for_stable_id("example.archive-result")
-                assert (await client.get(f"/api/v1/files/{result_file_id}", headers=headers)).status_code == 403
-
-                rejected = await client.post(
-                    "/api/v1/validations/example-answer/attempts",
-                    headers={**headers, "Request-ID": str(uuid4())},
-                    json={"answer": "wrong"},
-                )
-                assert rejected.json() == {"content": {"accepted": False}, "followups": []}
-                assert (await client.get("/api/v1/progress", headers=headers)).json() == initial_progress.json()
-
-                request_id = str(uuid4())
-                completed = await client.post(
-                    "/api/v1/validations/example-answer/attempts",
-                    headers={**headers, "Request-ID": request_id},
-                    json={"answer": " ECHO-7 "},
-                )
-                replayed = await client.post(
-                    "/api/v1/validations/example-answer/attempts",
-                    headers={**headers, "Request-ID": request_id},
-                    json={"answer": " ECHO-7 "},
-                )
-                assert completed.json() == replayed.json() == {"content": {"accepted": True}, "followups": []}
-
-                completed_progress = await client.get("/api/v1/progress", headers=headers)
-                assert completed_progress.json()["unlocked_nodes"] == ["example.completed", "example.entry"]
-                assert completed_progress.json()["frontier_nodes"] == ["example.completed"]
-                assert completed_progress.json()["checkpoint_sequence"] == 0
-                assert completed_progress.json()["version"] == initial_progress.json()["version"] + 1
-
-                completed_tree = await client.get("/api/v1/files/tree", headers=headers)
-                directories = {item["path"]: item for item in completed_tree.json()["directories"]}
-                assert [item["path"] for item in directories["/archive"]["files"]] == ["/archive/result.txt"]
-                result_file = directories["/archive"]["files"][0]
-                content_url = await client.get(
-                    f"/api/v1/files/{result_file['file_id']}/{result_file['content_token']}/content-url",
-                    headers=headers,
-                )
-                assert content_url.json()["url"] == (
-                    "https://objects.test/static/example/assets/archive/result.txt?expires=43200"
-                )
-
-                dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
-                dynamic_directories = {item["path"]: item for item in dynamic_tree.json()["directories"]}
-                report_file = next(
-                    item
-                    for item in dynamic_directories["/archive"]["files"]
-                    if item["path"] == "/archive/recovery-report.txt"
-                )
-                assert [item["path"] for item in dynamic_directories["/archive"]["files"]] == [
-                    "/archive/result.txt",
-                    "/archive/recovery-report.txt",
-                ]
-                assert report_file["content_token"].startswith("act2_")
-                assert dynamic_tree.json()["tree_version"] != completed_tree.json()["tree_version"]
-
-                report_metadata = await client.get(
-                    f"/api/v1/files/{report_file['file_id']}",
-                    headers=headers,
-                )
-                assert report_metadata.json()["download_name"] == "recovery-report.txt"
-                assert report_metadata.json()["path"] == "/archive/recovery-report.txt"
-
-                expected_report = (
-                    "EXAMPLE RECOVERY REPORT\n\n"
-                    f"Player: {player_id}\n"
-                    "Status: archive recovered\n"
-                ).encode()
-                artifact_version = app.state.runtime.catalogs.artifacts.template(
-                    "example.recovery-report"
-                ).version
-                artifact_key = (
-                    f"artifacts/{player_id}/example.recovery-report/{artifact_version}/"
-                    f"{hashlib.sha256(expected_report).hexdigest()}"
-                )
-                report_content_url = await client.get(
-                    f"/api/v1/files/{report_file['file_id']}/{report_file['content_token']}/content-url",
-                    headers=headers,
-                )
-                assert report_content_url.json()["url"] == f"https://objects.test/{artifact_key}?expires=43200"
-                assert object_store.objects[artifact_key] == expected_report
-
-                completed_scripts = await client.get("/api/v1/scripts", headers=headers)
-                assert [item["stable_id"] for item in completed_scripts.json()["items"]] == [
-                    "example.boot",
-                    "example.completed",
-                ]
-
-                resubmitted = await client.post(
+                rejected_before_guest_login = await client.post(
                     "/api/v1/validations/example-answer/attempts",
                     headers={**headers, "Request-ID": str(uuid4())},
                     json={"answer": "echo-7"},
                 )
-                assert resubmitted.json() == {"content": {"accepted": True}, "followups": []}
-                assert (await client.get("/api/v1/progress", headers=headers)).json() == completed_progress.json()
+                assert rejected_before_guest_login.json() == {"content": {"accepted": False}, "followups": []}
+
+                guest_login = await client.post(
+                    "/api/v1/vac/login",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                    json={"username": "guest", "password": "guest-echo-7"},
+                )
+                assert guest_login.status_code == 200
+                assert guest_login.json()["content"]["current_account"]["account_id"] == "example.guest"
+
+                guest_scripts = await client.get("/api/v1/scripts", headers=headers)
+                assert [item["stable_id"] for item in guest_scripts.json()["items"]] == ["example.boot"]
+
+                completed, repeated = await asyncio.gather(
+                    client.post(
+                        "/api/v1/validations/example-answer/attempts",
+                        headers={**headers, "Request-ID": str(uuid4())},
+                        json={"answer": " ECHO-7 "},
+                    ),
+                    client.post(
+                        "/api/v1/validations/example-answer/attempts",
+                        headers={**headers, "Request-ID": str(uuid4())},
+                        json={"answer": " ECHO-7 "},
+                    ),
+                )
+                assert completed.json() == repeated.json() == {"content": {"accepted": True}, "followups": []}
+
+                admin_file_id = app.state.runtime.catalogs.files.file_id_for_stable_id("example.admin-control")
+                assert (await client.get(f"/api/v1/files/{admin_file_id}", headers=headers)).status_code == 403
+                guest_dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
+                archive = next(
+                    directory
+                    for directory in guest_dynamic_tree.json()["directories"]
+                    if directory["path"] == "/archive"
+                )
+                assert [item["path"] for item in archive["files"]] == ["/archive/ADMIN_ACCESS.txt"]
+                admin_access = archive["files"][0]
+                assert admin_access["content_token"].startswith("act2_")
+
+                expected_admin_access = (
+                    "ADMINISTRATOR ACCESS\n\n"
+                    f"Player: {player_id}\n"
+                    "Username: administrator\n"
+                    "Password: admin-echo-9\n"
+                ).encode()
+                artifact_version = app.state.runtime.catalogs.artifacts.template("example.admin-access").version
+                artifact_key = (
+                    f"artifacts/{player_id}/example.admin-access/{artifact_version}/"
+                    f"{hashlib.sha256(expected_admin_access).hexdigest()}"
+                )
+                assert object_store.objects[artifact_key] == expected_admin_access
+
+                administrator_login = await client.post(
+                    "/api/v1/vac/login",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                    json={"username": "administrator", "password": "admin-echo-9"},
+                )
+                assert administrator_login.status_code == 200
+                assert administrator_login.json()["content"]["current_account"]["account_id"] == "example.admin"
+
+                admin_tree = await client.get("/api/v1/files/tree", headers=headers)
+                assert [directory["path"] for directory in admin_tree.json()["directories"]] == ["/public", "/admin"]
+                assert (await client.get(f"/api/v1/files/{admin_file_id}", headers=headers)).status_code == 200
+                admin_archive = await client.get("/api/v1/files/d/ls", params={"path": "/archive"}, headers=headers)
+                assert admin_archive.status_code == 200
+                assert admin_archive.json()["files"] == []
+                admin_scripts = await client.get("/api/v1/scripts", headers=headers)
+                assert [item["stable_id"] for item in admin_scripts.json()["items"]] == ["example.admin"]
+
+                rejected_as_admin = await client.post(
+                    "/api/v1/validations/example-answer/attempts",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                    json={"answer": "echo-7"},
+                )
+                assert rejected_as_admin.json() == {"content": {"accepted": False}, "followups": []}
 
         assert object_store.upload_keys == [
             "static/example/assets/public/README.txt",
-            "static/example/assets/archive/result.txt",
-            artifact_key,
-        ]
-
-        assert object_store.request_keys == [
-            "static/example/assets/archive/result.txt",
+            "static/example/assets/public/GUEST_ACCESS.txt",
+            "static/example/assets/admin/CONTROL.txt",
             artifact_key,
         ]
 

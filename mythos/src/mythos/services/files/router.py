@@ -10,7 +10,8 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.dependencies import get_runtime
 from mythos.players.context import RequestContext
-from mythos.players.dependencies import PlayerInterfaces, get_context
+from mythos.players.dependencies import get_context
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.registry.errors import RegistryError
 from mythos.services.files.service import (
     DirectorySummary,

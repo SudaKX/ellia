@@ -17,6 +17,7 @@ from mythos.persistence.models import (
 from mythos.players.interfaces.accounts import AccountInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.progress import ProgressInterface
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.bundle import RuntimeCatalogs
 from mythos.services.object_store.service import ObjectStore
@@ -96,10 +97,15 @@ class PlayerFactory:
             writable=writable,
         )
 
-    async def load(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> Player:
-        """Load a fully-initialized player for callers that need all interfaces."""
+    async def load(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
+    ) -> Player:
+        """Load a player with the requested interfaces."""
         player = await self.create(session, player_id, writable=writable)
-        await player.load_progress()
-        await player.load_artifacts()
-        await player.load_accounts()
+        await player.load_interfaces(interfaces)
         return player

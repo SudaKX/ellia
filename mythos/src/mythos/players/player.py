@@ -6,6 +6,7 @@ from uuid import UUID
 from mythos.players.interfaces.accounts import AccountInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.progress import ProgressInterface
+from mythos.players.interface_selection import PlayerInterfaces
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,6 +55,17 @@ class Player:
         if self._accounts is None:
             raise PlayerInterfaceNotLoadedError("accounts interface not loaded")
         return self._accounts
+
+    async def load_interfaces(
+        self,
+        interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
+    ) -> None:
+        if PlayerInterfaces.PROGRESS in interfaces:
+            await self.load_progress()
+        if PlayerInterfaces.ARTIFACTS in interfaces:
+            await self.load_artifacts()
+        if PlayerInterfaces.ACCOUNTS in interfaces:
+            await self.load_accounts()
 
     async def load_progress(self) -> ProgressInterface:
         if self._progress is None:

@@ -1,6 +1,5 @@
 from mythos.registry.artifacts.catalog import ArtifactCatalog
 from mythos.registry.artifacts.definitions import (
-    ArtifactGenerationContext,
     ArtifactGenerator,
     ArtifactNode,
     ArtifactNodeGenerator,
@@ -18,7 +17,6 @@ from mythos.registry.artifacts.versions import (
 
 __all__ = [
     "ArtifactCatalog",
-    "ArtifactGenerationContext",
     "ArtifactGenerator",
     "ArtifactNode",
     "ArtifactNodeVersion",

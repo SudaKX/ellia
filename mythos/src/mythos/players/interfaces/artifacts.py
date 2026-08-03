@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -15,7 +15,6 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import utcnow
 from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
 from mythos.registry.artifacts import (
-    ArtifactGenerationContext,
     ArtifactNode,
     ArtifactNodeTemplate,
     ArtifactTemplate,
@@ -26,6 +25,9 @@ from mythos.registry.files.definitions import DisplayParams, FileContent, Object
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.registry.files.tree import TreeNode
 from mythos.services.object_store.service import ObjectStore
+
+if TYPE_CHECKING:
+    from mythos.players.player import Player
 
 
 class ReadOnlyArtifactError(Exception):
@@ -94,13 +96,13 @@ class ArtifactInterface:
     async def generate_artifact(
         self,
         artifact_id: str,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> PlayerArtifact:
         self._ensure_writable()
         existing = self._artifacts.get(artifact_id)
         if existing is not None:
             return existing
-        artifact = await self._materialize_artifact(self._catalog.template(artifact_id), context)
+        artifact = await self._materialize_artifact(self._catalog.template(artifact_id), player)
         await self._bump_player_version()
         self._player_tree_cache = None
         return artifact
@@ -108,13 +110,13 @@ class ArtifactInterface:
     async def generate_node(
         self,
         node_id: str,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> ArtifactNode:
         self._ensure_writable()
         existing = self._nodes.get(node_id)
         if existing is not None:
             return self._runtime_node(existing)
-        node = await self._materialize_node(self._catalog.node_template(node_id), context)
+        node = await self._materialize_node(self._catalog.node_template(node_id), player)
         await self._bump_player_version()
         self._player_tree_cache = None
         return node
@@ -122,7 +124,7 @@ class ArtifactInterface:
     async def refresh_artifact(
         self,
         artifact_id: str,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> PlayerArtifact | None:
         artifact = self._artifacts.get(artifact_id)
         if artifact is None:
@@ -133,7 +135,7 @@ class ArtifactInterface:
             return None
         if artifact.version == template.version:
             return artifact
-        refreshed = await self._materialize_artifact(template, context)
+        refreshed = await self._materialize_artifact(template, player)
         await self._bump_player_version()
         self._player_tree_cache = None
         return refreshed
@@ -141,7 +143,7 @@ class ArtifactInterface:
     async def refresh_node(
         self,
         node_id: str,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> ArtifactNode | None:
         node = self._nodes.get(node_id)
         template = self._catalog.node_template_or_none(node_id)
@@ -152,7 +154,7 @@ class ArtifactInterface:
         if node is None:
             if template.artifact_locator not in self._artifacts:
                 return None
-            refreshed = await self._materialize_node(template, context)
+            refreshed = await self._materialize_node(template, player)
             await self._bump_player_version()
             self._player_tree_cache = None
             return refreshed
@@ -161,7 +163,7 @@ class ArtifactInterface:
         if template.artifact_locator not in self._artifacts:
             await self.remove_node(node_id)
             return None
-        refreshed = await self._materialize_node(template, context)
+        refreshed = await self._materialize_node(template, player)
         await self._bump_player_version()
         self._player_tree_cache = None
         return refreshed
@@ -200,13 +202,13 @@ class ArtifactInterface:
         self._player_tree_cache = None
         return True
 
-    async def refresh_stale(self, context: ArtifactGenerationContext) -> None:
+    async def refresh_stale(self, player: Player) -> None:
         for artifact_id in tuple(self._artifacts):
-            await self.refresh_artifact(artifact_id, context)
+            await self.refresh_artifact(artifact_id, player)
 
         for artifact_id in tuple(self._artifacts):
             for template in self._catalog.node_templates_for_artifact(artifact_id):
-                await self.refresh_node(template.stable_id, context)
+                await self.refresh_node(template.stable_id, player)
 
         for node_id, node in tuple(self._nodes.items()):
             template = self._catalog.node_template_or_none(node_id)
@@ -216,9 +218,9 @@ class ArtifactInterface:
     async def _materialize_artifact(
         self,
         template: ArtifactTemplate,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> PlayerArtifact:
-        raw = await template.generator(context)
+        raw = await template.generator(player)
         digest = hashlib.sha256(raw.data).hexdigest()
         object_ref = await self._object_store.put_bytes(
             raw.data,
@@ -235,12 +237,12 @@ class ArtifactInterface:
     async def _materialize_node(
         self,
         template: ArtifactNodeTemplate,
-        context: ArtifactGenerationContext,
+        player: Player,
     ) -> ArtifactNode:
         if template.artifact_locator not in self._artifacts:
             raise RuntimeError(f"Artifact {template.artifact_locator!r} must exist before creating a node.")
         runtime_node = template.to_runtime_node()
-        runtime_node = await template.node_generator(context, runtime_node)
+        runtime_node = await template.node_generator(player, runtime_node)
         if runtime_node.stable_id != template.stable_id:
             raise RuntimeError("Artifact node generator modified the stable_id.")
         if runtime_node.artifact_locator != template.artifact_locator:

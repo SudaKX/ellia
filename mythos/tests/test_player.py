@@ -11,6 +11,7 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerProgress
 from mythos.players.factory import PlayerFactory, PlayerNotFoundError
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import PlayerInterfaceNotLoadedError
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
@@ -121,6 +122,19 @@ async def test_player_load_accounts_creates_empty_interface(session) -> None:
     accounts = await player.load_accounts()
     assert player._accounts is accounts
     assert accounts.accounts == ()
+
+
+async def test_player_load_interfaces_loads_only_selected_interfaces(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    await player.load_interfaces(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS)
+
+    assert player._progress is not None
+    assert player._artifacts is not None
+    assert player._accounts is None
 
 
 async def test_player_factory_load_initializes_both_interfaces(session) -> None:

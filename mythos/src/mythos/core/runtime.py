@@ -6,6 +6,7 @@ from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.players.factory import PlayerFactory
 from mythos.registry.bundle import RuntimeCatalogs
 from mythos.services.container import ServiceContainer
+from mythos.services.lifecycle import PlayerLifecycleDispatcher
 from mythos.services.object_store.service import ObjectStore
 
 
@@ -16,3 +17,4 @@ class ApplicationRuntime:
     services: ServiceContainer
     object_store: ObjectStore
     command_executor: CommandTransactionExecutor
+    lifecycle_dispatcher: PlayerLifecycleDispatcher
