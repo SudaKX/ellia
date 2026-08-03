@@ -10,6 +10,7 @@ from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_DEFAULT_PROBLEM_TYPE_BASE_URL = "https://problems.invalid/ellia/problems"
 
 
 def _default_database_url() -> str:
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
     refresh_cookie_secure: bool | None = None
     request_cache_ttl_seconds: int = 30
     request_cache_maxsize: int = 1_000
+    problem_type_base_url: str = _DEFAULT_PROBLEM_TYPE_BASE_URL
     object_store_endpoint: str | None = None
     object_store_region: str = "us-east-1"
     object_store_bucket: str | None = None
@@ -78,6 +80,31 @@ class Settings(BaseSettings):
             raise ValueError("Request cache TTL must be at least one second.")
         if self.request_cache_maxsize < 1:
             raise ValueError("Request cache size must be at least one entry.")
+        problem_type_base = urlparse(self.problem_type_base_url)
+        try:
+            port = problem_type_base.port
+        except ValueError as error:
+            raise ValueError("Problem type base URL must use a valid port.") from error
+        if (
+            problem_type_base.scheme not in {"http", "https"}
+            or not problem_type_base.netloc
+            or not problem_type_base.hostname
+            or problem_type_base.username is not None
+            or problem_type_base.password is not None
+            or problem_type_base.params
+            or problem_type_base.query
+            or problem_type_base.fragment
+            or "?" in self.problem_type_base_url
+            or "#" in self.problem_type_base_url
+            or any(character.isspace() for character in self.problem_type_base_url)
+        ):
+            raise ValueError("Problem type base URL must be an absolute HTTP URL without query or fragment.")
+        del port
+        if self.environment == "production":
+            if self.problem_type_base_url == _DEFAULT_PROBLEM_TYPE_BASE_URL:
+                raise ValueError("Production requires MYTHOS_PROBLEM_TYPE_BASE_URL.")
+            if problem_type_base.scheme != "https":
+                raise ValueError("Production problem type base URL requires HTTPS.")
         if not 1 <= self.file_content_url_ttl_seconds <= 43_200:
             raise ValueError("File content URL TTL must be between one second and 12 hours.")
         if not 0 <= self.file_content_cache_max_age_seconds < self.file_content_url_ttl_seconds:
@@ -129,6 +156,9 @@ class Settings(BaseSettings):
     @property
     def object_store_configured(self) -> bool:
         return self.object_store_endpoint is not None
+
+    def problem_type_url(self, problem_type: str) -> str:
+        return f"{self.problem_type_base_url.rstrip('/')}/{problem_type}"
 
     @property
     def artifact_snapshot_path(self) -> Path:

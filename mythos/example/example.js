@@ -127,7 +127,15 @@ async function callApi(path, options = {}, retryAuth = true) {
     throw error;
   }
   addEvent(method, path, response.status, Math.round(performance.now() - started));
-  if (response.status === 401 && retryAuth && path !== "/auth/refresh") {
+  const problem = response.status >= 400 ? await response.clone().json().catch(() => null) : null;
+  if (
+    response.status === 401 &&
+    problem &&
+    typeof problem.type === "string" &&
+    problem.type.endsWith("/access-token-invalid") &&
+    retryAuth &&
+    path !== "/auth/refresh"
+  ) {
     if (await refreshAccessToken()) {
       return callApi(path, options, false);
     }
@@ -138,7 +146,11 @@ async function callApi(path, options = {}, retryAuth = true) {
 async function readJson(response) {
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload && payload.detail ? payload.detail : `Request failed with ${response.status}.`);
+    throw new Error(
+      payload && (payload.detail || payload.title)
+        ? payload.detail || payload.title
+        : `Request failed with ${response.status}.`,
+    );
   }
   return payload;
 }

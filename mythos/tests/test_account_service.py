@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from mythos.auth.tokens import decode_access_token
 from mythos.core.config import Settings
+from mythos.core.problems import ProblemType
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerVirtualAccount, PlayerVirtualAccountState
@@ -77,14 +78,27 @@ async def test_vac_routes_log_in_and_log_out_module_issued_account(tmp_path) -> 
                 json={"username": "operator", "password": "wrong"},
             )
             assert invalid.status_code == 401
-            assert invalid.json()["content"] == {"detail": "Invalid virtual account credentials."}
+            assert invalid.headers["content-type"].startswith("application/problem+json")
+            assert invalid.headers.get("www-authenticate") is None
+            invalid_problem = invalid.json()
+            assert invalid_problem == {
+                "type": settings.problem_type_url(ProblemType.VIRTUAL_ACCOUNT_INVALID_CREDENTIALS),
+                "title": "Invalid virtual account credentials",
+                "status": 401,
+                "detail": "The supplied virtual account credentials are invalid.",
+                "instance": invalid_problem["instance"],
+            }
+            assert invalid_problem["instance"].startswith("urn:uuid:")
 
             malformed = await client.post(
                 "/api/v1/vac/login",
                 headers={"Authorization": f"Bearer {token}", "Request-ID": str(uuid4())},
                 json={"username": "operator", "password": "x" * 129},
             )
-            assert malformed.status_code == 400
+            assert malformed.status_code == 422
+            assert malformed.headers["content-type"].startswith("application/problem+json")
+            assert malformed.json()["type"] == settings.problem_type_url(ProblemType.INVALID_REQUEST)
+            assert malformed.json()["errors"]
             assert "x" * 129 not in malformed.text
 
             logged_in = await client.post(

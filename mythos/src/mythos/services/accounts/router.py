@@ -15,6 +15,7 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.commands import RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
+from mythos.core.problems import ApiProblem, ProblemType, validation_errors
 from mythos.players.context import CommandContext
 from mythos.players.factory import PlayerNotFoundError
 from mythos.services.accounts.schemas import AccountLoginRequest
@@ -34,8 +35,22 @@ async def login(
 ) -> JSONResponse:
     try:
         payload = AccountLoginRequest.model_validate(await request.json())
-    except (json.JSONDecodeError, ValidationError) as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid virtual login request.") from error
+    except json.JSONDecodeError as error:
+        raise ApiProblem(
+            ProblemType.INVALID_REQUEST,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            title="Invalid request",
+            detail="One or more request values are invalid.",
+            extensions={"errors": [{"pointer": "/", "reason": "Request body must be valid JSON."}]},
+        ) from error
+    except ValidationError as error:
+        raise ApiProblem(
+            ProblemType.INVALID_REQUEST,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            title="Invalid request",
+            detail="One or more request values are invalid.",
+            extensions={"errors": validation_errors(error.errors())},
+        ) from error
     return await _execute(
         runtime,
         session,
@@ -80,6 +95,13 @@ async def _execute(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Request-ID belongs to another player.") from error
     except PlayerNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
+    except InvalidAccountCredentialsError as error:
+        raise ApiProblem(
+            ProblemType.VIRTUAL_ACCOUNT_INVALID_CREDENTIALS,
+            status=status.HTTP_401_UNAUTHORIZED,
+            title="Invalid virtual account credentials",
+            detail="The supplied virtual account credentials are invalid.",
+        ) from error
     return JSONResponse(status_code=result.response.status_code, content=result.response.body)
 
 
@@ -88,14 +110,7 @@ async def _login_response(
     context: CommandContext,
     payload: AccountLoginRequest,
 ) -> ResponseSpec:
-    try:
-        snapshot = await service.login(context, payload.username, payload.password)
-    except InvalidAccountCredentialsError:
-        return ResponseSpec(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            body={"detail": "Invalid virtual account credentials."},
-            headers={},
-        )
+    snapshot = await service.login(context, payload.username, payload.password)
     return ResponseSpec(status_code=status.HTTP_200_OK, body=snapshot.body(), headers={})
 
 

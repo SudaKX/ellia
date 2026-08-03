@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import (
@@ -20,6 +19,7 @@ from mythos.auth.tokens import PlayerIdentity, RefreshCredential
 from mythos.core.config import Settings
 from mythos.core.dependencies import get_runtime, get_session, get_settings_from_request
 from mythos.core.runtime import ApplicationRuntime
+from mythos.core.problems import ApiProblem, ProblemType, problem_response
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -83,7 +83,12 @@ async def register(
             credentials.password,
         )
     except UsernameAlreadyExistsError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists.") from error
+        raise ApiProblem(
+            ProblemType.USERNAME_ALREADY_EXISTS,
+            status=status.HTTP_409_CONFLICT,
+            title="Username already exists",
+            detail="Choose a different username.",
+        ) from error
 
     _set_refresh_cookie(response, result.refresh_credential, settings)
     return _token_response(result.access_token, settings)
@@ -103,7 +108,12 @@ async def login(
             credentials.password,
         )
     except InvalidCredentialsError as error:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.") from error
+        raise ApiProblem(
+            ProblemType.PRIMARY_CREDENTIALS_INVALID,
+            status=status.HTTP_401_UNAUTHORIZED,
+            title="Invalid username or password",
+            detail="The supplied primary account credentials are invalid.",
+        ) from error
 
     _set_refresh_cookie(response, result.refresh_credential, settings)
     return _token_response(result.access_token, settings)
@@ -122,9 +132,14 @@ async def refresh(
             request.cookies.get(settings.refresh_cookie_name)
         )
     except InvalidRefreshCredentialError as error:
-        error_response = JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": "Invalid refresh credential."},
+        error_response = problem_response(
+            ApiProblem(
+                ProblemType.REFRESH_CREDENTIAL_INVALID,
+                status=status.HTTP_401_UNAUTHORIZED,
+                title="Invalid refresh credential",
+                detail="The refresh credential is invalid or expired.",
+            ),
+            settings,
         )
         _delete_refresh_cookie(error_response, settings)
         return error_response

@@ -1,13 +1,12 @@
 import asyncio
 from pathlib import Path
-from uuid import uuid4
 
 import httpx
-import pytest
 from pydantic import SecretStr
 from sqlalchemy import select, update
 
 from mythos.core.config import Settings
+from mythos.core.problems import ProblemType
 from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
@@ -148,13 +147,15 @@ def test_failed_construct_rolls_back_registration(tmp_path: Path) -> None:
         app = create_app(settings, registries=registries)
 
         async with app.router.lifespan_context(app):
-            transport = httpx.ASGITransport(app=app)
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                with pytest.raises(RuntimeError, match="construction failed"):
-                    await client.post(
-                        "/api/v1/auth/register",
-                        json={"username": "failed-player", "password": "correct-horse-battery"},
-                    )
+                response = await client.post(
+                    "/api/v1/auth/register",
+                    json={"username": "failed-player", "password": "correct-horse-battery"},
+                )
+                assert response.status_code == 500
+                assert response.headers["content-type"].startswith("application/problem+json")
+                assert response.json()["type"] == settings.problem_type_url(ProblemType.INTERNAL_ERROR)
 
             async with app.state.database.session_factory() as session:
                 assert await session.scalar(select(PlayerRecord)) is None

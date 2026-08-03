@@ -3,7 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from mythos.auth.router import router as auth_router
 from mythos.services.accounts.router import router as accounts_router
@@ -29,6 +32,16 @@ from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
 from mythos.services.lifecycle import PlayerLifecycleDispatcher
+from mythos.core.problems import (
+    ApiProblem,
+    PROBLEM_MEDIA_TYPE,
+    PROBLEM_STATUS_CODES,
+    ProblemDetails,
+    api_problem_handler,
+    http_exception_handler,
+    request_validation_exception_handler,
+    unhandled_exception_handler,
+)
 
 
 def create_app(
@@ -115,6 +128,12 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.state.settings = resolved_settings
+    application.add_exception_handler(ApiProblem, api_problem_handler)
+    application.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    application.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    application.add_exception_handler(Exception, unhandled_exception_handler)
+    application.openapi = lambda: _openapi_with_problem_details(application)
     if resolved_settings.environment == "development":
         application.mount(
             "/example",
@@ -135,3 +154,32 @@ def create_app(
     return application
 
 app = create_app()
+
+
+def _openapi_with_problem_details(application: FastAPI) -> dict[str, object]:
+    if application.openapi_schema is not None:
+        return application.openapi_schema
+    schema = get_openapi(
+        title=application.title,
+        version=application.version,
+        routes=application.routes,
+    )
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    components["ProblemDetails"] = ProblemDetails.model_json_schema()
+    problem_response = {
+        "description": "RFC 9457 Problem Details response.",
+        "content": {
+            PROBLEM_MEDIA_TYPE: {
+                "schema": {"$ref": "#/components/schemas/ProblemDetails"},
+            }
+        },
+    }
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            for status_code in PROBLEM_STATUS_CODES:
+                responses[str(status_code)] = problem_response
+    application.openapi_schema = schema
+    return schema

@@ -18,7 +18,7 @@ Request-ID: <UUID>
 {"content":{"current_account":{"account_id":"example.operator","username":"operator","display_name":"Operator","permission":5,"metadata":{},"created_at":"2026-08-03T00:00:00+00:00","last_logged_in_at":"2026-08-03T00:00:00+00:00","login_count":1},"version":2},"followups":[]}
 ```
 
-账号未发放、账号已退休、用户名错误和密码错误均返回 `401`。
+账号未发放、账号已退休、用户名错误和密码错误均返回 RFC 9457 `401` Problem Details，type 为 `.../virtual-account-invalid-credentials`；它不触发平台 Token refresh。完整错误格式见 [错误与缓存](errors-and-caching.md)。
 
 ## 登出
 
