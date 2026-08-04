@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
-from mythos.registry.errors import DuplicateStableIdError
+from mythos.registry.errors import DuplicateStableIdError, RegistryError
 from mythos.registry.files import FileRegistry, FileTree
+from mythos.registry.hints import HintCatalog, HintRegistry
 from mythos.registry.lifecycle import LifecycleCatalog, LifecycleRegistry
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
@@ -26,6 +27,7 @@ class RuntimeCatalogs:
     validations: ValidationCatalog
     artifacts: ArtifactCatalog
     accounts: VirtualAccountCatalog
+    hints: HintCatalog
     lifecycle: LifecycleCatalog
 
 
@@ -37,6 +39,7 @@ class RegistryBundle:
         self.validations = ValidationRegistry()
         self.artifacts = ArtifactRegistry()
         self.accounts = VirtualAccountRegistry()
+        self.hints = HintRegistry()
         self.lifecycle = LifecycleRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
@@ -60,6 +63,7 @@ class RegistryBundle:
             validations=self.validations.freeze(),
             artifacts=self.artifacts.freeze(),
             accounts=self.accounts.freeze(),
+            hints=self.hints.freeze(file_ids),
             lifecycle=self.lifecycle.freeze(),
         )
         return self._catalogs
@@ -67,6 +71,32 @@ class RegistryBundle:
     async def materialize_static_files(self, publisher: StaticAssetPublisher) -> None:
         if self._catalogs is not None:
             return
-        if self.files.is_materialized:
+        if self.files.is_materialized and self.hints.is_materialized:
             return
-        self.files.materialize_static_files(await publisher.materialize(self.files.sources))
+        if self.files.is_materialized != self.hints.is_materialized:
+            raise RegistryError("Static file and hint content must be materialized together.")
+        sources_by_locator = _merge_static_sources(self.files.sources, self.hints.sources)
+        objects_by_source_locator = await publisher.materialize(tuple(sources_by_locator.values()))
+        self.files.materialize_static_files(
+            {
+                source.source_locator: objects_by_source_locator[source.source_locator]
+                for source in self.files.sources
+            }
+        )
+        self.hints.materialize_static_content(
+            {
+                source.source_locator: objects_by_source_locator[source.source_locator]
+                for source in self.hints.sources
+            }
+        )
+
+
+def _merge_static_sources(*source_groups):
+    sources_by_locator = {}
+    for source_group in source_groups:
+        for source in source_group:
+            existing = sources_by_locator.get(source.source_locator)
+            if existing is not None and existing != source:
+                raise RegistryError("Static file and hint sources conflict.")
+            sources_by_locator[source.source_locator] = source
+    return sources_by_locator

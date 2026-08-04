@@ -6,4 +6,6 @@ class PlayerInterfaces(IntFlag):
     PROGRESS = 1
     ARTIFACTS = 2
     ACCOUNTS = 4
-    ALL = PROGRESS | ARTIFACTS | ACCOUNTS
+    CREDITS = 8
+    HINTS = 16
+    ALL = PROGRESS | ARTIFACTS | ACCOUNTS | CREDITS | HINTS

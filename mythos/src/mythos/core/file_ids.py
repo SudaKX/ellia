@@ -18,6 +18,25 @@ class FileIdCodec:
     def encode(self, stable_id: str) -> str:
         return self._encode("file:v1", stable_id)
 
+    def encode_hint_id(self, stable_id: str) -> str:
+        return self._encode("hint:v1", stable_id, prefix="h1_")
+
+    def encode_hint_content_token(
+        self,
+        stable_id: str,
+        hint_version: str,
+        object_key: str,
+        object_version_id: str,
+        media_type: str,
+        download_name: str,
+    ) -> str:
+        payload = json.dumps(
+            (stable_id, hint_version, object_key, object_version_id, media_type, download_name),
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        return self._encode("hint-content:v1", payload, prefix="hct1_")
+
     def encode_content_token(
         self,
         stable_id: str,

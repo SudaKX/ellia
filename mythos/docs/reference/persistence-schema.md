@@ -1,6 +1,6 @@
 # 持久化总览
 
-SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节和版本，本地文件系统保存 checkpoint 与 Catalog 快照 JSON。当前 migration head 为 `0008_player_lifecycle`，共有十二张表。
+SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节和版本，本地文件系统保存 checkpoint 与 Catalog 快照 JSON。当前 migration head 为 `0009_player_credits_and_hints`，共有十四张表。
 
 | 表 | ORM Model | 所属系统 | 关键关系 |
 | --- | --- | --- | --- |
@@ -16,6 +16,8 @@ SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节
 | `player_artifact_states` | `PlayerArtifactState` | Artifact | 玩家独立的单调 PlayerVersion |
 | `player_virtual_accounts` | `PlayerVirtualAccount` | VirtualAccount | `(player_id, account_id)` 主键；用户名在玩家范围唯一，保存密码哈希和登录统计 |
 | `player_virtual_account_states` | `PlayerVirtualAccountState` | VirtualAccount | 当前账号及版本；复合外键保证当前账号属于玩家 |
+| `player_credits` | `PlayerCredits` | Credits | 玩家 VTB、版本与更新时间；VTB 不可为负 |
+| `player_hint_disclosures` | `PlayerHintDisclosure` | Hint | `(player_id, hint_stable_id)` 主键，保存已购买资格与时间 |
 
 ## 非 SQL 状态
 
@@ -26,4 +28,4 @@ SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节
 - VirtualAccount Catalog 快照：本地 `virtual-account-template-catalog.json`；启动期以当前 Catalog 清理 SQL 中已退休账号类型。
 - `RequestCache`：仅当前 Python 进程内存，受 TTL 和 maxsize 限制。
 
-迁移顺序：`0001_initial_auth`、`0002_player_graph_progress`、`0003_remove_legacy_progress_fields`、`0004_static_file_registrations`、`0005_player_artifacts`、`0006_artifact_template_versions`、`0007_virtual_accounts`、`0008_player_lifecycle`。运行迁移时从 `mythos/` 使用 `python -m alembic -c alembic.ini upgrade head`。
+迁移顺序：`0001_initial_auth`、`0002_player_graph_progress`、`0003_remove_legacy_progress_fields`、`0004_static_file_registrations`、`0005_player_artifacts`、`0006_artifact_template_versions`、`0007_virtual_accounts`、`0008_player_lifecycle`、`0009_player_credits_and_hints`。运行迁移时从 `mythos/` 使用 `python -m alembic -c alembic.ini upgrade head`。

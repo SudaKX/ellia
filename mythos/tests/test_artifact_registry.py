@@ -9,11 +9,11 @@ from mythos.registry.artifacts import (
     module_handler,
 )
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
-from mythos.registry.files import DisplayParams
+from mythos.registry.files import NodeDisplayParams
 
 
-def _display(label: str) -> DisplayParams:
-    return DisplayParams(label=label, icon="document")
+def _display(label: str) -> NodeDisplayParams:
+    return NodeDisplayParams(label=label, icon="document")
 
 
 @module_handler("test")(1)

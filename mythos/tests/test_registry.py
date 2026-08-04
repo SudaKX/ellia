@@ -17,13 +17,14 @@ from mythos.registry.errors import (
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.files import (
-    DisplayParams,
+    NodeDisplayParams,
     FileReference,
     FileRegistry,
     FileTreeManifest,
     ObjectReference,
     StaticNode,
 )
+from mythos.registry.hints import Hint, HintDisplayParams, HintRegistry
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationOutcome, ValidationRegistry
 
@@ -32,8 +33,8 @@ async def _attempt_handler(_context, _payload):
     return ValidationOutcome(accepted=True)
 
 
-def _display(label: str, icon: str = "document") -> DisplayParams:
-    return DisplayParams(label=label, icon=icon)
+def _display(label: str, icon: str = "document") -> NodeDisplayParams:
+    return NodeDisplayParams(label=label, icon=icon)
 
 
 @module_handler("test")(1)
@@ -62,6 +63,18 @@ class FakeStaticPublisher:
         }
 
 
+def _hint(stable_id: str, source: FileReference, *, access_rule=None) -> Hint:
+    return Hint(
+        stable_id=stable_id,
+        source=source,
+        download_name="hint.txt",
+        display=HintDisplayParams(title="Hint"),
+        vtb_cost=1,
+        revision=1,
+        access_rule=access_rule,
+    )
+
+
 def test_validation_registry_rejects_duplicates_and_freezes() -> None:
     registry = ValidationRegistry()
     attempt = ValidationAttempt("test.validation", "test-validation", _attempt_handler)
@@ -78,6 +91,40 @@ def test_validation_registry_rejects_duplicates_and_freezes() -> None:
         catalog.attempt("missing")
     with pytest.raises(RegistryFrozenError):
         registry.register_attempt(ValidationAttempt("test.later", "later", _attempt_handler))
+
+
+def test_hint_registry_rejects_unsafe_sources_and_async_access_rules() -> None:
+    registry = HintRegistry()
+
+    async def async_rule(_player) -> bool:
+        return False
+
+    with pytest.raises(RegistryError, match="canonical .*path"):
+        registry.register(_hint("test.traversal", FileReference("test", "../secret.txt", "text/plain")))
+    with pytest.raises(RegistryError, match="synchronous"):
+        registry.register(_hint("test.async-rule", FileReference("test", "assets/hint.txt", "text/plain"), access_rule=async_rule))
+
+
+def test_hint_registry_requires_the_original_file_id_key_after_freeze() -> None:
+    registry = HintRegistry()
+    source = FileReference("test", "assets/hint.txt", "text/plain")
+    registry.register(_hint("test.hint", source))
+    registry.materialize_static_content(
+        {
+            source.source_locator: ObjectReference(
+                "static/test/assets/hint.txt",
+                "sha256:" + "a" * 64,
+                "text/plain",
+                4,
+                "test-version",
+            )
+        }
+    )
+    file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
+    catalog = registry.freeze(file_ids)
+    assert catalog.public_id_for("test.hint").startswith("h1_")
+    with pytest.raises(RegistryError, match="different file ID key"):
+        registry.freeze(FileIdCodec("another-file-id-signing-key-with-at-least-32-bytes"))
 
 
 def test_registry_bundle_freezes_runtime_catalogs() -> None:
@@ -283,7 +330,7 @@ def test_file_content_token_follows_representation_metadata() -> None:
 def test_file_tree_versions_follow_display_params_without_changing_content_tokens() -> None:
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
 
-    def build_tree(display: DisplayParams):
+    def build_tree(display: NodeDisplayParams):
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
         registry.register_node(

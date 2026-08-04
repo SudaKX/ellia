@@ -29,6 +29,10 @@ class ProblemType(StrEnum):
     REFRESH_CREDENTIAL_INVALID = "refresh-credential-invalid"
     USERNAME_ALREADY_EXISTS = "username-already-exists"
     VIRTUAL_ACCOUNT_INVALID_CREDENTIALS = "virtual-account-invalid-credentials"
+    HINT_NOT_FOUND = "hint-not-found"
+    HINT_UNAVAILABLE = "hint-unavailable"
+    INSUFFICIENT_CREDITS = "insufficient-credits"
+    HINT_CONTENT_VERSION_MISMATCH = "hint-content-version-mismatch"
     INVALID_REQUEST = "invalid-request"
     INTERNAL_ERROR = "internal-error"
 

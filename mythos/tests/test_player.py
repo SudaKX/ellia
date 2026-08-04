@@ -58,6 +58,8 @@ async def test_player_factory_create_does_not_load_interfaces(session) -> None:
     assert player._progress is None
     assert player._artifacts is None
     assert player._accounts is None
+    assert player._credits is None
+    assert player._hints is None
 
 
 async def test_player_accessing_uninitialized_progress_raises(session) -> None:
@@ -88,6 +90,18 @@ async def test_player_accessing_uninitialized_accounts_raises(session) -> None:
     player = await _factory().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="accounts interface not loaded"):
         _ = player.accounts
+
+
+async def test_player_accessing_uninitialized_credits_and_hints_raises(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    with pytest.raises(PlayerInterfaceNotLoadedError, match="credits interface not loaded"):
+        _ = player.credits
+    with pytest.raises(PlayerInterfaceNotLoadedError, match="hints interface not loaded"):
+        _ = player.hints
 
 
 async def test_player_load_progress_caches_and_returns_interface(session) -> None:
@@ -124,6 +138,20 @@ async def test_player_load_accounts_creates_empty_interface(session) -> None:
     assert accounts.accounts == ()
 
 
+async def test_player_load_credits_and_hints_creates_empty_interfaces(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    credits = await player.load_credits()
+    hints = await player.load_hints()
+    assert player.credits is credits
+    assert player.hints is hints
+    assert credits.vtb == 0
+    assert hints.disclosures == ()
+
+
 async def test_player_load_interfaces_loads_only_selected_interfaces(session) -> None:
     player_id = uuid4()
     await _seed_player(session, player_id)
@@ -135,6 +163,8 @@ async def test_player_load_interfaces_loads_only_selected_interfaces(session) ->
     assert player._progress is not None
     assert player._artifacts is not None
     assert player._accounts is None
+    assert player._credits is None
+    assert player._hints is None
 
 
 async def test_player_factory_load_initializes_both_interfaces(session) -> None:
@@ -146,9 +176,13 @@ async def test_player_factory_load_initializes_both_interfaces(session) -> None:
     assert player._progress is not None
     assert player._artifacts is not None
     assert player._accounts is not None
+    assert player._credits is not None
+    assert player._hints is not None
     assert player.progress.version == 1
     assert player.artifacts.tree_nodes() == ()
     assert player.accounts.accounts == ()
+    assert player.credits.vtb == 0
+    assert player.hints.disclosures == ()
 
 
 async def test_player_factory_load_unknown_player_raises(session) -> None:

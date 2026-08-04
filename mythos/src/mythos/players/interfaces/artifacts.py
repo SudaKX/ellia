@@ -21,7 +21,7 @@ from mythos.registry.artifacts import (
 )
 from mythos.registry.artifacts.catalog import ArtifactCatalog
 from mythos.registry.files import FileTree
-from mythos.registry.files.definitions import DisplayParams, FileContent, ObjectReference
+from mythos.registry.files.definitions import FileContent, NodeDisplayParams, ObjectReference
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.registry.files.tree import TreeNode
 from mythos.services.object_store.service import ObjectStore
@@ -343,7 +343,7 @@ class ArtifactInterface:
             stable_id=node_record.node_id,
             path=node_record.path,
             version=node_record.version,
-            display=DisplayParams(**node_record.display),
+            display=NodeDisplayParams(**node_record.display),
             access_rule=template.access_rule,
             hidden=node_record.hidden,
             download_name=template.download_name,

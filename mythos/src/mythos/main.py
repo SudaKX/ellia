@@ -22,6 +22,7 @@ from mythos.services.container import ServiceContainer
 from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
 from mythos.services.files.router import router as files_router
+from mythos.services.hints.router import router as hints_router
 from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
 from mythos.services.progress.router import router as progress_router
@@ -104,6 +105,7 @@ def create_app(
             player_factory=player_factory,
             services=ServiceContainer.create(
                 catalogs.files,
+                catalogs.hints,
                 catalogs.progress,
                 catalogs.scripts,
                 catalogs.validations,
@@ -143,6 +145,7 @@ def create_app(
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(accounts_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
+    application.include_router(hints_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")
     application.include_router(validations_router, prefix="/api/v1")

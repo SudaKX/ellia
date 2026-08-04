@@ -24,6 +24,7 @@ from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
+    PlayerCredits,
     PlayerAuth,
     PlayerProgress,
     PlayerProgressFrontierNode,
@@ -111,7 +112,7 @@ class AuthService:
             async with self.session.begin():
                 self.session.add_all((player, auth, progress))
                 await self.session.flush()
-                self.session.add(PlayerVirtualAccountState(player_id=player.id))
+                self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
                 await self.session.flush()
                 await self._construct(player, "registration")
         except IntegrityError as error:

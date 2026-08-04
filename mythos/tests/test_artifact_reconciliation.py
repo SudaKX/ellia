@@ -17,7 +17,7 @@ from mythos.registry.artifacts import (
     module_handler,
 )
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import DisplayParams
+from mythos.registry.files import NodeDisplayParams
 
 
 pytestmark = pytest.mark.anyio
@@ -40,7 +40,7 @@ async def _node_generator(_context, node):
 
 @module_handler("reconciliation")(2)
 async def _node_generator_v2(_context, node):
-    node.display = DisplayParams(label="updated-report.txt", icon="document")
+    node.display = NodeDisplayParams(label="updated-report.txt", icon="document")
     return node
 
 
@@ -59,7 +59,7 @@ def _registries(generator, node_generator=_node_generator) -> RegistryBundle:
             stable_id="reconciliation.report-file",
             path="/reports/report.txt",
             artifact_locator="reconciliation.report",
-            display=DisplayParams(label="report.txt", icon="document"),
+            display=NodeDisplayParams(label="report.txt", icon="document"),
             node_generator=node_generator,
         )
     )

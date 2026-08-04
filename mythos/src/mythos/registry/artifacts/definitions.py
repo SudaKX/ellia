@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-from mythos.registry.files.definitions import DisplayParams, NodeAccessRule, VirtualNode
+from mythos.registry.files.definitions import NodeAccessRule, NodeDisplayParams, VirtualNode
 from mythos.registry.artifacts.versions import artifact_node_version, artifact_version, callback_id
 from mythos.registry.catalog_snapshots import TemplateSnapshotEntry
 
@@ -74,7 +74,7 @@ class ArtifactTemplate:
 class ArtifactNodeTemplate:
     stable_id: str
     path: str
-    display: DisplayParams
+    display: NodeDisplayParams
     artifact_locator: str
     node_generator: ArtifactNodeGenerator
     access_rule: NodeAccessRule | None = None
@@ -157,7 +157,7 @@ class ArtifactNode(VirtualNode):
         stable_id: str,
         path: str,
         version: str,
-        display: DisplayParams,
+        display: NodeDisplayParams,
         artifact_locator: str,
         access_rule: NodeAccessRule | None = None,
         hidden: bool = False,

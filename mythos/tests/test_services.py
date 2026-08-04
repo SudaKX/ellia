@@ -8,7 +8,7 @@ from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import DisplayParams, FileReference, StaticNode
+from mythos.registry.files import FileReference, NodeDisplayParams, StaticNode
 from mythos.registry.scripts import Script
 from _helpers.object_store import FakeObjectStore
 
@@ -52,7 +52,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     source_locator,
                     download_name,
                     access_rule,
-                    display=DisplayParams(label=download_name, icon="document"),
+                    display=NodeDisplayParams(label=download_name, icon="document"),
                 )
             )
 
@@ -64,7 +64,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "/private",
                 "1",
                 lambda _player: False,
-                display=DisplayParams(label="Private", icon="folder"),
+                display=NodeDisplayParams(label="Private", icon="folder"),
             )
         )
         register_file(
@@ -81,7 +81,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "/open",
                 "1",
                 lambda _player: True,
-                display=DisplayParams(label="Open", icon="folder"),
+                display=NodeDisplayParams(label="Open", icon="folder"),
             )
         )
         register_file("test.open-file", "/open/public.txt", "assets/open-public.txt", "public.txt", "public")
@@ -91,7 +91,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "/open/hidden",
                 "1",
                 lambda _player: False,
-                display=DisplayParams(label="Hidden", icon="folder"),
+                display=NodeDisplayParams(label="Hidden", icon="folder"),
             )
         )
         register_file(
@@ -107,7 +107,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "/open/hidden-by-path",
                 "1",
                 hidden_directory_rule,
-                display=DisplayParams(label="Hidden by path", icon="folder"),
+                display=NodeDisplayParams(label="Hidden by path", icon="folder"),
                 hidden=True,
             )
         )
@@ -123,7 +123,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "test.empty-directory",
                 "/empty",
                 "1",
-                display=DisplayParams(label="Empty", icon="folder"),
+                display=NodeDisplayParams(label="Empty", icon="folder"),
             )
         )
         registries.files.register_node(
@@ -131,7 +131,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 "test.visible-empty-directory",
                 "/visible-empty",
                 "1",
-                display=DisplayParams(label="Visible empty", icon="folder"),
+                display=NodeDisplayParams(label="Visible empty", icon="folder"),
             )
         )
         register_file(

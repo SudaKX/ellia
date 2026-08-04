@@ -16,13 +16,14 @@ Settings + RegistryBundle
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`lifecycle` 七个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、五个全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle` 八个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、六个全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
 
 ## 服务和 HTTP
 
 | 组件 | 全局 Service | Router |
 | --- | --- | --- |
 | 文件 | `FileService` | `/api/v1/files` |
+| Hint | `HintService` | `/api/v1/hints` |
 | 进度 | `ProgressService` | `/api/v1/progress` |
 | 脚本 | `ScriptService` | `/api/v1/scripts` |
 | 验证 | `ValidationService` | `/api/v1/validations` |

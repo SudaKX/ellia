@@ -6,7 +6,7 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from mythos.registry.errors import RegistryError
-from mythos.registry.files.definitions import DisplayParams, FileReference, NodeAccessRule, StaticNode
+from mythos.registry.files.definitions import NodeDisplayParams, FileReference, NodeAccessRule, StaticNode
 
 
 class _ManifestModel(BaseModel):
@@ -26,9 +26,9 @@ class DisplayManifest(_ManifestModel):
             raise ValueError("must not contain newlines")
         return value
 
-    def to_display_params(self) -> DisplayParams:
+    def to_display_params(self) -> NodeDisplayParams:
         try:
-            return DisplayParams(self.label, self.description, self.icon, self.sort_order)
+            return NodeDisplayParams(self.label, self.description, self.icon, self.sort_order)
         except ValueError as error:
             raise RegistryError(str(error)) from error
 

@@ -10,7 +10,7 @@
 
 模块通过 `FileRegistry` 注册 `FileReference` 和 `StaticNode`，或以 `register_json_tree_asset()` 解析严格 JSON manifest。冻结生成 `FileTree`。关键对象：
 
-- `DisplayParams`：前端标签、描述、语义 icon、排序。
+- `NodeDisplayParams`：文件节点前端标签、描述、语义 icon、排序。
 - `ObjectReference`：对象 key、VersionId、摘要、媒体类型、尺寸。
 - `FileContent`：对象引用、下载名、content token。
 - `StaticNode`：文件或目录；`access_rule` 是纯读取函数。

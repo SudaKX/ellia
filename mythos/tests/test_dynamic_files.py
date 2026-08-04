@@ -20,13 +20,13 @@ from mythos.registry.artifacts import (
     module_handler,
 )
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import DisplayParams, FileReference, StaticNode
+from mythos.registry.files import FileReference, NodeDisplayParams, StaticNode
 
 pytestmark = pytest.mark.anyio
 
 
-def _display(label: str) -> DisplayParams:
-    return DisplayParams(label=label, icon="document")
+def _display(label: str) -> NodeDisplayParams:
+    return NodeDisplayParams(label=label, icon="document")
 
 
 @module_handler("test")(1)

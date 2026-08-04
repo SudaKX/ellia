@@ -14,7 +14,7 @@ StaticNodeVersion: TypeAlias = str
 
 
 @dataclass(frozen=True)
-class DisplayParams:
+class NodeDisplayParams:
     label: str
     description: str | None = None
     icon: str | None = None
@@ -83,7 +83,7 @@ class VirtualNode(ABC):
     stable_id: str
     path: str
     version: str
-    display: DisplayParams
+    display: NodeDisplayParams
     access_rule: NodeAccessRule | None = None
     hidden: bool = False
     download_name: str | None = None
@@ -107,7 +107,7 @@ class StaticNode(VirtualNode):
         download_name: str,
         access_rule: NodeAccessRule | None = None,
         *,
-        display: DisplayParams,
+        display: NodeDisplayParams,
         hidden: bool = False,
     ) -> StaticNode:
         return cls(
@@ -129,7 +129,7 @@ class StaticNode(VirtualNode):
         version: str,
         access_rule: NodeAccessRule | None = None,
         *,
-        display: DisplayParams,
+        display: NodeDisplayParams,
         hidden: bool = False,
     ) -> StaticNode:
         return cls(

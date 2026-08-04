@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.models import (
     PlayerArtifact,
+    PlayerCredits,
+    PlayerHintDisclosure,
     PlayerProgress,
     PlayerProgressCheckpoint,
     PlayerVirtualAccount,
@@ -16,6 +18,8 @@ from mythos.persistence.models import (
 )
 from mythos.players.interfaces.accounts import AccountInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
+from mythos.players.interfaces.credits import CreditInterface
+from mythos.players.interfaces.hints import HintInterface
 from mythos.players.interfaces.progress import ProgressInterface
 from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
@@ -96,6 +100,21 @@ class PlayerFactory:
             accounts,
             writable=writable,
         )
+
+    async def load_credits(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> CreditInterface:
+        credits = await session.get(PlayerCredits, player_id)
+        if credits is None:
+            credits = PlayerCredits(player_id=player_id, vtb=0, version=0)
+            if writable:
+                session.add(credits)
+                await session.flush()
+        return CreditInterface(player_id, session, credits, writable=writable)
+
+    async def load_hints(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> HintInterface:
+        disclosures = tuple(
+            (await session.scalars(select(PlayerHintDisclosure).where(PlayerHintDisclosure.player_id == player_id))).all()
+        )
+        return HintInterface(player_id, session, disclosures, writable=writable)
 
     async def load(
         self,

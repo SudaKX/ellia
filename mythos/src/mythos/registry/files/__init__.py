@@ -1,5 +1,5 @@
 from mythos.registry.files.definitions import (
-    DisplayParams,
+    NodeDisplayParams,
     FileContent,
     FileReference,
     ObjectReference,
@@ -13,7 +13,7 @@ from mythos.registry.files.tree import FileTree, FileTreeDirectoryNotFoundError,
 
 __all__ = [
     "FileContent",
-    "DisplayParams",
+    "NodeDisplayParams",
     "FileReference",
     "FileRegistry",
     "FileTree",

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from mythos.players.player import Player
-from mythos.registry.files import DisplayParams, FileTree, FileTreeDirectoryNotFoundError, TreeNode
+from mythos.registry.files import FileTree, FileTreeDirectoryNotFoundError, NodeDisplayParams, TreeNode
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.core.file_ids import FileIdCodec
 from mythos.services.object_store.service import ObjectStoreReader, PresignedObjectUrl
@@ -30,13 +30,13 @@ class FileSummary:
     media_type: str
     size_bytes: int
     content_token: str
-    display: DisplayParams
+    display: NodeDisplayParams
 
 
 @dataclass(frozen=True)
 class DirectorySummary:
     path: str
-    display: DisplayParams
+    display: NodeDisplayParams
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class FileMetadata(FileSummary):
 @dataclass(frozen=True)
 class DirectoryTree:
     path: str
-    display: DisplayParams
+    display: NodeDisplayParams
     directories: tuple["DirectoryTree", ...]
     files: tuple[FileSummary, ...]
 
@@ -251,11 +251,11 @@ class FileService:
         return node.definition is not None and node.definition.hidden
 
     @staticmethod
-    def _display(node: TreeNode) -> DisplayParams:
+    def _display(node: TreeNode) -> NodeDisplayParams:
         if node.definition is not None:
             return node.definition.display
         label = "/" if node.path == "/" else node.path.rsplit("/", maxsplit=1)[-1]
-        return DisplayParams(label=label, icon="folder")
+        return NodeDisplayParams(label=label, icon="folder")
 
     def _directory_summary(self, directory: TreeNode) -> DirectorySummary:
         return DirectorySummary(path=directory.path, display=self._display(directory))

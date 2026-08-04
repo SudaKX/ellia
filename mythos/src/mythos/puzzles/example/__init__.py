@@ -14,7 +14,7 @@ from mythos.registry.artifacts import (
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
-from mythos.registry.files import DisplayParams
+from mythos.registry.files import NodeDisplayParams
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationOutcome
@@ -83,7 +83,7 @@ def register(registries: RegistryBundle) -> None:
             stable_id=ADMIN_ACCESS_NODE_ID,
             path="/archive/ADMIN_ACCESS.txt",
             artifact_locator=ADMIN_ACCESS_ARTIFACT_ID,
-            display=DisplayParams(
+            display=NodeDisplayParams(
                 label="ADMIN_ACCESS.txt",
                 description="Administrator credentials",
                 icon="document",
