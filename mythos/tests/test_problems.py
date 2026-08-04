@@ -2,6 +2,7 @@ import asyncio
 
 import httpx
 import pytest
+from fastapi import HTTPException
 
 from mythos.core.config import Settings
 from mythos.core.problems import ProblemType
@@ -30,6 +31,15 @@ def test_http_errors_use_problem_details_without_bearer_challenge() -> None:
     async def scenario() -> None:
         settings = Settings(problem_type_base_url="https://errors.example/problems")
         app = create_app(settings)
+
+        @app.get("/api/v1/explicit-auth-challenge")
+        async def explicit_auth_challenge() -> None:
+            raise HTTPException(
+                status_code=401,
+                detail="An upstream authentication challenge was supplied.",
+                headers={"WWW-Authenticate": 'Bearer realm="upstream"'},
+            )
+
         async with app.router.lifespan_context(app):
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -49,6 +59,7 @@ def test_http_errors_use_problem_details_without_bearer_challenge() -> None:
                     content=b"\xff",
                     headers={"Content-Type": "application/json"},
                 )
+                explicit_challenge = await client.get("/api/v1/explicit-auth-challenge")
                 openapi = await client.get("/openapi.json")
 
         assert missing_token.status_code == 401
@@ -57,6 +68,10 @@ def test_http_errors_use_problem_details_without_bearer_challenge() -> None:
         assert missing_token.headers["cache-control"] == "no-store"
         assert missing_token.json()["type"] == settings.problem_type_url(ProblemType.ACCESS_TOKEN_MISSING)
         assert missing_token.json()["instance"].startswith("urn:uuid:")
+
+        assert explicit_challenge.status_code == 401
+        assert explicit_challenge.headers["www-authenticate"] == 'Bearer realm="upstream"'
+        assert explicit_challenge.json()["type"] == "about:blank"
 
         assert missing_route.status_code == 404
         assert missing_route.headers["content-type"].startswith("application/problem+json")

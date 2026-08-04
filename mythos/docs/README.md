@@ -7,6 +7,7 @@
 - [运行时组装](architecture/runtime-and-composition.md)
 - [Player 与请求上下文](architecture/player-and-request-context.md)
 - [命令事务](architecture/command-transactions.md)
+- [错误响应与中间件](architecture/error-response-and-middleware.md)
 - [持久化总览](reference/persistence-schema.md)
 
 ## 领域系统

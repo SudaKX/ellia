@@ -144,11 +144,7 @@ def _problem_details_response(
     *,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
-    response_headers = {
-        key: value
-        for key, value in (headers or {}).items()
-        if key.lower() != "www-authenticate"
-    }
+    response_headers = dict(headers or {})
     response_headers.setdefault("Cache-Control", "no-store")
     return JSONResponse(
         status_code=details.status,

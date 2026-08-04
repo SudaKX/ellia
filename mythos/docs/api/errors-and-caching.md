@@ -14,7 +14,7 @@
 
 `MYTHOS_PROBLEM_TYPE_BASE_URL` 配置 Problem Type URI 基址，例如 `https://api.example.com/problems`；生产环境必须显式配置 HTTPS 基址，并由该站点提供各 Type 的人类可读说明。基址不能带用户信息、空白、查询或 fragment。客户端只使用稳定的 `type` URI 做逻辑判断，不解析 `detail`。`instance` 是服务端生成的单次错误关联 ID。字段校验会在顶层 `errors` 扩展中提供 JSON Pointer 和原因。
 
-Bearer 认证失败不会发送 `WWW-Authenticate`。所有 Problem Details 响应使用 `Cache-Control: no-store`。只有 `type` 为 `.../access-token-invalid` 时才尝试一次 `/auth/refresh`；缺少 Token、主账号凭据错误、refresh 凭据错误和虚拟账号凭据错误都不触发刷新。
+Bearer 认证失败不会主动发送 `WWW-Authenticate`。框架也不会移除 Router 或上游组件显式提供的该 Header。所有 Problem Details 响应使用 `Cache-Control: no-store`。只有 `type` 为 `.../access-token-invalid` 时才尝试一次 `/auth/refresh`；缺少 Token、主账号凭据错误、refresh 凭据错误和虚拟账号凭据错误都不触发刷新。
 
 ## Problem Types
 
@@ -43,3 +43,5 @@ Bearer 认证失败不会发送 `WWW-Authenticate`。所有 Problem Details 响�
 缓存边界：认证响应和 download URL 使用 `no-store`；content URL 使用私有缓存且其 max-age 小于签名 TTL；目录和 metadata 响应使用 `no-store`；version 端点支持 ETag/`If-None-Match`。预签名 URL、refresh cookie 和 access token 不应写入持久化前端状态。
 
 动态文件客户端同时受 `progress.version` 与动态 `tree_version` 影响：validation 成功后不要仅刷新静态 `/files/version`，必须刷新 `/files/d/version` 或直接获取 `/files/d/tree`。
+
+服务端的异常处理器、中间件顺序、命令缓存释放和 Example 恢复路径见 [错误响应与中间件](../architecture/error-response-and-middleware.md)。
