@@ -145,6 +145,9 @@ export interface FileNode {
  * │       └── notes.txt         玩家笔记（叙事线索）
  * ├── sys/                      系统目录
  * │   ├── kernel.log            内核日志
+ * │   ├── log/                  系统运行日志（叙事线索）
+ * │   │   ├── 第一次启动.log    首次启动日志
+ * │   │   └── 摄像头设置.log    摄像头配置日志
  * │   └── cache/                缓存目录
  * │       ├── 00a1b2c3          加密数据块
  * │       └── index.json        缓存索引
@@ -192,6 +195,21 @@ const rootTree: FileNode[] = [
   {
     name: 'sys', type: 'dir', content: null, children: [
       { name: 'kernel.log', type: 'file', content: '[BOOT] FakeOS kernel initialized.\n[INFO] ElLInA daemon started.\n[WARN] Memory sector 0x07F corrupt — attempting recovery...\n[OK]   Recovery complete. 3 bad sectors isolated.', children: null },
+      {
+        // 系统运行日志：与 kernel.log 不同，这里是面向玩家的叙事线索（首次启动 + 摄像头）
+        name: 'log', type: 'dir', content: null, children: [
+          {
+            name: '第一次启动.log', type: 'file',
+            content: '[BOOT] FakeOS kernel initialized.\n[INFO] ElLInA daemon awakened. First launch detected.\n[INFO] Speech synthesis module online.\n[INFO] Operator presence confirmed.\n[WARN] No trust record for operator. Continuous monitoring enabled.',
+            children: null,
+          },
+          {
+            name: '摄像头设置.log', type: 'file',
+            content: '[INFO] Camera device detected.\n[INFO] Resolution set to 1280x720 @ 30fps.\n[INFO] Auto-focus: enabled.\n[WARN] Camera feed shared with ElLInA daemon.\n[INFO] ElLInA can see you now.',
+            children: null,
+          },
+        ],
+      },
       {
         name: 'cache', type: 'dir', content: null, children: [
           { name: '00a1b2c3', type: 'file', content: '<encrypted blob — unknown format>', children: null },
