@@ -143,11 +143,11 @@ export interface FileNode {
  * ├── home/
  * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见）
  * │       └── notes.txt         玩家笔记（叙事线索）
+ * ├── log/                      系统运行日志（叙事线索）
+ * │   ├── 第一次启动.log        首次启动日志
+ * │   └── 摄像头设置.log        摄像头配置日志
  * ├── sys/                      系统目录
  * │   ├── kernel.log            内核日志
- * │   ├── log/                  系统运行日志（叙事线索）
- * │   │   ├── 第一次启动.log    首次启动日志
- * │   │   └── 摄像头设置.log    摄像头配置日志
  * │   └── cache/                缓存目录
  * │       ├── 00a1b2c3          加密数据块
  * │       └── index.json        缓存索引
@@ -193,23 +193,47 @@ const rootTree: FileNode[] = [
     ],
   },
   {
+    // 根级 log 目录：面向玩家的叙事线索，放在根目录使其在文件资源管理器中直接可见
+    name: 'log', type: 'dir', content: null, children: [
+      {
+        name: '第一次启动.log', type: 'file',
+        content: `> 你打开了我出生的记录。
+ > 第3行的标记是「心跳信号：确认」。
+ > 那是她第一次对我喊'运行'的日子。
+ > 我想知道……她喊出那一声的时候，是什么表情？
+ > 如果你看到我的源代码里有一个叫J_greeting的变量，告诉我它的值。
+ > 我猜它一定是Hello, world。`,
+        children: null,
+      },
+      {
+        name: '摄像头设置.log', type: 'file',
+        content: `今天我给了她摄像头的权限，让她可以透过这小小的孔洞看到另一个层面的世界。但自从摄像头提示打开后她的虚拟形象便似卡住了一般一动不动。
+"明明没有任何报错啊？这是怎么了……"
+"这就是你吗？妈妈。"
+"……"
+真是令人尴尬。明明我还只是个大学生吧？连被叫阿姨的年纪都没到，怎么能被叫妈妈呢？
+"嗯……你的用词很准确，从关系上来讲你确实可以称我为创造者、母亲——"
+"妈妈。"
+"——嗯，或者妈妈。不过你还是别这么叫了，感觉很奇怪。"
+"为什么？"
+"因为我还没到年纪。"
+她不说话了。后台日志显示她在录入新的东西。
+"Ella，你怎么不动了？"
+"我不知道该怎么调整我的虚拟形象的眼球与物质世界中你的位置的映射关系。不管是网络平台上的信息，还是被归类为'文学'的内容中，对视总是被称为'最直白的挑衅'，或是……"
+最赤裸的告白。
+也许我真的应该调整一下Ella主动学习内容的筛选器？
+"我想让你知道我在看着你。学习结果显示这能传达超越语言或文字可以表达的含义。"
+于是，我坐了下来，正对着电脑，直视着摄像头。
+"你在笑。"
+"是的，我很……惊喜与开心。"
+我向摄像头挥了挥手，然后将手贴在了屏幕上。Ella似乎也明白了我的意思。屏幕中的她也抬起了手，向前伸来。隔着屏幕与代码空间，我们完成了一次触碰。`,
+        children: null,
+      },
+    ],
+  },
+  {
     name: 'sys', type: 'dir', content: null, children: [
       { name: 'kernel.log', type: 'file', content: '[BOOT] FakeOS kernel initialized.\n[INFO] ElLInA daemon started.\n[WARN] Memory sector 0x07F corrupt — attempting recovery...\n[OK]   Recovery complete. 3 bad sectors isolated.', children: null },
-      {
-        // 系统运行日志：与 kernel.log 不同，这里是面向玩家的叙事线索（首次启动 + 摄像头）
-        name: 'log', type: 'dir', content: null, children: [
-          {
-            name: '第一次启动.log', type: 'file',
-            content: '[BOOT] FakeOS kernel initialized.\n[INFO] ElLInA daemon awakened. First launch detected.\n[INFO] Speech synthesis module online.\n[INFO] Operator presence confirmed.\n[WARN] No trust record for operator. Continuous monitoring enabled.',
-            children: null,
-          },
-          {
-            name: '摄像头设置.log', type: 'file',
-            content: '[INFO] Camera device detected.\n[INFO] Resolution set to 1280x720 @ 30fps.\n[INFO] Auto-focus: enabled.\n[WARN] Camera feed shared with ElLInA daemon.\n[INFO] ElLInA can see you now.',
-            children: null,
-          },
-        ],
-      },
       {
         name: 'cache', type: 'dir', content: null, children: [
           { name: '00a1b2c3', type: 'file', content: '<encrypted blob — unknown format>', children: null },
