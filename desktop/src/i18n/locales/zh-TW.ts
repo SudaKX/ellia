@@ -44,6 +44,23 @@ export const zhTW = {
       description: '可變字型文字回流視覺化工具。',
     },
   },
+  /** 文字編輯器 */
+  textEditor: {
+    title: '文字編輯器',
+    save: '儲存',
+    readMode: '閱讀',
+    editMode: '編輯',
+    editArea: '文字編輯器內容',
+    modified: '已修改',
+    decreaseFont: '縮小字型',
+    increaseFont: '放大字型',
+    savePromptTitle: '是否儲存變更？',
+    savePromptMessage: '是否儲存對「{name}」的變更？',
+    savePromptSave: '儲存',
+    savePromptDiscard: '不儲存',
+    savePromptCancel: '取消',
+    permissionTitle: '權限不足',
+  },
   settings: {
     label: '桌面偏好',
     language: '語言',

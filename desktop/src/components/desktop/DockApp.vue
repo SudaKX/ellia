@@ -6,14 +6,15 @@ import type { ApplicationId } from '@/types/desktop'
 export type DockAppState = 'minimized' | 'foreground' | 'focused'
 
 const props = defineProps<{
-  applicationId: ApplicationId
+  /** 注册表应用 ID；独立窗口条目（文本编辑器等）为 null */
+  applicationId: ApplicationId | null
   name: string
   icon: Component
   state: DockAppState
 }>()
 
 const emit = defineEmits<{
-  click: [applicationId: ApplicationId]
+  click: [applicationId: ApplicationId | null]
 }>()
 
 function handleClick() {

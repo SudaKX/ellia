@@ -75,6 +75,7 @@ const loginWindow = ref<WindowInstance>({
   mode: 'normal',
   resizable: true,
   filters: {},
+  dockable: false,
   x: Math.round((window.innerWidth - 380) / 2),
   y: Math.round((window.innerHeight - 240) / 2),
   width: 380,

@@ -44,6 +44,23 @@ export const jaJP = {
       description: '可変タイポグラフィテキストリフロービジュアライザ。',
     },
   },
+  /** テキストエディタ */
+  textEditor: {
+    title: 'テキストエディタ',
+    save: '保存',
+    readMode: '閲覧',
+    editMode: '編集',
+    editArea: 'テキストエディタの内容',
+    modified: '変更済み',
+    decreaseFont: '文字サイズを小さく',
+    increaseFont: '文字サイズを大きく',
+    savePromptTitle: '変更を保存しますか？',
+    savePromptMessage: '「{name}」への変更を保存しますか？',
+    savePromptSave: '保存',
+    savePromptDiscard: '保存しない',
+    savePromptCancel: 'キャンセル',
+    permissionTitle: 'アクセス権限がありません',
+  },
   settings: {
     label: 'デスクトップ設定',
     language: '言語',

@@ -59,8 +59,8 @@
  * 3. 找到 → 通过 windowService.send() 创建谜题窗口
  */
 
-import { computed, inject, ref } from 'vue'
-import { ChevronRight, File, Folder } from 'lucide-vue-next'
+import { computed, defineAsyncComponent, inject, ref } from 'vue'
+import { ChevronRight, File, FileText, Folder } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { puzzleRegistry } from '@/registries/puzzles'
 import { getRootTree, getVisibleChildren, buildPlayerSnapshot } from '@/composables/useFileSystem'
@@ -69,6 +69,9 @@ import type { WindowService } from '@/composables/useWindowService'
 
 const { t } = useI18n({ useScope: 'global' })
 const windowService = inject<WindowService>('windowService')
+
+/** 文本编辑器（异步加载，双击 .txt/.log 时打开） */
+const TextEditor = defineAsyncComponent(() => import('@/components/applications/TextEditor.vue'))
 
 // ─── 状态 ──────────────────────────────────────────
 
@@ -174,6 +177,7 @@ function handleDirClick(dirName: string) {
  *
  * 行为：
  * - `.puz` 文件 → 查找 puzzleRegistry，创建谜题窗口
+ * - `.txt` / `.log` 文件 → 用文本编辑器打开（独立窗口，文件名命名的 Dock 条目）
  * - 无后缀文件 → 选中并显示预览
  * - 其他文件   → 选中并显示预览
  *
@@ -208,7 +212,49 @@ function handleFileDblClick(file: FileNode) {
     return
   }
 
+  if (ext === '.txt' || ext === '.log') {
+    openTextEditor(file)
+    return
+  }
+
   selectedFile.value = file
+}
+
+/**
+ * 打开文本编辑器窗口。
+ *
+ * 关键点：
+ * - 窗口 ID 由 windowService.createWindow 内部分配，创建成功后回填给编辑器
+ *   组件（componentProps.windowId），供其注册关闭会话。
+ * - `dockable: true` → DesktopView 按"每个窗口一个条目"渲染到 Dock 栏，
+ *   `dockTitle` 取文件名，因此打开多个文件会出现多个命名条目。
+ *
+ * @param file - 被双击的 .txt / .log 文件节点
+ */
+function openTextEditor(file: FileNode) {
+  if (!windowService) return
+  const result = windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: 'textEditor.title',
+      title: file.name,
+      icon: FileText,
+      component: TextEditor,
+      componentProps: {
+        fileName: file.name,
+        fileContent: file.content ?? '',
+      },
+      defaultWidth: 480,
+      defaultHeight: 340,
+      placement: 'cascade',
+      resizable: true,
+      dockable: true,
+      dockTitle: file.name,
+    },
+  })
+  if (result) {
+    result.componentProps = { ...result.componentProps, windowId: result.id }
+  }
 }
 
 /**

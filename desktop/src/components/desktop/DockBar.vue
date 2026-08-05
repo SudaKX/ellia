@@ -1,16 +1,33 @@
 <script setup lang="ts">
+import type { Component } from 'vue'
 import { ChevronUp, CircleDashed, LayoutGrid } from 'lucide-vue-next'
 
 import DockApp from './DockApp.vue'
-import { applicationRegistry } from '@/registries/applications'
 import type { ApplicationId } from '@/types/desktop'
 
 export type DockAppState = 'minimized' | 'foreground' | 'focused'
 
+/**
+ * Dock 栏条目状态。
+ * 注册表应用（FileExplorer 等）按 applicationId 合并为一个条目；
+ * 可停靠的独立窗口（文本编辑器等）按 windowId 每个窗口一个条目。
+ */
 export interface DockApplicationState {
-  applicationId: ApplicationId
+  /** 注册表应用 ID；独立窗口条目为 null（此时必有 windowId） */
+  applicationId: ApplicationId | null
+  /** 独立窗口条目的窗口 ID（如文本编辑器），注册表应用无此字段 */
+  windowId?: string
+  /** 条目显示名称（应用标题或文件名） */
   name: string
   state: DockAppState
+  /** 条目图标（注册表应用取注册表图标，独立窗口取窗口图标） */
+  icon: Component
+}
+
+/** Dock 点击目标：注册表应用或具体窗口 */
+export interface DockClickTarget {
+  applicationId: ApplicationId | null
+  windowId?: string
 }
 
 const props = defineProps<{
@@ -18,13 +35,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  click: [applicationId: ApplicationId]
+  click: [target: DockClickTarget]
   showAll: []
 }>()
-
-function iconFor(applicationId: ApplicationId) {
-  return applicationRegistry[applicationId].icon
-}
 </script>
 
 <template>
@@ -33,15 +46,20 @@ function iconFor(applicationId: ApplicationId) {
       <ul class="dock-bar__apps" aria-label="Open applications">
         <li
           v-for="application in applicationStates"
-          :key="application.applicationId"
+          :key="application.windowId ?? application.applicationId ?? 'standalone'"
           class="dock-bar__apps-item"
         >
           <DockApp
             :application-id="application.applicationId"
             :name="application.name"
-            :icon="iconFor(application.applicationId)"
+            :icon="application.icon"
             :state="application.state"
-            @click="emit('click', application.applicationId)"
+            @click="
+              emit('click', {
+                applicationId: application.applicationId,
+                windowId: application.windowId,
+              })
+            "
           />
         </li>
         <li v-if="applicationStates.length === 0" class="dock-bar__apps-item">

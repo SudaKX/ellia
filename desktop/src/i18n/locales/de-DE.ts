@@ -44,6 +44,23 @@ export const deDE = {
       description: 'Variabler typografischer Textumbruch-Visualisierer.',
     },
   },
+  /** Texteditor */
+  textEditor: {
+    title: 'Texteditor',
+    save: 'Speichern',
+    readMode: 'Lesen',
+    editMode: 'Bearbeiten',
+    editArea: 'Texteditor-Inhalt',
+    modified: 'Geändert',
+    decreaseFont: 'Schriftgröße verkleinern',
+    increaseFont: 'Schriftgröße vergrößern',
+    savePromptTitle: 'Änderungen speichern?',
+    savePromptMessage: 'Änderungen an "{name}" speichern?',
+    savePromptSave: 'Speichern',
+    savePromptDiscard: 'Nicht speichern',
+    savePromptCancel: 'Abbrechen',
+    permissionTitle: 'Zugriff verweigert',
+  },
   settings: {
     label: 'Desktop-Einstellungen',
     language: 'Sprache',

@@ -44,6 +44,23 @@ export const zhCN = {
       description: '可变字体文本回流可视化工具。',
     },
   },
+  /** 文本编辑器 */
+  textEditor: {
+    title: '文本编辑器',
+    save: '保存',
+    readMode: '阅读',
+    editMode: '编辑',
+    editArea: '文本编辑器内容',
+    modified: '已修改',
+    decreaseFont: '减小字号',
+    increaseFont: '增大字号',
+    savePromptTitle: '是否保存更改？',
+    savePromptMessage: '是否保存对 "{name}" 的更改？',
+    savePromptSave: '保存',
+    savePromptDiscard: '不保存',
+    savePromptCancel: '取消',
+    permissionTitle: '权限不足',
+  },
   settings: {
     label: '桌面偏好',
     language: '语言',

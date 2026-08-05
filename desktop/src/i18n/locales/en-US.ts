@@ -42,6 +42,23 @@ export const enUS = {
       description: 'Variable typographic text reflow visualizer.',
     },
   },
+  /** Text editor (FakeOS Notepad) */
+  textEditor: {
+    title: 'Text Editor',
+    save: 'Save',
+    readMode: 'Read',
+    editMode: 'Edit',
+    editArea: 'Text editor content',
+    modified: 'Modified',
+    decreaseFont: 'Decrease font size',
+    increaseFont: 'Increase font size',
+    savePromptTitle: 'Save changes?',
+    savePromptMessage: 'Save changes to "{name}"?',
+    savePromptSave: 'Save',
+    savePromptDiscard: "Don't Save",
+    savePromptCancel: 'Cancel',
+    permissionTitle: 'Permission Denied',
+  },
   settings: {
     label: 'Desktop preferences',
     language: 'Language',

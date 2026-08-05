@@ -53,7 +53,7 @@ import { useAuth } from '@/composables/useAuth'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
-import type { DockApplicationState } from '@/components/desktop/DockBar.vue'
+import type { DockApplicationState, DockClickTarget } from '@/components/desktop/DockBar.vue'
 import Launchpad from '@/components/desktop/Launchpad.vue'
 import MatrixRain from '@/components/desktop/MatrixRain.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
@@ -65,6 +65,7 @@ import AiAssistant from '@/components/applications/AiAssistant.vue'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
+import { requestTextEditorClose } from '@/composables/useTextEditorSession'
 import { useWindowService } from '@/composables/useWindowService'
 import { applicationRegistry } from '@/registries/applications'
 import type { FilterType } from '@/registries/filters'
@@ -504,7 +505,10 @@ function handleWindowMinimize(windowId: string) {
 }
 
 const applicationStates = computed<DockApplicationState[]>(() => {
-  return windowService.openApplicationIds.value.map((applicationId) => {
+  const states: DockApplicationState[] = []
+
+  // 注册表应用：按应用 ID 合并去重，一个应用一个条目
+  for (const applicationId of windowService.openApplicationIds.value) {
     const windows = windowService.windows.value.filter(
       (window) => window.applicationId === applicationId,
     )
@@ -520,15 +524,64 @@ const applicationStates = computed<DockApplicationState[]>(() => {
       state = 'minimized'
     }
 
-    return {
+    states.push({
       applicationId,
       name: t(applicationRegistry[applicationId].titleKey),
       state,
-    }
-  })
+      icon: applicationRegistry[applicationId].icon,
+    })
+  }
+
+  // 可停靠的独立窗口（文本编辑器等）：每个窗口一个条目，名称取文件名
+  for (const window of windowService.windows.value) {
+    if (!window.dockable) continue
+    const state: DockApplicationState['state'] =
+      window.id === windowService.activeWindowId.value && !window.isMinimized
+        ? 'focused'
+        : !window.isMinimized
+          ? 'foreground'
+          : 'minimized'
+
+    states.push({
+      applicationId: null,
+      windowId: window.id,
+      name: window.dockTitle ?? window.titleKey,
+      state,
+      icon: window.icon,
+    })
+  }
+
+  return states
 })
 
-function handleDockAppClick(applicationId: ApplicationId) {
+/**
+ * 可停靠窗口（文本编辑器）的关闭拦截。
+ * 标题栏 X 不再直接关闭，而是委托给编辑器会话：
+ * 有未保存修改时由编辑器弹保存提示；无会话（异常情况）时按普通窗口关闭。
+ *
+ * @param windowId - 目标窗口 ID
+ */
+function handleDockableWindowClose(windowId: string) {
+  if (requestTextEditorClose(windowId)) return
+  windowService.send({ type: 'close-window', windowId })
+}
+
+function handleDockAppClick(target: DockClickTarget) {
+  // 独立窗口条目（文本编辑器）：聚焦或最小化对应窗口
+  if (target.windowId) {
+    const window = windowService.windows.value.find((w) => w.id === target.windowId)
+    if (!window) return
+    if (window.id === windowService.activeWindowId.value && !window.isMinimized) {
+      handleWindowMinimize(window.id)
+    } else {
+      handleWindowFocus(window.id)
+    }
+    return
+  }
+
+  const applicationId = target.applicationId
+  if (!applicationId) return
+
   const windows = windowService.windows.value.filter(
     (window) => window.applicationId === applicationId,
   )
@@ -583,8 +636,14 @@ onBeforeUnmount(() => {
         :min-height="window.id === aiWindowId ? aiMinSize : undefined"
         :max-width="window.id === aiWindowId ? aiMaxSize : undefined"
         :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
-        :title="window.id === aiWindowId ? aiTitle : undefined"
-        :close-action="window.id === aiWindowId ? handleAiCloseRequest : undefined"
+        :title="window.title ?? (window.id === aiWindowId ? aiTitle : undefined)"
+        :close-action="
+          window.dockable
+            ? () => handleDockableWindowClose(window.id)
+            : window.id === aiWindowId
+              ? handleAiCloseRequest
+              : undefined
+        "
         :translucent="window.id === aiWindowId ? true : undefined"
         :skip-enter-animation="window.id === aiWindowId ? true : undefined"
         @close="handleWindowClose(window.id)"

@@ -77,6 +77,18 @@ export interface WindowDefinition {
   mode?: WindowMode
   resizable?: boolean
   filters?: WindowFilters
+  /**
+   * 自定义窗口标题文本。提供后直接显示（不走 i18n），覆盖 titleKey。
+   * 适用于标题需要动态内容的场景（如文本编辑器以文件名为标题）。
+   */
+  title?: string
+  /**
+   * 是否在 Dock 栏以"独立窗口条目"显示（每个窗口一个条目，而非按应用合并去重）。
+   * 默认 false。文本编辑器等"按文档计数"的应用开启此选项。
+   */
+  dockable?: boolean
+  /** Dock 栏条目显示名称。缺省回退到 title / titleKey。 */
+  dockTitle?: string
 }
 
 /** 应用注册表中的条目：WindowDefinition + 唯一 id */
@@ -114,6 +126,12 @@ export interface WindowInstance {
   height: number
   zIndex: number
   isMinimized: boolean
+  /** 自定义窗口标题文本（不走 i18n），WindowFrame 优先显示它 */
+  title?: string
+  /** 是否在 Dock 栏以独立窗口条目显示（每个窗口一个条目） */
+  dockable: boolean
+  /** Dock 栏条目显示名称，缺省回退到 title / titleKey */
+  dockTitle?: string
 }
 
 // ─── 玩家档案数据（Archive Viewer 使用） ──────────
