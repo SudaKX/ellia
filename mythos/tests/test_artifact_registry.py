@@ -17,12 +17,12 @@ def _display(label: str) -> NodeDisplayParams:
 
 
 @module_handler("test")(1)
-def _artifact_generator(_context):
+async def _artifact_generator(_player):
     return RawArtifact(b"content")
 
 
 @module_handler("test")(1)
-async def _node_generator(_context, node):
+async def _node_generator(_player, _meta, node):
     node.path = "/dynamic/result.txt"
     return node
 
@@ -49,6 +49,8 @@ def test_artifact_registry_registers_templates_and_nodes() -> None:
     catalog = registry.freeze()
     assert catalog.template("test.report").artifact_id == "test.report"
     assert catalog.node_template("test.report-node").stable_id == "test.report-node"
+    assert catalog.node_version("test.report-node").startswith("antv2_")
+    assert catalog.version.startswith("acv1_")
 
 
 def test_artifact_registry_rejects_duplicate_template_id() -> None:
@@ -104,7 +106,7 @@ def test_artifact_templates_require_marked_callbacks() -> None:
     async def unmarked_artifact_generator(_context):
         return RawArtifact(b"content")
 
-    async def unmarked_node_generator(_context, node):
+    async def unmarked_node_generator(_player, _meta, node):
         return node
 
     with pytest.raises(ValueError, match="module_handler"):
@@ -121,6 +123,60 @@ def test_artifact_templates_require_marked_callbacks() -> None:
             artifact_locator="test.report",
             display=_display("Report"),
             node_generator=unmarked_node_generator,
+        )
+
+
+def test_artifact_node_generators_require_the_meta_parameter() -> None:
+    @module_handler("test")(2)
+    async def legacy_node_generator(_player, node):
+        return node
+
+    with pytest.raises(ValueError, match="exactly 3 parameters"):
+        ArtifactNodeTemplate(
+            stable_id="test.report-node",
+            path="/report.txt",
+            artifact_locator="test.report",
+            display=_display("Report"),
+            node_generator=legacy_node_generator,
+        )
+
+
+def test_artifact_node_generators_require_positional_parameters() -> None:
+    @module_handler("test")(3)
+    async def keyword_only_node_generator(*, player, meta, node):
+        return node
+
+    @module_handler("test")(4)
+    async def variadic_node_generator(player, meta, *nodes):
+        return nodes[0]
+
+    for generator in (keyword_only_node_generator, variadic_node_generator):
+        with pytest.raises(ValueError, match="exactly 3 parameters as positional arguments"):
+            ArtifactNodeTemplate(
+                stable_id="test.report-node",
+                path="/report.txt",
+                artifact_locator="test.report",
+                display=_display("Report"),
+                node_generator=generator,
+            )
+
+
+def test_artifact_download_names_are_safe_path_segments() -> None:
+    with pytest.raises(ValueError, match="safe download name"):
+        ArtifactTemplate(
+            artifact_id="test.report",
+            media_type="text/plain",
+            download_name='bad"name.txt',
+            generator=_artifact_generator,
+        )
+    with pytest.raises(ValueError, match="safe download name"):
+        ArtifactNodeTemplate(
+            stable_id="test.report-node",
+            path="/report.txt",
+            artifact_locator="test.report",
+            display=_display("Report"),
+            download_name="bad/name.txt",
+            node_generator=_node_generator,
         )
 
 
@@ -154,7 +210,7 @@ def test_artifact_node_template_produces_runtime_node() -> None:
         display=_display("Report"),
         node_generator=_node_generator,
     )
-    runtime = template.to_runtime_node()
+    runtime = template.to_runtime_node("antv2_test")
     assert isinstance(runtime, ArtifactNode)
     assert runtime.stable_id == "test.report-node"
     assert runtime.artifact_locator == "test.report"
@@ -169,7 +225,7 @@ def test_artifact_node_generator_can_mutate_runtime_node() -> None:
         display=_display("Report"),
         node_generator=_node_generator,
     )
-    runtime = template.to_runtime_node()
+    runtime = template.to_runtime_node("antv2_test")
     assert runtime.path == "/report.txt"
 
 
@@ -180,11 +236,11 @@ def test_artifact_node_generator_can_mutate_runtime_node() -> None:
 
     modified = generator(None, runtime)
     assert modified.path == "/dynamic/moved.txt"
-    assert modified.version == template.version
+    assert modified.version == runtime.version
     assert modified.hidden is True
 
 
-def test_artifact_node_stable_id_and_locator_are_immutable() -> None:
+def test_artifact_node_runtime_fields_are_mutable() -> None:
     template = ArtifactNodeTemplate(
         stable_id="test.report-node",
         path="/report.txt",
@@ -192,10 +248,10 @@ def test_artifact_node_stable_id_and_locator_are_immutable() -> None:
         display=_display("Report"),
         node_generator=_node_generator,
     )
-    runtime = template.to_runtime_node()
-    with pytest.raises(AttributeError):
-        runtime.stable_id = "other"
-    with pytest.raises(AttributeError):
-        runtime.artifact_locator = "other"
-    with pytest.raises(AttributeError):
-        runtime.version = "other"
+    runtime = template.to_runtime_node("antv2_test")
+    runtime.stable_id = "other"
+    runtime.artifact_locator = "other"
+    runtime.version = "other"
+    assert runtime.stable_id == "other"
+    assert runtime.artifact_locator == "other"
+    assert runtime.version == "other"

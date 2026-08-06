@@ -5,7 +5,8 @@ from collections.abc import Mapping
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import RegistryError
 from mythos.registry.files.definitions import FileContent, ObjectReference
-from mythos.registry.hints.definitions import Hint
+from mythos.registry.hints.definitions import Hint, hint_version
+from mythos.registry.catalog_snapshots import fingerprint
 
 
 class HintCatalog:
@@ -23,18 +24,26 @@ class HintCatalog:
         self._public_ids_by_stable_id = {
             hint.stable_id: public_id for public_id, hint in self._hints_by_public_id.items()
         }
+        self._versions_by_stable_id = {
+            hint.stable_id: hint_version(
+                hint,
+                source_file_hash=objects_by_source_locator[hint.source.source_locator].content_digest,
+                source_media_type=objects_by_source_locator[hint.source.source_locator].media_type,
+            )
+            for hint in self._hints_by_stable_id.values()
+        }
+        self.version = fingerprint(
+            "hcv1_",
+            [
+                (stable_id, version)
+                for stable_id, version in sorted(self._versions_by_stable_id.items())
+            ],
+        )
         self._contents_by_stable_id = {
             hint.stable_id: FileContent(
                 object_ref=objects_by_source_locator[hint.source.source_locator],
                 download_name=hint.download_name,
-                content_token=file_ids.encode_hint_content_token(
-                    hint.stable_id,
-                    hint.version,
-                    objects_by_source_locator[hint.source.source_locator].key,
-                    objects_by_source_locator[hint.source.source_locator].version_id,
-                    objects_by_source_locator[hint.source.source_locator].media_type,
-                    hint.download_name,
-                ),
+                content_token=self._versions_by_stable_id[hint.stable_id],
             )
             for hint in self._hints_by_stable_id.values()
         }

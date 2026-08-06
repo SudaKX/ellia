@@ -20,7 +20,7 @@ from mythos.registry.artifacts import (
     module_handler,
 )
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import FileReference, NodeDisplayParams, StaticNode
+from mythos.registry.files import FileReference, NodeDisplayParams, StaticNodeSpec
 
 pytestmark = pytest.mark.anyio
 
@@ -37,7 +37,7 @@ async def _artifact_generator(_context):
 
 
 @module_handler("test")(1)
-async def _node_generator(_context, node):
+async def _node_generator(_player, _meta, node):
     node.path = "/dynamic/result.txt"
     return node
 
@@ -50,10 +50,9 @@ def _setup_registries():
     registries = RegistryBundle()
     registries.files.register_source(FileReference("test", "assets/file.txt", "text/plain"))
     registries.files.register_node(
-        StaticNode.file(
+        StaticNodeSpec.file(
             "test.static",
             "/static/file.txt",
-            "1",
             "test:assets/file.txt",
             "file.txt",
             display=_display("Static"),
@@ -74,7 +73,7 @@ def _setup_registries():
         node_generator=_node_generator,
     )
     registries.artifacts.register_node(node_template)
-    return registries, artifact_template, node_template
+    return registries, artifact_template
 
 
 async def _seed_artifact(
@@ -87,8 +86,7 @@ async def _seed_artifact(
         player_id=player_id,
         artifact_id="test.artifact",
         version=artifact_version,
-        object_key=f"artifacts/{player_id}/test.artifact/{artifact_version}/sha256",
-        object_version_id="test-version-1",
+        object_key=f"artifacts/{player_id}/{artifact_version}",
         content_digest="sha256:" + "a" * 64,
         media_type="text/plain",
         size_bytes=9,
@@ -103,6 +101,7 @@ async def _seed_artifact(
         version=node_version,
         display=_display("Result").as_dict(),
         hidden=False,
+        download_name=None,
     )
     session.add_all([artifact, node])
     await session.commit()
@@ -113,7 +112,7 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
     source_file = puzzle_root / "test" / "assets" / "file.txt"
     source_file.parent.mkdir(parents=True)
     source_file.write_text("static", encoding="utf-8")
-    registries, artifact_template, node_template = _setup_registries()
+    registries, artifact_template = _setup_registries()
     object_store = FakeObjectStore()
     settings = Settings(
         environment="test",
@@ -147,7 +146,7 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
                     session,
                     player_id,
                     artifact_template.version,
-                    node_template.version,
+                    app.state.runtime.catalogs.artifacts.node_version("test.artifact-node"),
                 )
 
             static_listing = await client.get("/api/v1/files/ls", headers=headers)
@@ -157,7 +156,7 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             assert dynamic_root.status_code == 200
             assert [item["path"] for item in dynamic_root.json()["directories"]] == ["/dynamic", "/static"]
             dynamic_tree_version = dynamic_root.json()["tree_version"]
-            assert dynamic_tree_version.startswith("pft2_")
+            assert dynamic_tree_version.startswith("pft3_")
 
             dynamic_dir = await client.get("/api/v1/files/d/ls", params={"path": "/dynamic"}, headers=headers)
             assert dynamic_dir.status_code == 200
@@ -177,15 +176,15 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             assert metadata.json()["tree_version"] == dynamic_tree_version
 
             content_token = metadata.json()["content_token"]
-            assert content_token.startswith("act2_")
+            assert content_token.startswith("act3_")
             content_url = await client.get(
                 f"/api/v1/files/{file_id}/{content_token}/content-url",
                 headers=headers,
             )
             assert content_url.status_code == 200
             assert content_url.json()["url"] == (
-                f"https://objects.test/artifacts/{player_id}/test.artifact/"
-                f"{artifact_template.version}/sha256?expires=43200"
+                f"https://objects.test/artifacts/{player_id}/"
+                f"{artifact_template.version}?expires=43200"
             )
 
             version = await client.get("/api/v1/files/d/version", headers=headers)

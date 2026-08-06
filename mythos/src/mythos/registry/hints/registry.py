@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import inspect
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
-from mythos.registry.files.definitions import FileReference, ObjectReference
+from mythos.registry.callbacks import validate_callback
+from mythos.registry.files.definitions import (
+    FileReference,
+    ObjectReference,
+    is_canonical_source_module,
+    is_canonical_source_relative_path,
+)
 from mythos.registry.hints.catalog import HintCatalog
 from mythos.registry.hints.definitions import Hint
 
@@ -22,14 +27,22 @@ class HintRegistry:
         self._ensure_mutable()
         if hint.stable_id in self._hints_by_stable_id:
             raise DuplicateStableIdError(hint.stable_id)
-        if not _is_canonical_module(hint.source.module):
+        if not is_canonical_source_module(hint.source.module):
             raise RegistryError("Hint source modules must be canonical path segments.")
-        if not _is_canonical_relative_path(hint.source.relative_path):
+        if not is_canonical_source_relative_path(hint.source.relative_path):
             raise RegistryError("Hint source paths must be canonical module-relative paths.")
         if not hint.source.media_type:
             raise RegistryError("Hint sources require a module, relative path, and media type.")
-        if hint.access_rule is not None and _is_async_callable(hint.access_rule):
-            raise RegistryError("Hint access rules must be synchronous.")
+        if hint.access_rule is not None:
+            try:
+                validate_callback(
+                    hint.access_rule,
+                    field_name="Hint access rule",
+                    parameter_count=1,
+                    asynchronous=False,
+                )
+            except ValueError as error:
+                raise RegistryError(str(error)) from error
         existing_source = self._sources_by_locator.get(hint.source.source_locator)
         if existing_source is not None and existing_source != hint.source:
             raise RegistryError("Hints cannot reuse a source locator with a different definition.")
@@ -64,27 +77,3 @@ class HintRegistry:
     def _ensure_mutable(self) -> None:
         if self._frozen or self._catalog is not None or self._objects_by_source_locator is not None:
             raise RegistryFrozenError("The hint registry is frozen.")
-
-
-def _is_canonical_module(value: str) -> bool:
-    return (
-        bool(value)
-        and "/" not in value
-        and "\\" not in value
-        and ":" not in value
-        and value not in {".", ".."}
-    )
-
-
-def _is_canonical_relative_path(value: str) -> bool:
-    return (
-        bool(value)
-        and not value.startswith("/")
-        and "\\" not in value
-        and ":" not in value
-        and all(part and part not in {".", ".."} for part in value.split("/"))
-    )
-
-
-def _is_async_callable(callback: object) -> bool:
-    return inspect.iscoroutinefunction(callback) or inspect.iscoroutinefunction(getattr(callback, "__call__", None))

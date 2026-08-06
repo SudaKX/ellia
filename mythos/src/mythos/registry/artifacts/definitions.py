@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-from mythos.registry.files.definitions import NodeAccessRule, NodeDisplayParams, VirtualNode
+from mythos.registry.files.definitions import (
+    NodeAccessRule,
+    NodeDisplayParams,
+    VirtualNode,
+    is_safe_download_name,
+)
 from mythos.registry.artifacts.versions import artifact_node_version, artifact_version, callback_id
+from mythos.registry.callbacks import validate_callback
 from mythos.registry.catalog_snapshots import TemplateSnapshotEntry
 
 if TYPE_CHECKING:
@@ -18,7 +24,7 @@ class RawArtifact:
 
 
 ArtifactGenerator: TypeAlias = Callable[["Player"], Awaitable["RawArtifact"]]
-ArtifactNodeGenerator: TypeAlias = Callable[["Player", "ArtifactNode"], Awaitable["ArtifactNode"]]
+ArtifactNodeGenerator: TypeAlias = Callable[["Player", Mapping[str, Any], "ArtifactNode"], Awaitable["ArtifactNode"]]
 
 
 def _is_canonical_virtual_path(path: str) -> bool:
@@ -40,9 +46,14 @@ class ArtifactTemplate:
             raise ValueError("Artifact templates require an artifact ID.")
         if not self.media_type:
             raise ValueError("Artifact templates require a media type.")
-        if not self.download_name:
-            raise ValueError("Artifact templates require a download name.")
-        callback_id(self.generator, field_name="Artifact generator")
+        if not is_safe_download_name(self.download_name):
+            raise ValueError("Artifact templates require a safe download name.")
+        validate_callback(
+            self.generator,
+            field_name="Artifact generator",
+            parameter_count=1,
+            asynchronous=True,
+        )
 
     @property
     def version(self) -> str:
@@ -90,19 +101,31 @@ class ArtifactNodeTemplate:
             raise ValueError("Artifact node templates require an artifact locator.")
         if not isinstance(self.hidden, bool):
             raise ValueError("Artifact node hidden flags must be booleans.")
-        callback_id(self.node_generator, field_name="Artifact node generator")
+        if self.download_name is not None and not is_safe_download_name(self.download_name):
+            raise ValueError("Artifact node templates require a safe download name.")
+        validate_callback(
+            self.node_generator,
+            field_name="Artifact node generator",
+            parameter_count=3,
+            asynchronous=True,
+        )
         if self.access_rule is not None:
-            callback_id(self.access_rule, field_name="Artifact node access rule")
+            validate_callback(
+                self.access_rule,
+                field_name="Artifact node access rule",
+                parameter_count=1,
+                asynchronous=False,
+            )
 
     @property
     def is_file(self) -> bool:
         return True
 
-    @property
-    def version(self) -> str:
+    def version_for(self, artifact_template_version: str) -> str:
         return artifact_node_version(
             self.stable_id,
             self.artifact_locator,
+            artifact_template_version,
             self.path,
             self.display.as_dict(),
             self.hidden,
@@ -111,11 +134,11 @@ class ArtifactNodeTemplate:
             self.access_rule,
         )
 
-    def snapshot_entry(self) -> TemplateSnapshotEntry:
+    def snapshot_entry(self, version: str) -> TemplateSnapshotEntry:
         return TemplateSnapshotEntry(
             kind="artifact_node",
             template_id=self.stable_id,
-            version=self.version,
+            version=version,
             definition={
                 "stable_id": self.stable_id,
                 "artifact_locator": self.artifact_locator,
@@ -138,11 +161,11 @@ class ArtifactNodeTemplate:
             },
         )
 
-    def to_runtime_node(self) -> ArtifactNode:
+    def to_runtime_node(self, version: str) -> ArtifactNode:
         return ArtifactNode(
             stable_id=self.stable_id,
             path=self.path,
-            version=self.version,
+            version=version,
             display=self.display,
             access_rule=self.access_rule,
             hidden=self.hidden,
@@ -163,25 +186,16 @@ class ArtifactNode(VirtualNode):
         hidden: bool = False,
         download_name: str | None = None,
     ) -> None:
-        object.__setattr__(self, "stable_id", stable_id)
-        object.__setattr__(self, "path", path)
-        object.__setattr__(self, "version", version)
-        object.__setattr__(self, "display", display)
-        object.__setattr__(self, "access_rule", access_rule)
-        object.__setattr__(self, "hidden", hidden)
-        object.__setattr__(self, "download_name", download_name)
-        object.__setattr__(self, "artifact_locator", artifact_locator)
-        object.__setattr__(self, "_initialized", True)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        if getattr(self, "_initialized", False) and name in {"stable_id", "artifact_locator", "version"}:
-            raise AttributeError(f"{name} is immutable after initialization.")
-        object.__setattr__(self, name, value)
-
-    def __delattr__(self, name: str) -> None:
-        if getattr(self, "_initialized", False):
-            raise AttributeError("Artifact nodes are immutable after initialization.")
-        object.__delattr__(self, name)
+        super().__init__(
+            stable_id,
+            path,
+            version,
+            display,
+            access_rule,
+            hidden,
+            download_name,
+        )
+        self.artifact_locator = artifact_locator
 
     @property
     def is_file(self) -> bool:

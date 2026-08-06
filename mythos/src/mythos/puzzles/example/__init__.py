@@ -167,6 +167,7 @@ async def _generate_admin_access(player: Player) -> RawArtifact:
 @_handler(1)
 async def _generate_admin_access_node(
     _player: Player,
+    _meta: Mapping[str, Any],
     node: ArtifactNode,
 ) -> ArtifactNode:
     return node

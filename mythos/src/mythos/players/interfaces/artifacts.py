@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Mapping
-from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -20,8 +18,14 @@ from mythos.registry.artifacts import (
     ArtifactTemplate,
 )
 from mythos.registry.artifacts.catalog import ArtifactCatalog
+from mythos.registry.artifacts.definitions import _is_canonical_virtual_path
 from mythos.registry.files import FileTree
-from mythos.registry.files.definitions import FileContent, NodeDisplayParams, ObjectReference
+from mythos.registry.files.definitions import (
+    FileContent,
+    NodeDisplayParams,
+    ObjectReference,
+    is_safe_download_name,
+)
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.registry.files.tree import TreeNode
 from mythos.services.object_store.service import ObjectStore
@@ -79,7 +83,7 @@ class ArtifactInterface:
                 static_tree,
                 self.tree_nodes(),
                 file_ids,
-                template_version=self._catalog.template_version,
+                artifact_catalog_version=self._catalog.version,
                 player_version=self._player_version,
             )
         return self._player_tree_cache
@@ -87,11 +91,9 @@ class ArtifactInterface:
     @staticmethod
     def _artifact_object_key(
         player_id: UUID,
-        artifact_id: str,
         version: str,
-        content_digest: str,
     ) -> str:
-        return f"artifacts/{player_id}/{artifact_id}/{version}/{content_digest}"
+        return f"artifacts/{player_id}/{version}"
 
     async def generate_artifact(
         self,
@@ -158,7 +160,10 @@ class ArtifactInterface:
             await self._bump_player_version()
             self._player_tree_cache = None
             return refreshed
-        if node.version == template.version and node.artifact_id == template.artifact_locator:
+        if (
+            node.version == self._catalog.node_version(node_id)
+            and node.artifact_id == template.artifact_locator
+        ):
             return self._runtime_node(node)
         if template.artifact_locator not in self._artifacts:
             await self.remove_node(node_id)
@@ -221,14 +226,11 @@ class ArtifactInterface:
         player: Player,
     ) -> PlayerArtifact:
         raw = await template.generator(player)
-        digest = hashlib.sha256(raw.data).hexdigest()
         object_ref = await self._object_store.put_bytes(
             raw.data,
             object_key=self._artifact_object_key(
                 self._player_id,
-                template.artifact_id,
                 template.version,
-                digest,
             ),
             media_type=template.media_type,
         )
@@ -241,14 +243,20 @@ class ArtifactInterface:
     ) -> ArtifactNode:
         if template.artifact_locator not in self._artifacts:
             raise RuntimeError(f"Artifact {template.artifact_locator!r} must exist before creating a node.")
-        runtime_node = template.to_runtime_node()
-        runtime_node = await template.node_generator(player, runtime_node)
+        expected_version = self._catalog.node_version(template.stable_id)
+        runtime_node = template.to_runtime_node(expected_version)
+        artifact = self._artifacts[template.artifact_locator]
+        runtime_node = await template.node_generator(player, dict(artifact.meta), runtime_node)
         if runtime_node.stable_id != template.stable_id:
             raise RuntimeError("Artifact node generator modified the stable_id.")
         if runtime_node.artifact_locator != template.artifact_locator:
             raise RuntimeError("Artifact node generator modified the artifact_locator.")
-        if runtime_node.version != template.version:
+        if runtime_node.version != expected_version:
             raise RuntimeError("Artifact node generator modified the version.")
+        if not _is_canonical_virtual_path(runtime_node.path):
+            raise RuntimeError("Artifact node generator produced a non-canonical path.")
+        if runtime_node.download_name is not None and not is_safe_download_name(runtime_node.download_name):
+            raise RuntimeError("Artifact node generator produced an unsafe download name.")
         await self._upsert_node(template, runtime_node)
         return runtime_node
 
@@ -263,7 +271,6 @@ class ArtifactInterface:
             "artifact_id": template.artifact_id,
             "version": template.version,
             "object_key": object_ref.key,
-            "object_version_id": object_ref.version_id,
             "content_digest": object_ref.content_digest,
             "media_type": object_ref.media_type,
             "size_bytes": object_ref.size_bytes,
@@ -300,9 +307,10 @@ class ArtifactInterface:
             "node_id": template.stable_id,
             "artifact_id": template.artifact_locator,
             "path": runtime_node.path,
-            "version": template.version,
+            "version": runtime_node.version,
             "display": runtime_node.display.as_dict(),
             "hidden": runtime_node.hidden,
+            "download_name": runtime_node.download_name,
             "created_at": utcnow(),
             "updated_at": utcnow(),
         }
@@ -311,7 +319,7 @@ class ArtifactInterface:
             index_elements=["player_id", "node_id"],
             set_={
                 column: stmt.excluded[column]
-                for column in ("artifact_id", "path", "version", "display", "hidden", "updated_at")
+                for column in ("artifact_id", "path", "version", "display", "hidden", "download_name", "updated_at")
             },
         )
         await self._session.execute(stmt)
@@ -339,6 +347,8 @@ class ArtifactInterface:
 
     def _runtime_node(self, node_record: PlayerArtifactNode) -> ArtifactNode:
         template = self._catalog.node_template(node_record.node_id)
+        if node_record.download_name is not None and not is_safe_download_name(node_record.download_name):
+            raise RuntimeError("Persisted artifact node has an unsafe download name.")
         return ArtifactNode(
             stable_id=node_record.node_id,
             path=node_record.path,
@@ -346,7 +356,7 @@ class ArtifactInterface:
             display=NodeDisplayParams(**node_record.display),
             access_rule=template.access_rule,
             hidden=node_record.hidden,
-            download_name=template.download_name,
+            download_name=node_record.download_name,
             artifact_locator=node_record.artifact_id,
         )
 
@@ -359,25 +369,27 @@ class ArtifactInterface:
             template = self._catalog.node_template_or_none(node_record.node_id)
             if template is None:
                 continue
+            artifact_template = self._catalog.template_or_none(artifact.artifact_id)
+            if artifact_template is None:
+                continue
             object_ref = ObjectReference(
                 key=artifact.object_key,
                 content_digest=artifact.content_digest,
                 media_type=artifact.media_type,
                 size_bytes=artifact.size_bytes,
-                version_id=artifact.object_version_id,
             )
+            effective_download_name = node_record.download_name or artifact_template.download_name
             content = FileContent(
                 object_ref=object_ref,
-                download_name=artifact.download_name,
+                download_name=effective_download_name,
                 content_token=self._file_ids.encode_artifact_content_token(
                     str(self._player_id),
+                    artifact.artifact_id,
                     node_record.node_id,
                     artifact.version,
                     node_record.version,
-                    object_ref.key,
-                    object_ref.version_id,
                     object_ref.media_type,
-                    artifact.download_name,
+                    effective_download_name,
                 ),
             )
             runtime_node = self._runtime_node(node_record)
@@ -385,7 +397,7 @@ class ArtifactInterface:
                 TreeNode(
                     path=node_record.path,
                     definition=runtime_node,
-                    children=MappingProxyType({}),
+                    children={},
                     content=content,
                     file_id=self._file_ids.encode(node_record.node_id),
                 )
@@ -411,6 +423,7 @@ class ArtifactInterface:
             select(PlayerArtifact)
             .where(PlayerArtifact.player_id == player_id)
             .options(selectinload(PlayerArtifact.nodes))
+            .execution_options(populate_existing=True)
         )
         artifact_dict: dict[str, PlayerArtifact] = {}
         node_dict: dict[str, PlayerArtifactNode] = {}

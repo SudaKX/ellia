@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from mythos.registry.files.definitions import ObjectReference
@@ -40,16 +39,6 @@ class ObjectStoreReader(Protocol):
 
 
 class StaticObjectWriter(Protocol):
-    async def put_file(
-        self,
-        source_path: Path,
-        *,
-        object_key: str,
-        media_type: str,
-    ) -> ObjectReference: ...
-
-
-class ObjectWriter(StaticObjectWriter, Protocol):
     async def put_bytes(
         self,
         data: bytes,
@@ -59,10 +48,14 @@ class ObjectWriter(StaticObjectWriter, Protocol):
     ) -> ObjectReference: ...
 
 
+class ObjectWriter(StaticObjectWriter, Protocol):
+    pass
+
+
 class ObjectStore(ObjectStoreReader, ObjectWriter, Protocol):
     async def list_objects(self, prefix: str) -> list[str]: ...
 
-    async def delete_object(self, key: str, version_id: str | None = None) -> None: ...
+    async def delete_object(self, key: str) -> None: ...
 
 
 class UnconfiguredObjectStore:
@@ -76,16 +69,6 @@ class UnconfiguredObjectStore:
         response_expires_at: datetime | None,
     ) -> PresignedObjectUrl:
         del reference, expires_in_seconds, content_disposition, response_cache_control, response_expires_at
-        raise ObjectStoreUnavailableError("Object storage is not configured.")
-
-    async def put_file(
-        self,
-        source_path: Path,
-        *,
-        object_key: str,
-        media_type: str,
-    ) -> ObjectReference:
-        del source_path, object_key, media_type
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
     async def put_bytes(
@@ -102,8 +85,8 @@ class UnconfiguredObjectStore:
         del prefix
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
-    async def delete_object(self, key: str, version_id: str | None = None) -> None:
-        del key, version_id
+    async def delete_object(self, key: str) -> None:
+        del key
         raise ObjectStoreUnavailableError("Object storage is not configured.")
 
 
@@ -128,7 +111,6 @@ class Boto3ObjectStore:
             "ResponseContentDisposition": content_disposition,
             "ResponseCacheControl": response_cache_control,
         }
-        params["VersionId"] = reference.version_id
         if response_expires_at is not None:
             params["ResponseExpires"] = response_expires_at
         try:
@@ -143,40 +125,6 @@ class Boto3ObjectStore:
         return PresignedObjectUrl(
             url=url,
             expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
-        )
-
-    async def put_file(
-        self,
-        source_path: Path,
-        *,
-        object_key: str,
-        media_type: str,
-    ) -> ObjectReference:
-        return await asyncio.to_thread(self._put_file_sync, source_path, object_key, media_type)
-
-    def _put_file_sync(self, source_path: Path, object_key: str, media_type: str) -> ObjectReference:
-        try:
-            size_bytes = source_path.stat().st_size
-            with source_path.open("rb") as source:
-                digest = hashlib.file_digest(source, "sha256").hexdigest()
-                source.seek(0)
-                response = self._client.put_object(  # type: ignore[union-attr]
-                    Bucket=self._bucket,
-                    Key=object_key,
-                    Body=source,
-                    ContentType=media_type,
-                )
-        except Exception as error:
-            raise ObjectStoreError("Unable to upload a static object.") from error
-        version_id = response.get("VersionId") if isinstance(response, dict) else None
-        if not isinstance(version_id, str) or not version_id:
-            raise ObjectStoreError("Object storage did not return a version ID for the uploaded object.")
-        return ObjectReference(
-            key=object_key,
-            content_digest=f"sha256:{digest}",
-            media_type=media_type,
-            size_bytes=size_bytes,
-            version_id=version_id,
         )
 
     async def put_bytes(
@@ -199,15 +147,11 @@ class Boto3ObjectStore:
             )
         except Exception as error:
             raise ObjectStoreError("Unable to upload a dynamic object.") from error
-        version_id = response.get("VersionId") if isinstance(response, dict) else None
-        if not isinstance(version_id, str) or not version_id:
-            raise ObjectStoreError("Object storage did not return a version ID for the uploaded object.")
         return ObjectReference(
             key=object_key,
             content_digest=f"sha256:{digest}",
             media_type=media_type,
             size_bytes=len(data),
-            version_id=version_id,
         )
 
     async def list_objects(self, prefix: str) -> list[str]:
@@ -235,10 +179,8 @@ class Boto3ObjectStore:
                 break
         return keys
 
-    async def delete_object(self, key: str, version_id: str | None = None) -> None:
+    async def delete_object(self, key: str) -> None:
         params: dict[str, object] = {"Bucket": self._bucket, "Key": key}
-        if isinstance(version_id, str):
-            params["VersionId"] = version_id
         try:
             await asyncio.to_thread(
                 self._client.delete_object,  # type: ignore[union-attr]

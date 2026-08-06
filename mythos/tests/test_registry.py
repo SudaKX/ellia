@@ -22,7 +22,7 @@ from mythos.registry.files import (
     FileRegistry,
     FileTreeManifest,
     ObjectReference,
-    StaticNode,
+    StaticNodeSpec,
 )
 from mythos.registry.hints import Hint, HintDisplayParams, HintRegistry
 from mythos.registry.scripts import Script
@@ -45,7 +45,7 @@ async def _artifact_generator(_context):
 
 
 @module_handler("test")(1)
-async def _artifact_node_generator(_context, node):
+async def _artifact_node_generator(_player, _meta, node):
     return node
 
 
@@ -57,7 +57,6 @@ class FakeStaticPublisher:
                 "sha256:" + "a" * 64,
                 source.media_type,
                 4,
-                "test-version",
             )
             for source in sources
         }
@@ -70,7 +69,6 @@ def _hint(stable_id: str, source: FileReference, *, access_rule=None) -> Hint:
         download_name="hint.txt",
         display=HintDisplayParams(title="Hint"),
         vtb_cost=1,
-        revision=1,
         access_rule=access_rule,
     )
 
@@ -116,7 +114,6 @@ def test_hint_registry_requires_the_original_file_id_key_after_freeze() -> None:
                 "sha256:" + "a" * 64,
                 "text/plain",
                 4,
-                "test-version",
             )
         }
     )
@@ -133,10 +130,9 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
         FileReference("test", "assets/file.txt", "text/plain")
     )
     registries.files.register_node(
-        StaticNode.file(
+        StaticNodeSpec.file(
             "test.file",
             "/file.txt",
-            "1",
             source_locator,
             "file.txt",
             display=_display("File"),
@@ -162,10 +158,9 @@ def test_registry_bundle_freezes_runtime_catalogs() -> None:
         registries.freeze(FileIdCodec("another-file-id-signing-key-with-at-least-32-bytes"))
     with pytest.raises(RegistryFrozenError):
         registries.files.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.other",
                 "/other.txt",
-                "1",
                 source_locator,
                 "other.txt",
                 display=_display("Other"),
@@ -178,10 +173,9 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
     registry = FileRegistry()
     report_source = registry.register_source(FileReference("test", "assets/report.txt", "text/plain"))
     registry.register_node(
-        StaticNode.file(
+        StaticNodeSpec.file(
             "test.report",
             "/report",
-            "1",
             report_source,
             "report.txt",
             display=_display("Report"),
@@ -190,10 +184,9 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
     with pytest.raises(RegistryError, match="contain child"):
         guide_source = registry.register_source(FileReference("test", "assets/report-guide.txt", "text/plain"))
         registry.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.report-guide",
                 "/report/guide.txt",
-                "1",
                 guide_source,
                 "guide.txt",
                 display=_display("Guide"),
@@ -203,10 +196,9 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
     descendant_first = FileRegistry()
     guide_source = descendant_first.register_source(FileReference("test", "assets/guide.txt", "text/plain"))
     descendant_first.register_node(
-        StaticNode.file(
+        StaticNodeSpec.file(
             "test.guide",
             "/docs/guide.txt",
-            "1",
             guide_source,
             "guide.txt",
             display=_display("Guide"),
@@ -215,10 +207,9 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
     with pytest.raises(RegistryError, match="also be a directory"):
         docs_source = descendant_first.register_source(FileReference("test", "assets/docs.txt", "text/plain"))
         descendant_first.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.docs-file",
                 "/docs",
-                "1",
                 docs_source,
                 "docs.txt",
                 display=_display("Docs"),
@@ -227,22 +218,35 @@ def test_file_registry_rejects_file_directory_conflicts_and_keeps_empty_director
 
     empty_directory = FileRegistry()
     empty_directory.register_node(
-        StaticNode.directory("test.empty", "/empty", "1", display=_display("Empty", "folder"))
+        StaticNodeSpec.directory("test.empty", "/empty", display=_display("Empty", "folder"))
     )
     assert empty_directory.freeze(file_ids).directory_chain("/empty")[-1].path == "/empty"
 
 
-def test_file_tree_versions_follow_node_version_and_object_version() -> None:
+@pytest.mark.parametrize(
+    ("module", "relative_path"),
+    [
+        ("..", "assets/file.txt"),
+        ("test", "../secret.txt"),
+        ("test", r"assets\secret.txt"),
+        ("test", "/absolute.txt"),
+    ],
+)
+def test_file_registry_rejects_noncanonical_source_paths(module: str, relative_path: str) -> None:
+    with pytest.raises(RegistryError, match="canonical"):
+        FileRegistry().register_source(FileReference(module, relative_path, "text/plain"))
+
+
+def test_file_tree_versions_follow_resolved_source_content() -> None:
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
 
-    def build_tree(*, version: str, object_version_id: str):
+    def build_tree(*, content_digest: str):
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
         registry.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.file",
                 "/file.txt",
-                version,
                 source_locator,
                 "file.txt",
                 display=_display("File"),
@@ -252,29 +256,28 @@ def test_file_tree_versions_follow_node_version_and_object_version() -> None:
             {
                 source_locator: ObjectReference(
                     "static/test/assets/file.txt",
-                    "sha256:" + "a" * 64,
+                    content_digest,
                     "text/plain",
                     4,
-                    object_version_id,
                 )
             }
         )
         return registry.freeze(file_ids)
 
-    first = build_tree(version="1", object_version_id="object-v1")
-    changed_object = build_tree(version="1", object_version_id="object-v2")
-    changed_version = build_tree(version="2", object_version_id="object-v1")
+    first = build_tree(content_digest="sha256:" + "a" * 64)
+    same_content = build_tree(content_digest="sha256:" + "a" * 64)
+    changed_content = build_tree(content_digest="sha256:" + "b" * 64)
 
     first_id = first.file_id_for_stable_id("test.file")
-    assert changed_object.file_id_for_stable_id("test.file") == first_id
-    assert changed_version.file_id_for_stable_id("test.file") == first_id
+    assert same_content.file_id_for_stable_id("test.file") == first_id
+    assert changed_content.file_id_for_stable_id("test.file") == first_id
     assert first.file(first_id).content is not None
-    assert changed_object.file(first_id).content is not None
-    assert changed_version.file(first_id).content is not None
-    assert first.file(first_id).content.content_token != changed_object.file(first_id).content.content_token
-    assert first.file(first_id).content.content_token != changed_version.file(first_id).content.content_token
-    assert first.tree_version != changed_object.tree_version
-    assert first.tree_version != changed_version.tree_version
+    assert same_content.file(first_id).content is not None
+    assert changed_content.file(first_id).content is not None
+    assert first.file(first_id).content.content_token == same_content.file(first_id).content.content_token
+    assert first.file(first_id).content.content_token != changed_content.file(first_id).content.content_token
+    assert first.tree_version == same_content.tree_version
+    assert first.tree_version != changed_content.tree_version
 
 
 def test_file_content_token_follows_representation_metadata() -> None:
@@ -284,10 +287,9 @@ def test_file_content_token_follows_representation_metadata() -> None:
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", media_type))
         registry.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.file",
                 "/file.txt",
-                "1",
                 source_locator,
                 download_name,
                 display=_display("File"),
@@ -300,7 +302,6 @@ def test_file_content_token_follows_representation_metadata() -> None:
                     "sha256:" + "a" * 64,
                     media_type,
                     4,
-                    "object-v1",
                 )
             }
         )
@@ -321,23 +322,22 @@ def test_file_content_token_follows_representation_metadata() -> None:
     assert moved.file(file_id).content is not None
     assert plain.file(file_id).content.content_token != html.file(file_id).content.content_token
     assert plain.file(file_id).content.content_token != renamed.file(file_id).content.content_token
-    assert plain.file(file_id).content.content_token != moved.file(file_id).content.content_token
+    assert plain.file(file_id).content.content_token == moved.file(file_id).content.content_token
     assert plain.tree_version != html.tree_version
     assert plain.tree_version != renamed.tree_version
-    assert plain.tree_version != moved.tree_version
+    assert plain.tree_version == moved.tree_version
 
 
-def test_file_tree_versions_follow_display_params_without_changing_content_tokens() -> None:
+def test_file_tree_versions_follow_display_params_and_content_tokens() -> None:
     file_ids = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
 
     def build_tree(display: NodeDisplayParams):
         registry = FileRegistry()
         source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
         registry.register_node(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 "test.file",
                 "/file.txt",
-                "1",
                 source_locator,
                 "file.txt",
                 display=display,
@@ -350,7 +350,6 @@ def test_file_tree_versions_follow_display_params_without_changing_content_token
                     "sha256:" + "a" * 64,
                     "text/plain",
                     4,
-                    "object-v1",
                 )
             }
         )
@@ -362,7 +361,7 @@ def test_file_tree_versions_follow_display_params_without_changing_content_token
     assert first.file(file_id).content is not None
     assert renamed.file(file_id).content is not None
     assert first.tree_version != renamed.tree_version
-    assert first.file(file_id).content.content_token == renamed.file(file_id).content.content_token
+    assert first.file(file_id).content.content_token != renamed.file(file_id).content.content_token
 
 
 def test_file_tree_versions_follow_hidden_flags() -> None:
@@ -371,10 +370,9 @@ def test_file_tree_versions_follow_hidden_flags() -> None:
     def build_tree(*, hidden: bool):
         registry = FileRegistry()
         registry.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.hidden-directory",
                 "/hidden",
-                "1",
                 display=_display("Hidden", "folder"),
                 hidden=hidden,
             )
@@ -382,6 +380,38 @@ def test_file_tree_versions_follow_hidden_flags() -> None:
         return registry.freeze(file_ids)
 
     assert build_tree(hidden=False).tree_version != build_tree(hidden=True).tree_version
+
+
+def test_file_catalog_version_includes_file_id_key_fingerprint() -> None:
+    def build_tree(signing_key: str):
+        registry = FileRegistry()
+        source_locator = registry.register_source(FileReference("test", "assets/file.txt", "text/plain"))
+        registry.register_node(
+            StaticNodeSpec.file(
+                "test.file",
+                "/file.txt",
+                source_locator,
+                "file.txt",
+                display=_display("File"),
+            )
+        )
+        registry.materialize_static_files(
+            {
+                source_locator: ObjectReference(
+                    "static/test/assets/file.txt",
+                    "sha256:" + "a" * 64,
+                    "text/plain",
+                    4,
+                )
+            }
+        )
+        return registry.freeze(FileIdCodec(signing_key))
+
+    first = build_tree("test-file-id-signing-key-with-at-least-32-bytes")
+    rotated = build_tree("another-file-id-signing-key-with-at-least-32-bytes")
+    assert first.tree_version.startswith("fcv1_")
+    assert rotated.tree_version.startswith("fcv1_")
+    assert first.tree_version != rotated.tree_version
 
 
 def test_file_registry_registers_json_tree_atomically() -> None:
@@ -394,7 +424,6 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "directory",
                 "stable_id": "test.docs",
                 "name": "docs",
-                "version": "1",
                 "display": {"label": "Docs", "icon": "folder"},
                 "access_rule": "docs-visible",
                 "hidden": True,
@@ -403,7 +432,6 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                         "kind": "file",
                         "stable_id": "test.guide",
                         "name": "guide.txt",
-                        "version": "1",
                         "display": {"label": "Guide", "icon": "document"},
                         "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
                         "download_name": "guide.txt",
@@ -414,13 +442,16 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "directory",
                 "stable_id": "test.empty",
                 "name": "empty",
-                "version": "1",
                 "display": {"label": "Empty", "icon": "folder"},
                 "children": [],
             },
         ],
     }
-    registry.register_json_tree(json.dumps(manifest), access_rules={"docs-visible": lambda _player: True})
+    @module_handler("test")(1)
+    def docs_visible(_player) -> bool:
+        return True
+
+    registry.register_json_tree(json.dumps(manifest), access_rules={"docs-visible": docs_visible})
     assert registry.sources == (FileReference("test", "assets/guide.txt", "text/plain"),)
     assert "DirectoryManifest" in FileTreeManifest.model_json_schema()["$defs"]
 
@@ -436,7 +467,6 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "kind": "file",
                 "stable_id": "test.guide",
                 "name": "other.txt",
-                "version": "1",
                 "display": {"label": "Other", "icon": "document"},
                 "source": {"relative_path": "assets/other.txt", "media_type": "text/plain"},
                 "download_name": "other.txt",
@@ -454,7 +484,6 @@ def test_file_registry_registers_json_tree_atomically() -> None:
                 "sha256:" + "a" * 64,
                 "text/plain",
                 4,
-                "test-version",
             )
         }
     )
@@ -478,7 +507,6 @@ def test_file_registry_reads_json_tree_assets_from_puzzle_root(tmp_path) -> None
                         "kind": "file",
                         "stable_id": "test.guide",
                         "name": "guide.txt",
-                        "version": "1",
                         "display": {"label": "Guide", "icon": "document"},
                         "source": {"relative_path": "assets/guide.txt", "media_type": "text/plain"},
                         "download_name": "guide.txt",
@@ -507,10 +535,9 @@ def test_registry_bundle_rejects_cross_registry_stable_id_collision() -> None:
     registries = RegistryBundle()
     source_locator = registries.files.register_source(FileReference("test", "assets/file.txt", "text/plain"))
     registries.files.register_node(
-        StaticNode.file(
+        StaticNodeSpec.file(
             "test.shared",
             "/file.txt",
-            "1",
             source_locator,
             "file.txt",
             display=_display("File"),

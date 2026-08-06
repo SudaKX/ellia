@@ -25,21 +25,22 @@ pytestmark = pytest.mark.anyio
 
 @module_handler("reconciliation")(1)
 async def _artifact_v1(_context) -> RawArtifact:
-    return RawArtifact(b"v1")
+    return RawArtifact(b"v1", meta={"label": "report.txt"})
 
 
 @module_handler("reconciliation")(2)
 async def _artifact_v2(_context) -> RawArtifact:
-    return RawArtifact(b"v2")
+    return RawArtifact(b"v2", meta={"label": "updated-report.txt"})
 
 
 @module_handler("reconciliation")(1)
-async def _node_generator(_context, node):
+async def _node_generator(_player, meta, node):
+    node.display = NodeDisplayParams(label=meta["label"], icon="document")
     return node
 
 
 @module_handler("reconciliation")(2)
-async def _node_generator_v2(_context, node):
+async def _node_generator_v2(_player, _meta, node):
     node.display = NodeDisplayParams(label="updated-report.txt", icon="document")
     return node
 
@@ -91,6 +92,13 @@ async def _node_version(app, player_id: UUID) -> str:
         return node.version
 
 
+async def _node_display_label(app, player_id: UUID) -> str:
+    async with app.state.database.session_factory() as session:
+        node = await session.get(PlayerArtifactNode, (player_id, "reconciliation.report-file"))
+        assert node is not None
+        return node.display["label"]
+
+
 async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_changed_artifact(tmp_path) -> None:
     settings = Settings(
         environment="test",
@@ -115,6 +123,7 @@ async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_chan
             )
         player_id = decode_access_token(response.json()["access_token"], settings).player_id
         first_version, first_player_version = await _create_artifact(first, player_id)
+        initial_node_version = await _node_version(first, player_id)
         assert first_player_version == 2
 
     assert settings.artifact_snapshot_path.exists()
@@ -142,6 +151,10 @@ async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_chan
         version, player_version = await _artifact_state(legacy, player_id)
         assert version == first_version
         assert player_version == 1
+        async with legacy.state.database.session_factory() as session:
+            artifact = await session.get(PlayerArtifact, (player_id, "reconciliation.report"))
+            assert artifact is not None
+            assert artifact.object_key == f"artifacts/{player_id}/{version}"
     assert len(store.uploads) == upload_count + 1
     upload_count = len(store.uploads)
 
@@ -151,7 +164,9 @@ async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_chan
         first_node_version = await _node_version(changed, player_id)
         assert version != first_version
         assert version == changed.state.runtime.catalogs.artifacts.template("reconciliation.report").version
-        assert player_version == 2
+        assert first_node_version != initial_node_version
+        assert await _node_display_label(changed, player_id) == "updated-report.txt"
+        assert player_version == 3
     assert len(store.uploads) == upload_count + 1
 
     node_changed = create_app(
@@ -164,5 +179,5 @@ async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_chan
         node_version = await _node_version(node_changed, player_id)
         assert version == changed.state.runtime.catalogs.artifacts.template("reconciliation.report").version
         assert node_version != first_node_version
-        assert player_version == 3
+        assert player_version == 4
     assert len(store.uploads) == upload_count + 1

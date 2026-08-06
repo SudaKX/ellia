@@ -1,12 +1,16 @@
 import asyncio
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi import HTTPException
 
 from mythos.core.config import Settings
+from mythos.core.database import Database
 from mythos.core.problems import ProblemType
 from mythos.main import create_app
+from mythos.persistence.base import Base
+from _helpers.object_store import FakeObjectStore
 
 
 def test_problem_type_base_url_requires_an_absolute_http_url() -> None:
@@ -27,10 +31,20 @@ def test_problem_type_base_url_requires_an_absolute_http_url() -> None:
     )
 
 
-def test_http_errors_use_problem_details_without_bearer_challenge() -> None:
+def test_http_errors_use_problem_details_without_bearer_challenge(tmp_path: Path) -> None:
     async def scenario() -> None:
-        settings = Settings(problem_type_base_url="https://errors.example/problems")
-        app = create_app(settings)
+        settings = Settings(
+            environment="test",
+            problem_type_base_url="https://errors.example/problems",
+            database_url=f"sqlite+aiosqlite:///{(tmp_path / 'problems.sqlite3').as_posix()}",
+            artifact_template_snapshot_path=tmp_path / "artifact-template-catalog.json",
+            virtual_account_template_snapshot_path=tmp_path / "virtual-account-template-catalog.json",
+        )
+        database = Database(settings.database_url)
+        async with database.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        await database.dispose()
+        app = create_app(settings, object_store=FakeObjectStore())
 
         @app.get("/api/v1/explicit-auth-challenge")
         async def explicit_auth_challenge() -> None:

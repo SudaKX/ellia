@@ -22,7 +22,6 @@ class PlayerArtifact(Base):
     artifact_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     version: Mapped[str] = mapped_column(String(255), nullable=False)
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    object_version_id: Mapped[str] = mapped_column(String(1024), nullable=False)
     content_digest: Mapped[str] = mapped_column(String(71), nullable=False)
     media_type: Mapped[str] = mapped_column(String(255), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -61,6 +60,7 @@ class PlayerArtifactNode(Base):
     version: Mapped[str] = mapped_column(String(255), nullable=False)
     display: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     hidden: Mapped[bool] = mapped_column(default=False, nullable=False)
+    download_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utcnow,

@@ -41,7 +41,6 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
     try:
         client.create_bucket(Bucket=bucket)
         bucket_created = True
-        client.put_bucket_versioning(Bucket=bucket, VersioningConfiguration={"Status": "Enabled"})
 
         async def scenario() -> None:
             settings = Settings(
@@ -120,7 +119,7 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
         asyncio.run(scenario())
     finally:
         if bucket_created:
-            _delete_bucket_versions(client, bucket)
+            _delete_bucket_objects(client, bucket)
 
 
 def _read_url(url: str) -> bytes:
@@ -128,11 +127,11 @@ def _read_url(url: str) -> bytes:
         return response.read()
 
 
-def _delete_bucket_versions(client, bucket: str) -> None:
-    versions = client.list_object_versions(Bucket=bucket)
+def _delete_bucket_objects(client, bucket: str) -> None:
+    objects = client.list_objects_v2(Bucket=bucket).get("Contents", [])
     objects = [
-        {"Key": item["Key"], "VersionId": item["VersionId"]}
-        for item in [*versions.get("Versions", []), *versions.get("DeleteMarkers", [])]
+        {"Key": item["Key"]}
+        for item in objects
     ]
     if objects:
         client.delete_objects(Bucket=bucket, Delete={"Objects": objects})

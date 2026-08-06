@@ -1,3 +1,4 @@
+import hashlib
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,7 @@ pytestmark = pytest.mark.anyio
 from _helpers.object_store import FakeObjectStore
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerArtifact
+from mythos.persistence.models import PlayerArtifact, PlayerArtifactNode
 from mythos.players.interfaces.artifacts import ArtifactInterface, ReadOnlyArtifactError
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
@@ -38,9 +39,16 @@ async def _artifact_generator_v2(player: Player):
     return RawArtifact(b"updated dynamic content", meta={"answer": 43})
 
 
+@module_handler("test")(2)
+async def _node_download_name_generator(_player: Player, _meta, node):
+    node.download_name = "runtime.txt"
+    return node
+
+
 @module_handler("test")(1)
-async def _node_generator(player: Player, node):
+async def _node_generator(player: Player, meta, node):
     assert isinstance(player, Player)
+    assert meta == {"answer": 42}
     node.path = "/dynamic/result.txt"
     node.display = _display("Result")
     return node
@@ -145,13 +153,14 @@ async def test_artifact_interface_generates_and_persists_artifact(session, playe
     assert len(store.uploads) == 1
     object_key, data, media_type = store.uploads[0]
     assert data == b"dynamic content"
+    assert artifact.content_digest == f"sha256:{hashlib.sha256(data).hexdigest()}"
     assert media_type == "text/plain"
-    assert artifact.version.startswith("av1_")
-    assert object_key.startswith(f"artifacts/{interface.player_id}/test.artifact/{artifact.version}/")
+    assert artifact.version.startswith("atv1_")
+    assert object_key == f"artifacts/{interface.player_id}/{artifact.version}"
 
     artifact = await session.get(PlayerArtifact, (interface.player_id, "test.artifact"))
     assert artifact is not None
-    assert artifact.version.startswith("av1_")
+    assert artifact.version.startswith("atv1_")
     assert artifact.download_name == "result.txt"
     assert artifact.meta == {"answer": 42}
 
@@ -162,6 +171,13 @@ async def test_artifact_interface_generates_and_persists_artifact(session, playe
     assert tree_nodes[0].content is not None
     assert tree_nodes[0].content.download_name == "result.txt"
     assert tree_nodes[0].file_id == _FILE_IDS.encode("test.artifact-node")
+
+
+async def test_artifact_generator_is_deterministic_for_same_player(player) -> None:
+    first = await _artifact_generator(player)
+    second = await _artifact_generator(player)
+    assert first.data == second.data
+    assert first.meta == second.meta
 
 
 async def test_artifact_interface_rejects_generation_when_read_only(session, player) -> None:
@@ -276,21 +292,93 @@ async def test_artifact_interface_artifact_content_token_includes_player_id(sess
     await interface.generate_node("test.artifact-node", player)
     tree_node = interface.tree_nodes()[0]
     assert tree_node.content is not None
-    assert tree_node.content.content_token.startswith("act2_")
+    assert tree_node.content.content_token.startswith("act3_")
+
+
+async def test_artifact_content_token_includes_artifact_id(session) -> None:
+    first = _FILE_IDS.encode_artifact_content_token(
+        "player",
+        "artifact-a",
+        "atv1_same",
+        "node",
+        "antv2_same",
+        "text/plain",
+        "result.txt",
+    )
+    second = _FILE_IDS.encode_artifact_content_token(
+        "player",
+        "artifact-b",
+        "atv1_same",
+        "node",
+        "antv2_same",
+        "text/plain",
+        "result.txt",
+    )
+    assert first.startswith("act3_")
+    assert first != second
+
+
+def _make_download_name_catalog():
+    registry = ArtifactRegistry()
+    registry.register_template(
+        ArtifactTemplate(
+            artifact_id="test.named-artifact",
+            media_type="text/plain",
+            download_name="artifact.txt",
+            generator=_artifact_generator,
+        )
+    )
+    registry.register_node(
+        ArtifactNodeTemplate(
+            stable_id="test.named-node",
+            path="/named.txt",
+            artifact_locator="test.named-artifact",
+            display=_display("Named"),
+            download_name="declared.txt",
+            node_generator=_node_download_name_generator,
+        )
+    )
+    return registry.freeze()
+
+
+async def test_artifact_node_download_name_survives_persistence_reload(session, player) -> None:
+    catalog = _make_download_name_catalog()
+    player_id = uuid4()
+    store = FakeObjectStore()
+    interface = await ArtifactInterface.load(
+        session,
+        player_id,
+        catalog,
+        store,
+        _FILE_IDS,
+        writable=True,
+    )
+    await interface.generate_artifact("test.named-artifact", player)
+    await interface.generate_node("test.named-node", player)
+    await session.commit()
+
+    record = await session.get(PlayerArtifactNode, (player_id, "test.named-node"))
+    assert record is not None
+    assert record.download_name == "runtime.txt"
+    assert interface.tree_nodes()[0].content is not None
+    assert interface.tree_nodes()[0].content.download_name == "runtime.txt"
+
+    reloaded = await ArtifactInterface.load(
+        session,
+        player_id,
+        catalog,
+        store,
+        _FILE_IDS,
+        writable=True,
+    )
+    assert reloaded.tree_nodes()[0].content is not None
+    assert reloaded.tree_nodes()[0].content.download_name == "runtime.txt"
 
 
 async def test_artifact_interface_object_key_is_deterministic(session) -> None:
     player_id = uuid4()
-    key = ArtifactInterface._artifact_object_key(
-        player_id,
-        "test.artifact",
-        _CATALOG.template("test.artifact").version,
-        "sha256-digest",
-    )
-    assert key == (
-        f"artifacts/{player_id}/test.artifact/"
-        f"{_CATALOG.template('test.artifact').version}/sha256-digest"
-    )
+    key = ArtifactInterface._artifact_object_key(player_id, _CATALOG.template("test.artifact").version)
+    assert key == f"artifacts/{player_id}/{_CATALOG.template('test.artifact').version}"
 
 
 async def test_artifact_interface_caches_player_tree(session) -> None:
@@ -367,7 +455,7 @@ def _make_hidden_catalog():
     )
 
     @module_handler("hidden")(1)
-    async def _hidden_node_generator(_context, node):
+    async def _hidden_node_generator(_player, _meta, node):
         node.path = "/dynamic/hidden.txt"
         node.hidden = True
         return node

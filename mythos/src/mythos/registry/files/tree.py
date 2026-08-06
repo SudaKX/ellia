@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-import json
-from types import MappingProxyType
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import RegistryError
+from mythos.registry.files.catalog import FileCatalog
 from mythos.registry.files.definitions import FileContent, StaticNode, VirtualNode
 
 
@@ -14,11 +13,11 @@ class FileTreeDirectoryNotFoundError(RegistryError):
     pass
 
 
-@dataclass(frozen=True)
+@dataclass
 class TreeNode:
     path: str
     definition: VirtualNode | None
-    children: Mapping[str, TreeNode]
+    children: dict[str, TreeNode]
     content: FileContent | None = None
     file_id: str | None = None
 
@@ -37,8 +36,8 @@ class FileTree:
         tree_version: str,
     ) -> None:
         self.root = root
-        self._files_by_public_id = MappingProxyType(dict(files_by_public_id))
-        self._public_ids_by_stable_id = MappingProxyType(dict(public_ids_by_stable_id))
+        self._files_by_public_id = dict(files_by_public_id)
+        self._public_ids_by_stable_id = dict(public_ids_by_stable_id)
         self.file_id_key_fingerprint = file_id_key_fingerprint
         self.tree_version = tree_version
 
@@ -68,15 +67,10 @@ class FileTree:
                 )
 
         files_by_public_id: dict[str, TreeNode] = {}
-        frozen_root = _freeze_node(root, files_by_public_id)
-        tree_version = file_ids.encode_tree_version(
-            tuple(
-                _tree_version_entry(node, contents_by_stable_id.get(node.stable_id))
-                for node in sorted(nodes.values(), key=lambda item: item.stable_id)
-            )
-        )
+        built_root = _build_node(root, files_by_public_id)
+        tree_version = FileCatalog.build(nodes, file_ids.key_fingerprint).version
         return cls(
-            frozen_root,
+            built_root,
             files_by_public_id,
             file_ids_by_stable_id,
             file_ids.key_fingerprint,
@@ -184,16 +178,16 @@ def _insert_file(
     )
 
 
-def _freeze_node(node: _MutableTreeNode, files_by_public_id: dict[str, TreeNode]) -> TreeNode:
+def _build_node(node: _MutableTreeNode, files_by_public_id: dict[str, TreeNode]) -> TreeNode:
     assert node.children is not None
     children = {
-        name: _freeze_node(child, files_by_public_id)
+        name: _build_node(child, files_by_public_id)
         for name, child in sorted(node.children.items())
     }
     frozen = TreeNode(
         path=node.path,
         definition=node.definition,
-        children=MappingProxyType(children),
+        children=children,
         content=node.content,
         file_id=node.file_id,
     )
@@ -215,16 +209,3 @@ def _path_segments(path: str) -> tuple[str, ...]:
 
 def _child_path(parent: str, child: str) -> str:
     return f"/{child}" if parent == "/" else f"{parent}/{child}"
-
-
-def _tree_version_entry(node: VirtualNode, content: FileContent | None) -> tuple[str, ...]:
-    return (
-        node.stable_id,
-        node.path,
-        node.version,
-        "file" if node.is_file else "directory",
-        "hidden" if node.hidden else "visible",
-        node.download_name or "",
-        content.content_token if content is not None else "",
-        json.dumps(node.display.as_dict(), ensure_ascii=True, sort_keys=True, separators=(",", ":")),
-    )

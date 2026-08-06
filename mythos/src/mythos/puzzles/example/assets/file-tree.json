@@ -6,7 +6,6 @@
       "kind": "directory",
       "stable_id": "example.public",
       "name": "public",
-      "version": "1",
       "display": {
         "label": "Public",
         "description": "Recovery materials",
@@ -18,7 +17,6 @@
           "kind": "file",
           "stable_id": "example.readme",
           "name": "README.txt",
-          "version": "1",
           "display": {
             "label": "README.txt",
             "description": "Recovery instructions",
@@ -35,7 +33,6 @@
           "kind": "file",
           "stable_id": "example.guest-access",
           "name": "GUEST_ACCESS.txt",
-          "version": "1",
           "display": {
             "label": "GUEST_ACCESS.txt",
             "description": "Guest credentials",
@@ -54,7 +51,6 @@
       "kind": "directory",
       "stable_id": "example.admin",
       "name": "admin",
-      "version": "1",
       "display": {
         "label": "Admin",
         "description": "Administrator controls",
@@ -67,7 +63,6 @@
           "kind": "file",
           "stable_id": "example.admin-control",
           "name": "CONTROL.txt",
-          "version": "1",
           "display": {
             "label": "CONTROL.txt",
             "description": "Administrator control document",

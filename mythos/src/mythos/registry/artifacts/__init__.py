@@ -12,8 +12,8 @@ from mythos.registry.artifacts.versions import (
     ArtifactNodeVersion,
     ArtifactVersion,
     TemplateVersion,
-    module_handler,
 )
+from mythos.registry.callbacks import module_handler
 
 __all__ = [
     "ArtifactCatalog",

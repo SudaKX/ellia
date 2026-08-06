@@ -37,7 +37,6 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
                     download_name="hint.txt",
                     display=HintDisplayParams(title=title, teaser="A small clue", icon="hint"),
                     vtb_cost=3,
-                    revision=1,
                 )
             )
 
@@ -121,7 +120,7 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
                 )
                 assert first_claim.status_code == repeated_claim.status_code == 200
                 content_token = first_claim.json()["content"]["hint"]["content_token"]
-                assert content_token.startswith("hct1_")
+                assert content_token.startswith("hv1_")
 
                 second_player_id = decode_access_token(second_token, settings).player_id
                 async with app.state.database.session_factory() as session:

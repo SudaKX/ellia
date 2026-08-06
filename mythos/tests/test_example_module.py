@@ -93,7 +93,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert [item["path"] for item in archive["files"]] == ["/archive/ADMIN_ACCESS.txt"]
                 admin_access = archive["files"][0]
-                assert admin_access["content_token"].startswith("act2_")
+                assert admin_access["content_token"].startswith("act3_")
 
                 expected_admin_access = (
                     "ADMINISTRATOR ACCESS\n\n"
@@ -102,10 +102,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                     "Password: admin-echo-9\n"
                 ).encode()
                 artifact_version = app.state.runtime.catalogs.artifacts.template("example.admin-access").version
-                artifact_key = (
-                    f"artifacts/{player_id}/example.admin-access/{artifact_version}/"
-                    f"{hashlib.sha256(expected_admin_access).hexdigest()}"
-                )
+                artifact_key = f"artifacts/{player_id}/{artifact_version}"
                 assert object_store.objects[artifact_key] == expected_admin_access
 
                 administrator_login = await client.post(

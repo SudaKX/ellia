@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from types import MappingProxyType
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.files.tree import (
     FileTree,
     FileTreeDirectoryNotFoundError,
     TreeNode,
-    _freeze_node,
+    _build_node,
     _insert_file,
     _MutableTreeNode,
 )
@@ -28,7 +27,7 @@ class PlayerFileTree:
         file_ids: FileIdCodec,
     ) -> None:
         self.root = root
-        self._files_by_public_id = MappingProxyType(dict(files_by_public_id))
+        self._files_by_public_id = dict(files_by_public_id)
         self.tree_version = tree_version
         self.file_id_key_fingerprint = file_id_key_fingerprint
         self._file_ids = file_ids
@@ -40,7 +39,7 @@ class PlayerFileTree:
         artifact_nodes: Sequence[TreeNode],
         file_ids: FileIdCodec,
         *,
-        template_version: str,
+        artifact_catalog_version: str,
         player_version: int,
     ) -> PlayerFileTree:
         root = _copy_static_node(static_tree.root)
@@ -51,15 +50,15 @@ class PlayerFileTree:
             _insert_file(root, artifact_node.definition, artifact_node.content, artifact_node.file_id)
 
         files_by_public_id: dict[str, TreeNode] = {}
-        frozen_root = _freeze_node(root, files_by_public_id)
+        built_root = _build_node(root, files_by_public_id)
         tree_version = _build_tree_version(
             static_tree,
             file_ids,
-            template_version,
+            artifact_catalog_version,
             player_version,
         )
         return cls(
-            frozen_root,
+            built_root,
             files_by_public_id,
             tree_version,
             static_tree.file_id_key_fingerprint,
@@ -126,12 +125,12 @@ def _copy_static_node(node: TreeNode) -> _MutableTreeNode:
 def _build_tree_version(
     static_tree: FileTree,
     file_ids: FileIdCodec,
-    template_version: str,
+    artifact_catalog_version: str,
     player_version: int,
 ) -> str:
     return file_ids.encode_player_tree_version(
         static_tree.tree_version,
-        template_version,
+        artifact_catalog_version,
         player_version,
     )
 
