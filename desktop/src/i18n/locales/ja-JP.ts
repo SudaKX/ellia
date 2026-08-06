@@ -61,6 +61,13 @@ export const jaJP = {
     savePromptCancel: 'キャンセル',
     permissionTitle: 'アクセス権限がありません',
   },
+  /** ストーリーダイアログ（E ↔ プレイヤー） */
+  story: {
+    dialog: {
+      title: 'メッセージ',
+      continue: 'クリックして続行',
+    },
+  },
   settings: {
     label: 'デスクトップ設定',
     language: '言語',
@@ -234,6 +241,7 @@ export const jaJP = {
     noAchievements: 'まだ実績がありません。',
     locked: 'ロック中',
     unlockedAt: '{date} に解除',
+    toastTitle: '実績解除',
     /** 実績定義 */
     achievementList: {
       firstLogin: {

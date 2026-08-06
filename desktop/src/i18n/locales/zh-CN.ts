@@ -61,6 +61,13 @@ export const zhCN = {
     savePromptCancel: '取消',
     permissionTitle: '权限不足',
   },
+  /** 剧情对话 */
+  story: {
+    dialog: {
+      title: '消息',
+      continue: '点击继续',
+    },
+  },
   settings: {
     label: '桌面偏好',
     language: '语言',
@@ -234,6 +241,7 @@ export const zhCN = {
     noAchievements: '暂未获得成就。',
     locked: '未解锁',
     unlockedAt: '解锁于 {date}',
+    toastTitle: '成就已解锁',
     /** 成就定义 */
     achievementList: {
       firstLogin: {

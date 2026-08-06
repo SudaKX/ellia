@@ -54,6 +54,7 @@ import { useAuth } from '@/composables/useAuth'
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
 import DockBar from '@/components/desktop/DockBar.vue'
 import type { DockApplicationState, DockClickTarget } from '@/components/desktop/DockBar.vue'
+import AchievementToast from '@/components/desktop/AchievementToast.vue'
 import Launchpad from '@/components/desktop/Launchpad.vue'
 import MatrixRain from '@/components/desktop/MatrixRain.vue'
 import MessageBox from '@/components/desktop/MessageBox.vue'
@@ -66,6 +67,7 @@ import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
 import { requestTextEditorClose } from '@/composables/useTextEditorSession'
+import { initStoryDialog } from '@/composables/useStoryDialog'
 import { useWindowService } from '@/composables/useWindowService'
 import { applicationRegistry } from '@/registries/applications'
 import type { FilterType } from '@/registries/filters'
@@ -79,6 +81,8 @@ const desktop = useDesktopStore()
 const windowService = useWindowService()
 // 提供给子组件（Terminal.vue 通过 inject 获取，用于 sil 命令打开谜题窗口）
 provide('windowService', windowService)
+// 注册剧情对话服务（openStoryDialog 从任意位置调用）
+initStoryDialog(windowService)
 const audioService = useAudioService()
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
@@ -670,6 +674,9 @@ onBeforeUnmount(() => {
       @click="handleDockAppClick"
       @show-all="handleShowAll"
     />
+
+    <!-- 成就解锁弹窗（Steam 风格右下角通知，模块级队列驱动） -->
+    <AchievementToast />
 
     <!-- 右键自定义菜单 -->
     <div

@@ -61,6 +61,13 @@ export const deDE = {
     savePromptCancel: 'Abbrechen',
     permissionTitle: 'Zugriff verweigert',
   },
+  /** Story-Dialog (E ↔ Spieler) */
+  story: {
+    dialog: {
+      title: 'Nachricht',
+      continue: 'Klicken, um fortzufahren',
+    },
+  },
   settings: {
     label: 'Desktop-Einstellungen',
     language: 'Sprache',
@@ -234,6 +241,7 @@ export const deDE = {
     noAchievements: 'Noch keine Erfolge.',
     locked: 'GESPERRT',
     unlockedAt: 'Freigeschaltet am {date}',
+    toastTitle: 'ERFOLG FREIGESCHALTET',
     /** Erfolgsdefinitionen */
     achievementList: {
       firstLogin: {

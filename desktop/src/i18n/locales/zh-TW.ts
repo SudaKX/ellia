@@ -61,6 +61,13 @@ export const zhTW = {
     savePromptCancel: '取消',
     permissionTitle: '權限不足',
   },
+  /** 劇情對話 */
+  story: {
+    dialog: {
+      title: '訊息',
+      continue: '點擊繼續',
+    },
+  },
   settings: {
     label: '桌面偏好',
     language: '語言',
@@ -234,6 +241,7 @@ export const zhTW = {
     noAchievements: '暫未獲得成就。',
     locked: '未解鎖',
     unlockedAt: '解鎖於 {date}',
+    toastTitle: '成就已解鎖',
     /** 成就定義 */
     achievementList: {
       firstLogin: {

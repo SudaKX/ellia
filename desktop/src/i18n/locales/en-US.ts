@@ -59,6 +59,13 @@ export const enUS = {
     savePromptCancel: 'Cancel',
     permissionTitle: 'Permission Denied',
   },
+  /** Story dialogue (E ↔ player) */
+  story: {
+    dialog: {
+      title: 'Message',
+      continue: 'Click to continue',
+    },
+  },
   settings: {
     label: 'Desktop preferences',
     language: 'Language',
@@ -232,6 +239,7 @@ export const enUS = {
     noAchievements: 'No achievements yet.',
     locked: 'LOCKED',
     unlockedAt: 'Unlocked on {date}',
+    toastTitle: 'ACHIEVEMENT UNLOCKED',
     /** Achievement definitions */
     achievementList: {
       firstLogin: {
