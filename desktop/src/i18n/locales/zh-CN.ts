@@ -66,6 +66,7 @@ export const zhCN = {
     dialog: {
       title: '消息',
       continue: '点击继续',
+      submit: '确认',
     },
   },
   settings: {

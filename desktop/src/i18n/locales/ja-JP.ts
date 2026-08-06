@@ -66,6 +66,7 @@ export const jaJP = {
     dialog: {
       title: 'メッセージ',
       continue: 'クリックして続行',
+      submit: '決定',
     },
   },
   settings: {

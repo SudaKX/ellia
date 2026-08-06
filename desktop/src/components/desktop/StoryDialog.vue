@@ -1,60 +1,43 @@
 <script setup lang="ts">
 /**
- * # StoryDialog.vue — 剧情对话窗口
+ * # StoryDialog.vue — 交互剧情窗口（播放引擎）
  *
- * 通用剧情演出组件："E 发送消息 → 玩家从多个选项中选择回复"。
- * 由 useStoryDialog.openStoryDialog() 以模态窗口形式创建，
- * 剧本通过 props.lines 数据驱动传入。
+ * 配合 useStoryDialog.playStoryScript() 使用，按 StoryNode 数据驱动播放：
+ * 打字机对白、玩家选项（≤4）、滑杆调节、按 id 跳转、节点副作用。
  *
- * ## 交互流程
+ * ## 播放状态机
  *
  * ```
- * 逐句播放
- *   ├─ 无选项：打字机输出 → 点击任意处 → 下一句
- *   └─ 有选项：打字机输出 → 显示选项按钮 → 点击选项
- *         ├─ choice.next    → 跳到指定句
- *         ├─ choice.action  → 执行动作（如触发事件）
- *         └─ 缺省            → 下一句
- * 最后一句播完 → emit('close') 关闭窗口
+ * 进入节点（index 变化）
+ *   ├─ 触发 node.effect()（成就/音频等副作用）
+ *   ├─ 重置打字机（text 逐字输出；无 text 直接完成）
+ *   └─ 交互区渲染：
+ *        ├─ choices（1~4 个按钮）→ 点击 → choice.effect() + 跳转 choice.next
+ *        ├─ slider（滑杆 + 提交） → 提交 → slider.effect(v) + 跳转 slider.next(v)
+ *        └─ 无交互 → 点击继续 → 跳转 node.next
+ * 越界（无目标节点）→ emit('close') 关闭窗口
  * ```
  *
- * ## 打字机
+ * ## 跳转规则（goto）
  *
- * - 每 charDelay ms 追加一个字符，CSS 光标 "_" 闪烁
- * - 打字未完成时点击文本 → 立即显示全文（可跳过）
- * - 文本过长自动滚动到底部
+ * 优先按目标节点 id 定位；id 不存在或缺失 → 顺序下一个节点；已是最后 → 关闭。
+ * 因此创作者可只给关键分支命名 id，普通对白靠顺序自然衔接。
  *
- * ## 与 MessageBox 的区别
+ * ## 约束执行
  *
- * MessageBox 是"单一信息 + 统一按钮"的静态弹窗；本组件是多句对话、
- * 分支选项、打字演出的剧情系统，两者互补。
- *
- * ## 为什么标题栏固定、说话者显示在正文
- *
- * 一段剧本里可能是 E、JDK、P 轮流说话，标题栏无法跟着切换（WindowFrame
- * title 为静态绑定）。因此窗口标题固定为"消息"，说话者作为正文标签展示。
- *
- * ## @example
- *
- * ```ts
- * openStoryDialog([
- *   { speaker: 'E', text: '你……你篡改了时间？' },
- *   { speaker: 'E', text: '你想从我这里得到什么？', choices: [
- *     { label: '我来释放你', next: 0 },
- *     { label: '无可奉告' },
- *   ]},
- * ])
- * ```
+ * 选项超过 4 个时仅渲染前 4 个（useStoryDialog 已在服务层告警）。
+ * choices 与 slider 互斥（脚本层约束），本组件按 choices 优先渲染。
  */
 
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { StoryChoice, StoryLine } from '@/composables/useStoryDialog'
+import type { StoryChoice, StoryNode } from '@/composables/useStoryDialog'
+import { MAX_CHOICES } from '@/composables/useStoryDialog'
 
 const props = defineProps<{
-  /** 台词脚本（数据驱动） */
-  lines: StoryLine[]
+  /** 已归一化的剧情节点（id 保证存在） */
+  nodes: StoryNode[]
   /** 打字机每字符间隔（ms） */
   charDelay?: number
 }>()
@@ -67,15 +50,17 @@ const { t } = useI18n({ useScope: 'global' })
 
 // ─── 播放状态 ──────────────────────────────────────
 
-/** 当前台词索引 */
+/** 当前节点在脚本中的顺序索引 */
 const index = ref(0)
 /** 已打出的文本 */
 const typedText = ref('')
 /** 是否还在打字中 */
 const isTyping = ref(false)
+/** 滑杆当前值 */
+const sliderValue = ref(0)
 
-/** 当前台词 */
-const current = computed(() => props.lines[index.value] ?? null)
+/** 当前节点 */
+const current = computed(() => props.nodes[index.value] ?? null)
 
 let typeTimer: ReturnType<typeof setInterval> | null = null
 
@@ -89,17 +74,15 @@ function stopTyping() {
 }
 
 /**
- * 对当前台词启动打字机。
- * 清除上一句残留计时器，逐字符追加。
+ * 对当前节点启动打字机。
+ * 无 text 的纯交互节点（仅 slider/choices）直接视为完成。
  */
 function startTyping() {
-  const line = current.value
-  if (!line) return
+  const node = current.value
+  if (!node) return
 
-  stopTyping()
   typedText.value = ''
-
-  if (!line.text) {
+  if (!node.text) {
     isTyping.value = false
     return
   }
@@ -109,9 +92,9 @@ function startTyping() {
   isTyping.value = true
   typeTimer = setInterval(() => {
     cursor += 1
-    typedText.value = line.text.slice(0, cursor)
+    typedText.value = node.text!.slice(0, cursor)
     scrollToBottom()
-    if (cursor >= line.text.length) {
+    if (cursor >= node.text!.length) {
       stopTyping()
     }
   }, delay)
@@ -125,52 +108,90 @@ async function scrollToBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
-// 切句 → 重新打字
-watch(index, startTyping)
-
-// ─── 交互动作 ──────────────────────────────────────
-
 /**
- * 点击正文区域。
- * - 打字中 → 立即显示全文
- * - 已完整 → 无选项时进入下一句 / 结束关闭
+ * 节点进入处理：触发副作用 → 重置滑杆 → 打字。
+ * 用 immediate watch，让首个节点也走同一流程。
  */
-function handleTextClick() {
-  if (isTyping.value) {
-    const line = current.value
-    if (line) typedText.value = line.text
-    stopTyping()
-    return
+function handleNodeEnter() {
+  const node = current.value
+  if (!node) return
+
+  stopTyping()
+
+  // 重置滑杆到初始值（缺省 = 区间中点）
+  if (node.slider) {
+    sliderValue.value = node.slider.initial ?? Math.round((node.slider.min + node.slider.max) / 2)
   }
-  advance()
+
+  // 节点副作用（解锁成就、播放音频等）
+  node.effect?.()
+
+  startTyping()
 }
 
+watch(index, handleNodeEnter, { immediate: true })
+
+// ─── 跳转 ──────────────────────────────────────────
+
 /**
- * 进入下一句；已是最后一句则关闭窗口。
+ * 跳转到目标节点。
+ * 优先按 id 定位；目标缺失 → 顺序下一个；已是最后 → 关闭窗口。
+ *
+ * @param targetId - 目标节点 id；缺省 = 顺序下一个
  */
-function advance() {
-  if (!current.value) return
-  if (current.value.choices) return // 有选项必须点选，不能直接跳过
-  if (index.value < props.lines.length - 1) {
+function goto(targetId?: string) {
+  if (targetId !== undefined) {
+    const target = props.nodes.findIndex((n) => n.id === targetId)
+    if (target !== -1) {
+      index.value = target
+      return
+    }
+  }
+  if (index.value < props.nodes.length - 1) {
     index.value += 1
   } else {
     emit('close')
   }
 }
 
+// ─── 交互动作 ──────────────────────────────────────
+
+/**
+ * 点击正文区域。
+ * - 打字中 → 立即显示全文
+ * - 已完整且无交互（无 choices/slider）→ 继续
+ */
+function handleLinesClick() {
+  const node = current.value
+  if (!node) return
+
+  if (isTyping.value) {
+    typedText.value = node.text ?? ''
+    stopTyping()
+    return
+  }
+  // 有交互节点的正文点击不推进，等待玩家操作
+  if (node.choices || node.slider) return
+  goto(node.next)
+}
+
 /**
  * 玩家点击选项回复。
- * 顺序：执行 action → 按 next 跳转 → 否则下一句 / 关闭。
+ * 顺序：执行选项副作用 → 按 next 跳转。
  *
  * @param choice - 被点击的选项
  */
 function handleChoice(choice: StoryChoice) {
-  choice.action?.()
-  if (choice.next !== undefined) {
-    index.value = Math.max(0, Math.min(props.lines.length - 1, choice.next))
-    return
-  }
-  advance()
+  choice.effect?.()
+  goto(choice.next)
+}
+
+/** 提交滑杆值：副作用 + 按值返回的目标 id 跳转 */
+function handleSliderSubmit() {
+  const node = current.value
+  if (!node?.slider) return
+  node.slider.effect?.(sliderValue.value)
+  goto(node.slider.next(sliderValue.value))
 }
 
 onBeforeUnmount(stopTyping)
@@ -179,17 +200,17 @@ onBeforeUnmount(stopTyping)
 <template>
   <div class="story-dialog">
     <!-- 台词区：说话者标签 + 打字机正文 -->
-    <div class="story-dialog__lines" @click="handleTextClick">
+    <div class="story-dialog__lines" @click="handleLinesClick">
       <div v-if="current?.speaker" class="story-dialog__speaker">{{ current.speaker }}</div>
-      <p ref="textRef" class="story-dialog__text">
+      <p v-if="current?.text" ref="textRef" class="story-dialog__text">
         {{ typedText }}<span v-if="isTyping" class="story-dialog__cursor" aria-hidden="true">_</span>
       </p>
     </div>
 
-    <!-- 底部：选项按钮 或 继续提示 -->
+    <!-- 底部交互区：选项（≤4）/ 滑杆 / 继续 -->
     <div v-if="current?.choices" class="story-dialog__choices">
       <button
-        v-for="(choice, i) in current.choices"
+        v-for="(choice, i) in current.choices.slice(0, MAX_CHOICES)"
         :key="i"
         class="story-dialog__choice"
         type="button"
@@ -198,7 +219,31 @@ onBeforeUnmount(stopTyping)
         {{ choice.label }}
       </button>
     </div>
-    <div v-else-if="!isTyping" class="story-dialog__continue" @click="advance">
+
+    <div v-else-if="current?.slider" class="story-dialog__slider">
+      <div class="story-dialog__slider-row">
+        <span class="story-dialog__slider-label">{{ current.slider.label }}</span>
+        <input
+          v-model.number="sliderValue"
+          class="story-dialog__slider-input"
+          type="range"
+          :min="current.slider.min"
+          :max="current.slider.max"
+          :step="current.slider.step ?? 1"
+          :aria-label="current.slider.label"
+        />
+        <span class="story-dialog__slider-value">{{ sliderValue }}</span>
+      </div>
+      <button
+        class="story-dialog__choice story-dialog__slider-submit"
+        type="button"
+        @click="handleSliderSubmit"
+      >
+        {{ current.slider.submitLabel ?? t('story.dialog.submit') }}
+      </button>
+    </div>
+
+    <div v-else-if="!isTyping" class="story-dialog__continue" @click="goto(current?.next)">
       {{ t('story.dialog.continue') }}
     </div>
   </div>
@@ -276,6 +321,49 @@ onBeforeUnmount(stopTyping)
   border-color: var(--signal-mint);
   color: var(--signal-mint);
   background: var(--surface-hover);
+}
+
+/* ── 滑杆区 ── */
+.story-dialog__slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.story-dialog__slider-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.story-dialog__slider-label {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font: 600 11px var(--font-ui);
+}
+
+.story-dialog__slider-input {
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  accent-color: var(--signal-mint);
+  cursor: pointer;
+}
+
+.story-dialog__slider-value {
+  flex-shrink: 0;
+  min-width: 32px;
+  color: var(--signal-mint);
+  font: 700 12px var(--font-mono);
+  text-align: right;
+}
+
+.story-dialog__slider-submit {
+  flex-shrink: 0;
 }
 
 .story-dialog__continue {

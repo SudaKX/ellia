@@ -63,6 +63,8 @@ import { computed, defineAsyncComponent, inject, ref } from 'vue'
 import { ChevronRight, File, FileText, Folder } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
+import { playStoryScript } from '@/composables/useStoryDialog'
+import { storyScripts } from '@/story'
 import { puzzleRegistry } from '@/registries/puzzles'
 import { getRootTree, getVisibleChildren, buildPlayerSnapshot } from '@/composables/useFileSystem'
 import type { FileNode } from '@/composables/useFileSystem'
@@ -188,6 +190,15 @@ function handleFileDblClick(file: FileNode) {
   // 通用剧情机制：文件节点绑定成就 id（FileNode.achievementId）时，
   // 首次打开自动解锁，不写死文件名/路径（终端 cat 同样按节点触发）
   unlockAchievementById(file.achievementId)
+
+  // 可执行剧情文件（如 init.exe）：双击即播放绑定脚本
+  if (file.storyId) {
+    const script = storyScripts[file.storyId]
+    if (script) {
+      playStoryScript(script)
+    }
+    return
+  }
 
   const dotIndex = file.name.lastIndexOf('.')
   if (dotIndex <= 0) {

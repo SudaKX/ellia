@@ -66,6 +66,7 @@ export const deDE = {
     dialog: {
       title: 'Nachricht',
       continue: 'Klicken, um fortzufahren',
+      submit: 'Bestätigen',
     },
   },
   settings: {

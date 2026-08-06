@@ -129,6 +129,11 @@ export interface FileNode {
    * 无需在调用方写死文件名/路径。
    */
   achievementId?: string
+  /**
+   * 可执行剧情绑定：双击该文件时播放对应剧情脚本（脚本 id 见 src/story/index.ts 注册表）。
+   * 用于 .exe 等"打开即演出"的文件，如 init.exe 播放开场剧情。
+   */
+  storyId?: string
 }
 
 // ─── 文件树数据 ──────────────────────────────────────
@@ -148,6 +153,7 @@ export interface FileNode {
  * │   └── shadow                密码哈希（仅 ADMIN 可见）
  * ├── home/
  * │   ├── 看这里看这里.txt      玩家首次进入的开场白（首次打开解锁成就）
+ * │   ├── init.exe             可执行文件：双击播放开场剧情演出
  * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见）
  * │       └── notes.txt         玩家笔记（叙事线索）
  * ├── log/                      系统运行日志（叙事线索）
@@ -189,6 +195,10 @@ const rootTree: FileNode[] = [
   },
   {
     name: 'home', type: 'dir', content: null, children: [
+      {
+        // 可执行剧情文件：双击播放开场剧情（storyId → src/story/index.ts 注册表）
+        name: 'init.exe', type: 'file', content: null, storyId: 'opening', children: null,
+      },
       {
         // 开场白文件：JDK 触发器欢迎玩家；绑定「第一次」成就，
         // 首次读取（双击/cat）由各入口按节点 achievementId 通用触发

@@ -66,6 +66,7 @@ export const zhTW = {
     dialog: {
       title: '訊息',
       continue: '點擊繼續',
+      submit: '確認',
     },
   },
   settings: {

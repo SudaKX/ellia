@@ -64,6 +64,7 @@ export const enUS = {
     dialog: {
       title: 'Message',
       continue: 'Click to continue',
+      submit: 'Confirm',
     },
   },
   settings: {
