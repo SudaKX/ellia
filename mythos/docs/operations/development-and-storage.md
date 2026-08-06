@@ -10,10 +10,10 @@
 <repository>/mythos/
 ```
 
-根目录的 `.venv` 是唯一允许使用的 Python 虚拟环境：
+`mythos/.venv` 是 Mythos 唯一允许使用的 Python 虚拟环境：
 
 ```text
-<repository>/.venv/
+<repository>/mythos/.venv/
 ```
 
 当前默认装配 `Example` 模块。它包含静态文件 Source，应用启动期必须将这些文件发布到版本化的 S3 兼容对象存储。因此，已配置并可访问的 RustFS 或 S3 bucket 是启动后端的必要条件，不是可选增强。
@@ -95,9 +95,9 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 从 `mythos/` 目录执行：
 
 ```powershell
-..\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
-..\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
-..\.venv\Scripts\python.exe -m mythos --reload
+.\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
+.\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
+.\.venv\Scripts\python.exe -m mythos --reload
 ```
 
 迁移必须先于应用启动执行。`Example` 发布静态资产时会查询静态文件登记表，未执行迁移会导致启动失败。`python -m mythos` 默认监听 `127.0.0.1:8000`；可使用 `--host`、`--port` 和 `--reload` 参数覆盖。
