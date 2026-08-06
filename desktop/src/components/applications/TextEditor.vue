@@ -157,6 +157,7 @@ function openPermissionDenied() {
       resizable: false,
       filters: { glitch: true },
       controls: { minimize: false, close: true },
+      maximizable: false,
     },
   })
 }

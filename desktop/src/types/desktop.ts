@@ -89,6 +89,11 @@ export interface WindowDefinition {
   dockable?: boolean
   /** Dock 栏条目显示名称。缺省回退到 title / titleKey。 */
   dockTitle?: string
+  /**
+   * 是否允许双击标题栏切换全屏（占据除顶部状态栏外的整个工作区）。
+   * 默认 true。AI 表演窗口、拒绝访问弹窗等"演出型"窗口禁用。
+   */
+  maximizable?: boolean
 }
 
 /** 应用注册表中的条目：WindowDefinition + 唯一 id */
@@ -107,6 +112,15 @@ export type WindowMessage =
   | { type: 'close-window'; windowId: string }
   | { type: 'minimize-window'; windowId: string }
   | { type: 'focus-window'; windowId: string }
+  | { type: 'toggle-maximize-window'; windowId: string }
+
+/** 窗口矩形边界（全屏切换时用于保存/恢复几何） */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 /** 运行时窗口实例 */
 export interface WindowInstance {
@@ -132,6 +146,12 @@ export interface WindowInstance {
   dockable: boolean
   /** Dock 栏条目显示名称，缺省回退到 title / titleKey */
   dockTitle?: string
+  /** 是否允许双击标题栏切换全屏（默认 true，演出型窗口可禁用） */
+  maximizable: boolean
+  /** 是否处于全屏态（双击标题栏切换） */
+  isMaximized: boolean
+  /** 进入全屏前的几何，用于退出全屏时恢复 */
+  restoreBounds?: WindowBounds
 }
 
 // ─── 玩家档案数据（Archive Viewer 使用） ──────────

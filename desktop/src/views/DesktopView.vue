@@ -297,6 +297,7 @@ function initAiWindow() {
         minimize: false,      // 由 WindowFrame closeAction 在标题栏显示 X（controls.close 保持 false）
         close: false,
       },
+      maximizable: false,     // AI 助手为演出型窗口，不允许双击标题栏全屏
     },
   })
 
@@ -485,6 +486,7 @@ function handleNetworkAction(action: NetworkAction) {
         minimize: false,
         close: true,
       },
+      maximizable: false,
     },
   })
   playCue('system-alert')
@@ -509,6 +511,11 @@ function handleWindowMinimize(windowId: string) {
   // console.log(`[触发] 最小化 → ${win?.titleKey ?? windowId}`)
   windowService.send({ type: 'minimize-window', windowId })
   playCue('window-minimize')
+}
+
+/** 双击标题栏 → 切换窗口全屏（占据除顶部状态栏外的整个工作区） */
+function handleWindowToggleMaximize(windowId: string) {
+  windowService.send({ type: 'toggle-maximize-window', windowId })
 }
 
 const applicationStates = computed<DockApplicationState[]>(() => {
@@ -656,6 +663,7 @@ onBeforeUnmount(() => {
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"
+        @toggle-maximize="handleWindowToggleMaximize(window.id)"
       />
     </section>
 

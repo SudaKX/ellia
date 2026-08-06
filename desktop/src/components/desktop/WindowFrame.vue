@@ -126,6 +126,7 @@ const emit = defineEmits<{
   close: []
   focus: []
   minimize: []
+  toggleMaximize: []
 }>()
 
 const MIN_WIDTH = 260
@@ -150,9 +151,11 @@ const y = ref(props.window.y)
 const width = ref(props.window.width)
 const height = ref(props.window.height)
 
-// 同步外部位置变化（如漂移）到本地 ref，拖拽期间跳过
+// 同步外部位置变化（如漂移/全屏切换）到本地 ref，拖拽/缩放期间跳过
 watch(() => props.window.x, (val) => { if (!isDragging.value) x.value = val })
 watch(() => props.window.y, (val) => { if (!isDragging.value) y.value = val })
+watch(() => props.window.width, (val) => { if (!isResizing.value) width.value = val })
+watch(() => props.window.height, (val) => { if (!isResizing.value) height.value = val })
 
 const isDragging = ref(false)
 const isResizing = ref(false)
@@ -263,6 +266,16 @@ function handleAnimationEnd(event: AnimationEvent) {
 function handleMinimizeClick(event: MouseEvent) {
   event.stopPropagation()
   emit('minimize')
+}
+
+/**
+ * 双击标题栏 → 切换全屏。
+ * 仅当窗口允许全屏（maximizable）时触发；控件按钮区域除外（双击 minimize/close 不生效）。
+ */
+function handleTitleDblClick(event: MouseEvent) {
+  if (!props.window.maximizable || props.window.isMinimized) return
+  if ((event.target as HTMLElement).closest('.window-frame__control')) return
+  emit('toggleMaximize')
 }
 
 function handleContentClose() {
@@ -467,6 +480,7 @@ function stopResize() {
       v-if="!hideTitlebar"
       class="window-frame__titlebar"
       @mousedown="startDrag"
+      @dblclick="handleTitleDblClick"
     >
       <span class="window-frame__title">
         <component :is="window.icon" :size="14" :stroke-width="1.8" />

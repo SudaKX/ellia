@@ -173,6 +173,7 @@ export function playStoryScript(script: StoryNode[], options: StoryDialogOptions
       resizable: false,
       filters: options.glitch ? { glitch: true } : undefined,
       controls: { minimize: false, close: true },
+      maximizable: false,
     },
   })
 }

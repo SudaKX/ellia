@@ -61,6 +61,7 @@ import type {
   ApplicationDescriptor,
   ApplicationId,
   CreateWindowPayload,
+  WindowBounds,
   WindowInstance,
   WindowMessage,
 } from '@/types/desktop'
@@ -75,6 +76,8 @@ const STATUS_BAR_HEIGHT = 40
 const DEFAULT_WINDOW_MODE = 'normal'
 /** 默认窗口可调整大小 */
 const DEFAULT_WINDOW_RESIZABLE = true
+/** 默认允许双击标题栏切换全屏 */
+const DEFAULT_MAXIMIZABLE = true
 /** 默认窗口控件配置 */
 const DEFAULT_WINDOW_CONTROLS = {
   minimize: true,
@@ -192,6 +195,9 @@ export function useWindowService() {
       filters: { ...payload.filters },
       dockable: payload.dockable ?? false,
       dockTitle: payload.dockTitle,
+      maximizable: payload.maximizable ?? DEFAULT_MAXIMIZABLE,
+      isMaximized: false,
+      restoreBounds: undefined,
       width: payload.defaultWidth,
       height: payload.defaultHeight,
       x: position.x,
@@ -218,6 +224,9 @@ export function useWindowService() {
         return
       case 'focus-window':
         focus(message.windowId)
+        return
+      case 'toggle-maximize-window':
+        toggleMaximize(message.windowId)
         return
     }
   }
@@ -307,6 +316,55 @@ export function useWindowService() {
     focus(windowId)
   }
 
+  /**
+   * 双击标题栏触发：切换窗口全屏。
+   *
+   * 全屏 = 占据除顶部状态栏（STATUS_BAR_HEIGHT）外的整个工作区。
+   * 进入全屏前保存原几何到 restoreBounds，退出时恢复。
+   * 通过 splice 创建新对象以触发 shallowRef 响应式（直接 mutate 无效）。
+   *
+   * 注意：WindowFrame 的本地宽高 ref 通过 watch 同步，见 WindowFrame.vue。
+   *
+   * @param windowId - 目标窗口 ID
+   */
+  function toggleMaximize(windowId: string) {
+    const index = windows.value.findIndex((w) => w.id === windowId)
+    if (index === -1) return
+    const win = windows.value[index]
+    // 演出型窗口（maximizable: false）或最小化窗口不允许全屏
+    if (!win.maximizable || win.isMinimized) return
+
+    if (!win.isMaximized) {
+      const restoreBounds: WindowBounds = {
+        x: win.x,
+        y: win.y,
+        width: win.width,
+        height: win.height,
+      }
+      windows.value.splice(index, 1, {
+        ...win,
+        isMaximized: true,
+        restoreBounds,
+        x: 0,
+        y: 0,
+        width: globalThis.innerWidth,
+        height: globalThis.innerHeight - STATUS_BAR_HEIGHT,
+      })
+    } else {
+      const bounds = win.restoreBounds ?? { x: 0, y: 0, width: 480, height: 360 }
+      windows.value.splice(index, 1, {
+        ...win,
+        isMaximized: false,
+        restoreBounds: undefined,
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      })
+    }
+    triggerRef(windows)
+  }
+
   function findTopNonMinimizedWindow(): string | null {
     const topModalWindow = findTopModalWindow()
     if (topModalWindow) return topModalWindow.id
@@ -334,6 +392,7 @@ export function useWindowService() {
     focus,
     minimize,
     restore,
+    toggleMaximize,
   }
 }
 

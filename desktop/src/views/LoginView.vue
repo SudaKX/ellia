@@ -82,6 +82,8 @@ const loginWindow = ref<WindowInstance>({
   height: 240,
   zIndex: 200,
   isMinimized: false,
+  maximizable: true,
+  isMaximized: false,
 })
 
 /**
