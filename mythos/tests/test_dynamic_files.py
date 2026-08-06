@@ -190,5 +190,10 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             version = await client.get("/api/v1/files/d/version", headers=headers)
             assert version.status_code == 200
             assert version.json()["tree_version"] == dynamic_tree_version
+            unchanged_version = await client.get(
+                "/api/v1/files/d/version",
+                headers={**headers, "If-None-Match": version.headers["etag"]},
+            )
+            assert unchanged_version.status_code == 304
 
     await database.dispose()

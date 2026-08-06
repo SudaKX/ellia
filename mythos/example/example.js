@@ -6,6 +6,7 @@ const state = {
   token: null,
   progress: null,
   tree: null,
+  treeEtag: null,
   treeVersion: null,
   scripts: [],
   selectedFile: null,
@@ -54,6 +55,16 @@ function setNotice(element, message, tone = "") {
   element.className = `notice${tone ? ` ${tone}` : ""}`;
 }
 
+function clearWorkspaceData() {
+  state.progress = null;
+  state.tree = null;
+  state.treeEtag = null;
+  state.treeVersion = null;
+  state.scripts = [];
+  state.selectedFile = null;
+  state.lastAttempt = null;
+}
+
 function setAuthenticated(token, username) {
   state.token = token;
   state.username = username;
@@ -67,12 +78,7 @@ function setAuthenticated(token, username) {
 function clearSession(message = "Not authenticated") {
   state.token = null;
   state.username = "";
-  state.progress = null;
-  state.tree = null;
-  state.treeVersion = null;
-  state.scripts = [];
-  state.selectedFile = null;
-  state.lastAttempt = null;
+  clearWorkspaceData();
   state.currentAccount = null;
   elements.sessionStatus.textContent = message;
   elements.statusDot.className = "status-dot";
@@ -146,11 +152,13 @@ async function callApi(path, options = {}, retryAuth = true) {
 async function readJson(response) {
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       payload && (payload.detail || payload.title)
         ? payload.detail || payload.title
         : `Request failed with ${response.status}.`,
     );
+    error.status = response.status;
+    throw error;
   }
   return payload;
 }
@@ -171,26 +179,56 @@ async function refreshAccessToken() {
   }
 }
 
-async function loadWorkspace() {
+async function fetchTreeVersion(forceTree) {
+  const options = forceTree || !state.treeEtag
+    ? {}
+    : { headers: { "If-None-Match": state.treeEtag } };
+  const response = await callApi("/files/d/version", options);
+  if (response.status === 304) {
+    return { unchanged: true, etag: null, treeVersion: null };
+  }
+  const payload = await readJson(response);
+  return {
+    unchanged: false,
+    etag: response.headers.get("ETag"),
+    treeVersion: payload.tree_version,
+  };
+}
+
+async function loadWorkspace({ forceTree = false } = {}) {
   if (!state.token) {
-    return;
+    return false;
   }
   elements.refreshButton.disabled = true;
   try {
-    const [progress, version, tree, scripts] = await Promise.all([
+    const [progress, version, scripts] = await Promise.all([
       callApi("/progress").then(readJson),
-      callApi("/files/d/version").then(readJson),
-      callApi("/files/d/tree?path=/").then(readJson),
+      fetchTreeVersion(forceTree),
       callApi("/scripts").then(readJson),
     ]);
+
+    const progressChanged = state.progress !== null && state.progress.version !== progress.version;
+    const shouldLoadTree = forceTree || !version.unchanged || !state.tree || progressChanged;
+    let tree = state.tree;
+    if (shouldLoadTree) {
+      tree = await callApi("/files/d/tree?path=/").then(readJson);
+    }
+
     state.progress = progress;
-    state.treeVersion = version.tree_version;
+    state.treeVersion = tree ? tree.tree_version : state.treeVersion;
     state.tree = tree;
+    if (tree) {
+      state.treeEtag = tree.tree_version === version.treeVersion && version.etag
+        ? version.etag
+        : `"${tree.tree_version}"`;
+    }
     state.scripts = scripts.items;
     renderWorkspace();
+    return true;
   } catch (error) {
     elements.statusDot.className = "status-dot error";
     setNotice(elements.authMessage, error.message, "error");
+    return false;
   } finally {
     elements.refreshButton.disabled = !state.token;
   }
@@ -292,7 +330,21 @@ function appendDirectory(directory, parent, isRoot = false) {
   parent.append(container);
 }
 
-async function openFile(file) {
+function findFile(directory, fileId) {
+  const file = directory.files.find((item) => item.file_id === fileId);
+  if (file) {
+    return file;
+  }
+  for (const child of directory.directories) {
+    const match = findFile(child, fileId);
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
+
+async function openFile(file, retryOnStale = true) {
   state.selectedFile = { ...file, text: "Loading preview...", url: null };
   renderFiles();
   renderPreview();
@@ -305,6 +357,21 @@ async function openFile(file) {
     }
     state.selectedFile.text = await content.text();
   } catch (error) {
+    if (retryOnStale && error.status === 412) {
+      const refreshed = await loadWorkspace({ forceTree: true });
+      const currentFile = refreshed && state.tree ? findFile(state.tree, file.file_id) : null;
+      if (currentFile) {
+        await openFile(currentFile, false);
+        return;
+      }
+      if (refreshed) {
+        state.selectedFile = null;
+        renderFiles();
+        renderPreview();
+        setNotice(elements.authMessage, "File is no longer available.", "error");
+        return;
+      }
+    }
     state.selectedFile.text = `Preview unavailable: ${error.message}`;
   }
   renderPreview();
@@ -353,7 +420,7 @@ async function submitAnswer(attempt) {
       return;
     }
     setNotice(elements.answerMessage, "Accepted. Refreshing runtime state...", "success");
-    await loadWorkspace();
+    await loadWorkspace({ forceTree: true });
     setNotice(elements.answerMessage, "Accepted.", "success");
   } catch (error) {
     setNotice(elements.answerMessage, error.message, "error");
@@ -373,7 +440,7 @@ function setAuthMode(mode) {
 
 elements.registerMode.addEventListener("click", () => setAuthMode("register"));
 elements.loginMode.addEventListener("click", () => setAuthMode("login"));
-elements.refreshButton.addEventListener("click", loadWorkspace);
+elements.refreshButton.addEventListener("click", () => loadWorkspace());
 elements.openFileButton.addEventListener("click", () => {
   if (state.selectedFile && state.selectedFile.url) {
     window.open(state.selectedFile.url, "_blank", "noopener");
@@ -401,7 +468,9 @@ elements.authForm.addEventListener("submit", async (event) => {
     elements.accountPassword.value = "";
     setNotice(elements.accountMessage, "");
     setNotice(elements.authMessage, "Session ready.", "success");
-    await loadWorkspace();
+    clearWorkspaceData();
+    renderWorkspace();
+    await loadWorkspace({ forceTree: true });
   } catch (error) {
     setNotice(elements.authMessage, error.message, "error");
   } finally {
@@ -423,8 +492,10 @@ elements.accountForm.addEventListener("submit", async (event) => {
     state.currentAccount = payload.content.current_account;
     elements.accountStatus.textContent = state.currentAccount ? state.currentAccount.display_name : "Not selected";
     elements.accountPassword.value = "";
+    clearWorkspaceData();
+    renderWorkspace();
     setNotice(elements.accountMessage, "Account active.", "success");
-    await loadWorkspace();
+    await loadWorkspace({ forceTree: true });
   } catch (error) {
     setNotice(elements.accountMessage, error.message, "error");
   } finally {

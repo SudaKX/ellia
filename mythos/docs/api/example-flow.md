@@ -4,14 +4,16 @@
 
 ```text
 POST /auth/register 或 /auth/login
-  -> GET /files/tree?path=/public
+  -> 并行 GET /progress, /files/d/version, /scripts
+  -> 版本变化或玩家状态变化时 GET /files/d/tree；版本未变化时复用现有树
   -> POST /vac/login (guest credentials) + Request-ID
-  -> 并行 GET /progress, /files/d/version, /files/d/tree, /scripts
+  -> 强制刷新 progress、/files/d/version、/files/d/tree、scripts
   -> 用户提交 answer
   -> POST /validations/example-answer/attempts + Request-ID
-  -> GET /files/{admin_access_file_id}/{content_token}/content-url
+  -> 强制刷新 progress、/files/d/version、/files/d/tree、scripts
+  -> GET /files/{admin_access_file_id}/{content_token}/content-url；412 时刷新动态树并重试一次
   -> POST /vac/login (administrator credentials) + Request-ID
-  -> 再次并行刷新 progress、静态/动态 tree、scripts
+  -> 再次强制刷新 progress、/files/d/version、/files/d/tree、scripts
   -> GET /files/{file_id}/{content_token}/content-url
   -> 直接 fetch 预签名对象 URL
 ```
