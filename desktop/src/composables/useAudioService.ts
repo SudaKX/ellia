@@ -91,7 +91,8 @@ export function createAudioService(): AudioService {
   const isSupported = typeof window !== 'undefined' && typeof window.AudioContext !== 'undefined'
   const contextStatus = ref<AudioContextStatus>(isSupported ? 'idle' : 'unavailable')
   const isMuted = ref(false)
-  const masterVolume = ref(0.55)
+  // 主音量默认 30%（0.3），与 SoundMenu 滑块初始值保持一致
+  const masterVolume = ref(0.3)
   const busVolumes = ref<Record<AudioBus, number>>({
     ui: 0.8,
     system: 0.7,

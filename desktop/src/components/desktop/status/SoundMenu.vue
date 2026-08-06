@@ -8,8 +8,8 @@ import { useAudioService } from '@/composables/useAudioService'
 const audio = useAudioService()
 const { t } = useI18n({ useScope: 'global' })
 
-/** 静音前保存的音量，用于取消静音时恢复。 */
-let savedVolume = 0.55
+/** 静音前保存的音量，用于取消静音时恢复。初始值跟随默认主音量（30%）。 */
+let savedVolume = 0.3
 
 /** 彩蛋计数器：点击静音按钮 6 次后播放 koyuki.ogg，每次页面刷新仅触发一次。 */
 let muteClickCount = 0
