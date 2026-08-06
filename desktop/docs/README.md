@@ -33,6 +33,7 @@ src/
 
 - [FilterService](services/filter-service.md)：创建、预热、更新和销毁动态 SVG filter。
 - [WindowService](services/window-service.md)：注册应用、创建窗口、管理焦点、模态层和窗口命令。
+- [StoryDialog Service](services/story-dialog-service.md)：交互剧情系统——创作者 API（对白/选项≤4/滑杆/跳转/副作用）与播放引擎。
 
 ## 前后端对接
 
