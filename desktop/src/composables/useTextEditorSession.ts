@@ -53,6 +53,13 @@ export interface TextEditorSession {
   modified: boolean
   /** 关闭请求回调：由编辑器实现"提示保存 / 直接关闭"的分支逻辑 */
   requestClose: () => void
+  /** 保存回调（Ctrl/Cmd+S 全局快捷键触发） */
+  save: () => void
+  /**
+   * 焦点命中判断：判断给定元素是否位于该编辑器根元素内。
+   * 全局保存快捷键据此决定"焦点在哪个编辑器"。
+   */
+  containsElement: (el: Node | null) => boolean
 }
 
 /** 按窗口 ID 索引的会话表（模块级单例） */
@@ -88,4 +95,26 @@ export function requestTextEditorClose(windowId: string): boolean {
   if (!session) return false
   session.requestClose()
   return true
+}
+
+/**
+ * 全局保存快捷键（Ctrl/Cmd+S）处理：找到**焦点所在**的编辑器并保存。
+ *
+ * 由 App.vue 的全局键盘拦截统一调用，因此监听只需注册一次：
+ * - 焦点落在某个编辑器根元素内 → 触发该编辑器的保存，返回 true
+ * - 焦点不在任何编辑器（或非 Ctrl/Cmd+S）→ 不保存，返回 false（无动作）
+ *
+ * @param event - 全局 keydown 事件
+ * @returns true 表示已由某个编辑器处理（调用方应 preventDefault）
+ */
+export function handleGlobalSaveShortcut(event: KeyboardEvent): boolean {
+  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return false
+  const active = document.activeElement
+  for (const session of sessions.values()) {
+    if (session.containsElement(active)) {
+      session.save()
+      return true
+    }
+  }
+  return false
 }

@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, provide, watch } from 'vue'
 import { RouterView } from 'vue-router'
 
 import FilterHost from '@/components/desktop/FilterHost.vue'
+import { handleGlobalSaveShortcut } from '@/composables/useTextEditorSession'
 import { AudioServiceKey, createAudioService } from '@/composables/useAudioService'
 import { createFilterService, FilterServiceKey } from '@/composables/useFilterService'
 import { useAudioStore } from '@/stores/audio'
@@ -36,6 +37,9 @@ function unlockAudio() {
 /**
  * 全局键盘拦截：禁止 Tab 焦点切换与浏览器前进/后退快捷键。
  *
+ * - `Ctrl/Cmd+S`：全局覆盖保存快捷键——焦点在文本编辑器内 → 触发保存；
+ *   焦点不在任何编辑器 → 无动作（两者都不会触发浏览器"保存网页"）。
+ *   监听只在这里注册一次，由 useTextEditorSession 的注册表定位目标编辑器。
  * - `Tab`：阻止焦点逃逸出 FakeOS（游戏桌面场景，不希望焦点切到地址栏/浏览器 UI）
  * - `Alt+← / Alt+→`：浏览器历史前进/后退
  * - `Backspace`：旧版 Chrome/Edge 中在非输入控件上按 Backspace 会触发后退；
@@ -44,6 +48,13 @@ function unlockAudio() {
  * 为什么用 capture + preventDefault：在事件捕获阶段拦截，能阻止浏览器默认导航行为。
  */
 function blockNavigationKeys(event: KeyboardEvent) {
+  // 全局覆盖 Ctrl/Cmd+S：编辑器有焦点才保存，否则无动作；一律阻止浏览器保存网页
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    handleGlobalSaveShortcut(event)
+    return
+  }
+
   if (event.key === 'Tab') {
     event.preventDefault()
     return

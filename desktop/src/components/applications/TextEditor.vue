@@ -101,6 +101,8 @@ const mode = ref<'edit' | 'read'>('edit')
 const fontSize = ref(14)
 /** 关闭时的保存确认层是否显示 */
 const showSavePrompt = ref(false)
+/** 编辑器根元素（Ctrl+S 快捷键判断焦点是否在编辑器内） */
+const rootEl = ref<HTMLElement | null>(null)
 
 // ─── 会话注册（供 DesktopView closeAction 委托） ────
 
@@ -122,6 +124,10 @@ onMounted(() => {
       return isModified.value
     },
     requestClose,
+    // 全局 Ctrl/Cmd+S 由 App.vue 统一拦截（handleGlobalSaveShortcut），这里登记保存回调
+    save: handleSave,
+    // 焦点命中：判断 activeElement 是否在此编辑器根元素内
+    containsElement: (el) => rootEl.value?.contains(el) ?? false,
   })
 })
 
@@ -212,7 +218,7 @@ function changeFontSize(delta: number) {
 </script>
 
 <template>
-  <div class="text-editor">
+  <div ref="rootEl" class="text-editor">
     <!-- 工具栏：保存 / 模式切换 / 字号调节 / 修改指示 -->
     <header class="text-editor__toolbar">
       <button
