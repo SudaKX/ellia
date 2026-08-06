@@ -16,6 +16,6 @@ POST /auth/register 或 /auth/login
   -> 直接 fetch 预签名对象 URL
 ```
 
-初始只有 `/public` 可见。Guest 登录后可提交 `echo-7`；成功后动态 `/archive` 包含玩家专属 `ADMIN_ACCESS.txt`，其 token 使用 `act2_`。Administrator 登录后 `/admin/CONTROL.txt` 可见。相同 Request-ID 用于网络重试，成功后新的用户提交使用新的 ID。
+初始只有 `/public` 可见。Guest 登录后可提交 `echo-7`；成功后动态 `/archive` 包含玩家专属 `ADMIN_ACCESS.txt`，其 token 使用 `act3_`。Administrator 登录后 `/admin/CONTROL.txt` 可见。相同 Request-ID 用于网络重试，成功后新的用户提交使用新的 ID。
 
 Example 页面不会读取 `/files/tree` 或 `/files/version` 来展示文件，因为二者不包含 Artifact。完整系统行为见 [Example 模块](../modules/example.md)。

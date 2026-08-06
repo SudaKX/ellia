@@ -47,13 +47,13 @@ SQLite 不需要单独运行服务，但 `mythos/data/` 必须可写且应在开
 
 ### 3.2 RustFS 或 S3
 
-需要一个已创建的私有 bucket，且必须开启 bucket versioning。后端启动时会上传首次发现或 mtime 改变的谜题资产，并要求对象存储的 `put_object` 返回非空 `VersionId`。
+需要一个已创建的私有 bucket，并保持 bucket versioning 停用。后端启动时会全量读取谜题资产，以 SHA-256 摘要和媒体类型决定是否上传；对象 key 固定，不依赖 mtime 或对象存储的 `VersionId`。
 
 后端身份至少需要：
 
 - 上传静态对象。
-- 针对指定对象版本生成预签名读取 URL。
-- 读取已有对象版本。
+- 针对指定对象生成预签名读取 URL。
+- 读取应用已写入的对象。
 
 浏览器从 `/example/` 或未来 `/console/` 预览预签名 URL 时，RustFS 与 Mythos 通常不同源。bucket CORS 必须允许页面 Origin 的 `GET` 和 `HEAD` 请求；本地页面固定使用 `http://127.0.0.1:8000` 时，应将该完整 Origin 加入规则。不要用 `*` 替代生产环境的精确 Origin。
 
@@ -116,7 +116,7 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 
 | 现象 | 原因与处理 |
 | --- | --- |
-| `Object storage is not configured` | Example 有静态资产。补齐 endpoint、bucket、access key、secret key 和 TLS 配置，并确认 bucket 已开启 versioning。 |
+| `Object storage is not configured` | Example 有静态资产。补齐 endpoint、bucket、access key、secret key 和 TLS 配置，并确认 bucket 可私有读写。 |
 | 静态资产发布失败 | 检查 bucket 存在、身份有上传权限、`MYTHOS_PUZZLE_ROOT` 指向 `puzzles` 目录，且 Source 文件存在。 |
 | `no such table: static_file_registrations` | 从 `mythos/` 目录执行 Alembic upgrade head。 |
 | `/example/` 返回 404 | 确认环境为 `development`，并通过开发服务器而非生产部署访问。 |
@@ -127,7 +127,7 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 本仓库当前只提供开发 Uvicorn 命令，没有 Docker、Nginx、systemd 或生产 ASGI 进程配置。生产部署需要另行提供：
 
 - HTTPS 反向代理与 ASGI 进程托管。
-- 私有、版本化 RustFS/S3 bucket 及精确 CORS 规则。
+- 私有、停用 bucket versioning 的 RustFS/S3 bucket 及精确 CORS 规则。
 - 持久化 SQLite 与 checkpoint 存储卷。
 - 生产 secrets 的部署平台注入。
 - `/console/`、`/api/v1/` 等同源路由策略。

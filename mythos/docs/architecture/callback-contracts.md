@@ -10,10 +10,10 @@
 | --- | --- | --- | --- | --- |
 | Validation attempt handler | `ValidationAttempt.handler` | `(CommandContext, Mapping[str, Any]) -> Awaitable[ValidationOutcome]` | 必须异步 | `CommandTransactionExecutor` 的写入事务内；异常会回滚并释放 Request-ID 占位 |
 | Player lifecycle handler | `LifecycleRegistry.register_lifecycle()`、`on_construct`、`on_deconstruct` | `(PlayerLifecycleContext) -> Awaitable[None]` | 必须异步 | Construct/Deconstruct 分发事务内；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续回调 |
-| Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
-| Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步 | 由 Artifact Interface 调用；不得修改 stable ID、artifact locator 或版本 |
-| 文件与 Artifact Node access rule | `StaticNode`、文件 manifest、`ArtifactNodeTemplate.access_rule` | `(Player) -> bool` | 必须同步、纯读取 | FileService 在目录遍历、文件路径链和下载授权时直接求值 |
-| Hint access rule | `Hint.access_rule` | `(Player) -> bool` | 必须同步、纯读取 | HintService 在列表、购买与预签名 URL 签发前求值 |
+| Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步、恰好一个位置参数 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
+| Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, Mapping[str, Any], ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步、恰好三个位置参数 | 由 Artifact Interface 调用；meta 来自 Artifact generator |
+| 文件与 Artifact Node access rule | `StaticNodeSpec`、文件 manifest、`ArtifactNodeTemplate.access_rule` | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数、带 callback ID | FileService 在目录遍历、文件路径链和下载授权时直接求值 |
+| Hint access rule | `Hint.access_rule` | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数 | HintService 在列表、购买与预签名 URL 签发前求值 |
 | Script access rule | `Script.access_rule` | `(Player) -> bool` | 必须同步、纯读取 | ScriptCatalog 在读取脚本列表时直接求值 |
 | Progress branch selector | `BranchProgressNode.how` | `(Any) -> tuple[str, ...]` | 必须同步 | ProgressGraph 在推进分支节点时直接求值；返回目标必须是声明过且不重复的字符串 ID |
 

@@ -1,0 +1,210 @@
+**最终方案**
+
+**模型边界**
+
+- `VirtualNode` 移除 dataclass 装饰，作为普通运行时基类。
+- `StaticNodeSpec` 为注册期 frozen 声明，替代当前注册期 `StaticNode`。
+- `ArtifactTemplate`、`ArtifactNodeTemplate` 保持 frozen 声明。
+- `StaticNode`、`ArtifactNode` 是运行时可变对象，不再实现 `_initialized`、`__setattr__`、`__delattr__`。
+- `TreeNode`、`FileTree`、`PlayerFileTree` 不再做代码级冻结；约定 Catalog 构建后不得修改其节点、索引或 children。
+
+`ArtifactNode` 仍在写入 `PlayerArtifactNode` 前校验其 stable ID、artifact locator、version 与模板一致。这是持久化边界校验，不是运行时对象冻结。
+
+**下载名称**
+
+```text
+ArtifactTemplate.download_name       默认值
+ArtifactNodeTemplate.download_name   声明覆盖值
+ArtifactNode.download_name           运行时覆盖值
+PlayerArtifactNode.download_name     持久化运行时覆盖值
+FileContent.download_name            最终有效值
+```
+
+构造动态 `FileContent` 时：
+
+```text
+effective_download_name =
+    ArtifactNode.download_name
+    or ArtifactTemplate.download_name
+```
+
+`ArtifactTemplate.download_name` 参与 Artifact version；`ArtifactNodeTemplate.download_name` 参与 node version。新增 `PlayerArtifactNode.download_name` nullable 列，并在 node upsert/runtime restore/tree build 中完整传递。
+
+**静态 source 与对象存储**
+
+- `FileReference` 的唯一标识为 `module:relative_path`。
+- 启动期合并 Files/Hints 的 FileReference，完整计算字节 SHA-256。
+- 保持静态 key：`static/{module}/{relative_path}`。
+- 以 `file_hash` 和 media type 判定新增、更新、复用、退休，不再使用 mtime。
+- 移除 S3 VersionId 依赖。
+- `StaticFileRegistration` 持久化 `source_locator`、`object_key`、`content_digest/file_hash`、media type、size、时间、retired 状态。
+- `ObjectReference` 保留 `key`、`content_digest`、`media_type`、`size_bytes`，删除 `version_id`。
+
+Artifact 保持当前 `media_type` 设计，不与 FileReference 合并。
+
+Artifact key：
+
+```text
+artifacts/{player_id}/{artifact_version}
+```
+
+`PlayerArtifact.object_key` 与 `StaticFileRegistration.object_key` 都继续持久化，不即时推导。
+
+Artifact generator 必须满足：相同 `(player_id, artifact_version)` 产生相同 bytes 和 meta。Artifact content hash 只由 `put_bytes()` 单次计算，填入 `ObjectReference.content_digest` 和 `PlayerArtifact.content_digest`，用于 metadata、完整性检查和确定性合同审计，不参与 key、version 或 token。
+
+**callback ID**
+
+抽取通用 `module_handler(module)(revision)` 与 `callback_id()`：
+
+```text
+UUIDv5(namespace, "{module}:{callback.__qualname__}:{revision}")
+```
+
+所有参与版本的 generator 和 access rule 必须带 callback ID；StaticNode、Hint、ArtifactTemplate、ArtifactNodeTemplate 均拒绝未装饰 callback。手工 `revision` 仅保留在 callback 装饰器参数，不再作为任何注册表项字段。
+
+`RawArtifact.meta` 改为传给 node generator：
+
+```python
+async def node_generator(
+    player: Player,
+    meta: Mapping[str, Any],
+    node: ArtifactNode,
+) -> ArtifactNode: ...
+```
+
+**注册项 Version**
+
+所有注册项用 canonical JSON 的 SHA-256 生成：
+
+```text
+StaticNode.version
+  = snv1_(stable_id, kind, path, display, hidden,
+          source_locator, source_file_hash, source_media_type,
+          download_name, access_rule_callback_id)
+
+Hint.version
+  = hv1_(stable_id, source_locator, source_file_hash,
+         source_media_type, display, vtb_cost,
+         download_name, access_rule_callback_id)
+
+ArtifactTemplate.version
+  = atv1_(artifact_id, media_type, download_name,
+          generator_callback_id)
+
+ArtifactCatalog.node_version(stable_id)
+  = antv2_(stable_id, artifact_locator, artifact_template_version,
+           path, display, hidden,
+           download_name, node_generator_callback_id,
+           access_rule_callback_id)
+```
+
+Artifact 版本使用新的 `atv1_` / `antv2_` 前缀；Artifact Catalog 使用 `acv1_`。Artifact node version 同时包含其 ArtifactTemplate.version，使 Artifact generator 变化可以传播到 node generator；这会触发现有 Artifact/Node 的一次性 reconciliation 重建，详见下文“Artifact 前缀调整”。
+
+**Catalog 与 Tree Version**
+
+每个 Catalog 独立计算版本：
+
+```text
+FileCatalog.version
+  = fcv1_(file_id_key_fingerprint,
+          sorted(StaticNode.stable_id, StaticNode.version))
+
+HintCatalog.version
+  = hcv1_(sorted(Hint.stable_id, Hint.version))
+
+ArtifactCatalog.version
+  = acv1_(sorted(
+      ("artifact", artifact_id, ArtifactTemplate.version),
+      ("artifact_node", stable_id, ArtifactCatalog.node_version(stable_id))
+    ))
+```
+
+`FileTree.tree_version` 直接使用 `FileCatalog.version`，不再单独遍历 TreeNode 计算。`file_id_key_fingerprint` 被纳入 FileCatalog version，以保证 HMAC file ID 密钥轮换时树缓存失效。
+
+`PlayerFileTree.tree_version`：
+
+```text
+pft3_(FileCatalog.version,
+      ArtifactCatalog.version,
+      PlayerArtifactState.version)
+```
+
+不再将静态 content token 重复计入 tree version。
+
+**content-token**
+
+保留 URL 路径中的 content-token：
+
+```text
+StaticNode content_token = StaticNode.version
+Hint content_token       = Hint.version
+
+Artifact content_token =
+  act3_(player_id, artifact_id, artifact_version,
+        node_id, node_version,
+        effective_download_name, media_type)
+```
+
+StaticFile 与 Hint 的 version 已含 source file hash 和表示元数据，因此可直接作为 token。Artifact token 不含 content hash，依赖确定性 generator 合同；它包含玩家、Artifact/Node 版本与最终下载名，确保玩家隔离和节点表示变化后的失效。
+
+**迁移与验证**
+
+- 删除静态 manifest 的手工 `version` 和 Hint 的 `revision`。
+- 删除 `object_version_id`、`source_mtime_ns`。
+- 新增 `PlayerArtifactNode.download_name`。
+- 更新 Files/Hints/Artifacts API 文档、callback 合同、RustFS 配置和测试。
+- 增加全量 source hash、callback ID、node download 覆盖、meta 传递、密钥轮换、确定性 Artifact、token/version 刷新的回归测试。
+
+
+
+**Artifact 前缀调整**
+
+最终命名为：
+
+```text
+ArtifactTemplate.version      = atv1_<sha256>
+ArtifactCatalog.node_version  = antv2_<sha256>
+ArtifactCatalog.version       = acv1_<sha256>
+```
+
+`acv1_` 的输入为按类型和主键排序的模板项：
+
+```text
+("artifact", artifact_id, atv1_...)
+("artifact_node", stable_id, antv2_...)
+```
+
+这会使现有 `av1_`、`anv1_`、`tv1_` 全部失配。启动期 Artifact reconciliation 将视为模板变更，重建已有玩家的 Artifact/Node；新 Artifact object key 也会使用 `atv1_`。这是预期的一次性迁移效果，无需新增 SQL 字段迁移，但需要更新快照、测试与文档。
+
+**`file_id` 是否保留**
+
+建议保留，不能完全由 content-token 替代。
+
+`file_id` 和 content-token 的职责不同：
+
+| 标识 | 职责 |
+|---|---|
+| `file_id` (`f1_...`) | 稳定的逻辑文件身份、metadata 查询参数、动态树节点定位、跨内容更新的持久引用 |
+| `content_token` | 当前内容表示的版本前置条件，内容或表示变化后应失效 |
+
+StaticNode 的 token 虽会直接使用其 version，但 version 变化时 token 也会变化，例如 source hash、下载名、display、hidden、access rule callback 变化。若用它替代 `file_id`，客户端将失去稳定的文件引用，旧链接和 metadata 缓存无法定位同一逻辑文件。
+
+Artifact token 同样不适合作稳定 ID：它包含 player ID、Artifact/Node version 和最终下载名，会随玩家状态或节点版本变化。
+
+技术上可以让 content URL 路由只用 token：
+
+```text
+GET /api/v1/files/content/{content_token}/content-url
+```
+
+服务端在当前玩家树中建立 `content_token -> TreeNode` 索引即可。但这不会减少鉴权、加载玩家树或 token 校验，只会失去稳定 ID，并且必须额外处理 token 冲突和 token 轮换。
+
+最终建议保持：
+
+```text
+GET /api/v1/files/{file_id}
+GET /api/v1/files/{file_id}/{content_token}/content-url
+GET /api/v1/files/{file_id}/{content_token}/download-url
+```
+
+`file_id` 仍使用 HMAC，避免公开稳定 ID 被枚举；`content_token` 使用新的 StaticNode/Hint version 或玩家绑定的 Artifact content-token 版本。

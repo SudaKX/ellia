@@ -24,6 +24,6 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 
 ## 测试与重要限制
 
-`test_example_module.py` 使用 FakeObjectStore 验证端到端行为、`act2_` token、对象键和重复提交；`test_example_rustfs_integration.py` 在启用 RustFS 时读取真实预签名 URL。开发页面 `/example/` 使用动态树端点展示该流程。
+`test_example_module.py` 使用 FakeObjectStore 验证端到端行为、`act3_` token、固定对象键和重复提交；`test_example_rustfs_integration.py` 在启用 RustFS 时读取真实预签名 URL，测试 bucket 不启用 versioning。开发页面 `/example/` 使用动态树端点展示该流程。
 
 模块 access rule 读取 `player.accounts.is_current()` 与 `player.progress.is_unlocked()`；模块不持有 Session、不能提交事务，不能添加回调路由。API 顺序见 [Example API 调用流](../api/example-flow.md)。

@@ -8,6 +8,8 @@
 - [Player 与请求上下文](architecture/player-and-request-context.md)
 - [命令事务](architecture/command-transactions.md)
 - [错误响应与中间件](architecture/error-response-and-middleware.md)
+- [Version 与 Content-Token](architecture/versions-and-content-tokens.md)
+- [启动、注册表与 Artifact 流程](architecture/startup-registration-and-artifact-flow.md)
 - [持久化总览](reference/persistence-schema.md)
 
 ## 领域系统
