@@ -32,7 +32,7 @@
   ..\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
   ```
 
-- RustFS 集成测试默认跳过。设置 `MYTHOS_RUSTFS_INTEGRATION=1` 后才会连接本地 S3 端点，并创建、启用版本控制后删除临时 bucket；需要相应权限。
+- RustFS 集成测试默认跳过。设置 `MYTHOS_RUSTFS_INTEGRATION=1` 后才会连接本地 S3 端点，并创建不启用 bucket versioning 的临时 bucket；测试按 object key 清理对象后删除 bucket，需要相应权限。
 
 ## Desktop 前端
 
