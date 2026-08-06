@@ -43,6 +43,16 @@ export const zhCN = {
       title: 'ASCII 流',
       description: '可变字体文本回流可视化工具。',
     },
+    browser: {
+      title: '浏览器',
+      description: '浏览开放网络。',
+    },
+  },
+  /** 浏览器应用 */
+  browser: {
+    addressPlaceholder: '输入网址',
+    go: '前往',
+    deniedTitle: '禁止访问',
   },
   /** 文本编辑器 */
   textEditor: {

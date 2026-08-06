@@ -46,6 +46,13 @@ const applications: DesktopApplication[] = [
     groupKey: 'applicationGroups.creative',
     availability: 'hidden',
   },
+  {
+    id: 'browser',
+    nameKey: 'applications.browser.title',
+    descriptionKey: 'applications.browser.description',
+    groupKey: 'applicationGroups.system',
+    availability: 'available',
+  },
 ]
 
 export const useDesktopStore = defineStore('desktop', () => {

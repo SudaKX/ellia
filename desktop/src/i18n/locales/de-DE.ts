@@ -43,6 +43,16 @@ export const deDE = {
       title: 'ASCII Flow',
       description: 'Variabler typografischer Textumbruch-Visualisierer.',
     },
+    browser: {
+      title: 'Browser',
+      description: 'Das offene Web durchsuchen.',
+    },
+  },
+  /** Browser-App */
+  browser: {
+    addressPlaceholder: 'URL eingeben',
+    go: 'Los',
+    deniedTitle: 'ZUGRIFF VERWEIGERT',
   },
   /** Texteditor */
   textEditor: {

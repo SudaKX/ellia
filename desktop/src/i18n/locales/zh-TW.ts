@@ -43,6 +43,16 @@ export const zhTW = {
       title: 'ASCII 流',
       description: '可變字型文字回流視覺化工具。',
     },
+    browser: {
+      title: '瀏覽器',
+      description: '瀏覽開放網路。',
+    },
+  },
+  /** 瀏覽器應用 */
+  browser: {
+    addressPlaceholder: '輸入網址',
+    go: '前往',
+    deniedTitle: '禁止訪問',
   },
   /** 文字編輯器 */
   textEditor: {

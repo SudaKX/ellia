@@ -41,6 +41,16 @@ export const enUS = {
       title: 'ASCII Flow',
       description: 'Variable typographic text reflow visualizer.',
     },
+    browser: {
+      title: 'Browser',
+      description: 'Browse the open web.',
+    },
+  },
+  /** Browser app */
+  browser: {
+    addressPlaceholder: 'Enter URL',
+    go: 'Go',
+    deniedTitle: 'ACCESS DENIED',
   },
   /** Text editor (FakeOS Notepad) */
   textEditor: {

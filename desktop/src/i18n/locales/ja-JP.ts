@@ -43,6 +43,16 @@ export const jaJP = {
       title: 'ASCII フロー',
       description: '可変タイポグラフィテキストリフロービジュアライザ。',
     },
+    browser: {
+      title: 'ブラウザ',
+      description: 'オープンウェブを閲覧します。',
+    },
+  },
+  /** ブラウザアプリ */
+  browser: {
+    addressPlaceholder: 'URL を入力',
+    go: '移動',
+    deniedTitle: 'アクセス拒否',
   },
   /** テキストエディタ */
   textEditor: {
