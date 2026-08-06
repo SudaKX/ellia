@@ -82,6 +82,7 @@
 import type { Privilege } from '@/registries/commands'
 import { useDesktopStore } from '@/stores/desktop'
 import { useTerminalCwd } from '@/composables/useTerminalCwd'
+import { loadPlayerFile } from '@/composables/usePlayerFiles'
 
 // ─── 类型定义 ────────────────────────────────────────
 
@@ -154,7 +155,8 @@ export interface FileNode {
  * ├── home/
  * │   ├── 看这里看这里.txt      玩家首次进入的开场白（首次打开解锁成就）
  * │   ├── init.exe             可执行文件：双击播放开场剧情演出
- * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见）
+ * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见，可写：见 usePlayerFiles）
+ * │       ├── player_档案.txt  玩家档案示例（内容可由玩家在本地覆盖）
  * │       └── notes.txt         玩家笔记（叙事线索）
  * ├── log/                      系统运行日志（叙事线索）
  * │   ├── 第一次启动.log        首次启动日志
@@ -216,6 +218,12 @@ JDK触发器：怎么样？学姐我够意思吧。接下来，来见见Ellia吧
         /** 仅主角账户可进入自己的主目录 */
         accessRule: (p) => p.currentAccount === 'PLAYER',
         children: [
+          {
+            // 玩家档案示例：系统下发一份初始内容，玩家在本地可覆盖（见 usePlayerFiles 覆盖层）
+            name: 'player_档案.txt', type: 'file',
+            content: '现在这块区域交给你了,你可以编辑保存哦-ellia',
+            children: null,
+          },
           { name: 'notes.txt', type: 'file', content: "Day 1: System feels... different. Like it's watching me.\nDay 3: Found a hidden cache in /sys. Encrypted.\nDay 5: The AI keeps saying things I haven't told anyone.", children: null },
         ],
       },
@@ -491,13 +499,30 @@ export function pathExists(pathStr: string): boolean {
 }
 
 /**
+ * 获取文件的"有效"内容：玩家本地覆盖层优先，否则用系统基线（下发）版本。
+ *
+ * 这是"下发时检查本地有没有新版本"的实现点：
+ * - `home/PLAYER/` 内的文件被玩家编辑过 → 返回本地版本
+ * - 其他文件（或玩家从未改过）→ 返回系统下发的基线内容
+ *
+ * @param path     - 文件绝对路径
+ * @param fallback - 静态基线内容（系统下发版本，可为 null）
+ * @returns 本地版本（若有）否则基线内容
+ */
+export function getEffectiveContent(path: string, fallback: string | null): string | null {
+  const local = loadPlayerFile(path)
+  if (local !== null) return local
+  return fallback
+}
+
+/**
  * 读取文件内容（含访问权限校验）。
  *
  * 权限校验流程：
  * 1. 通过 resolveFileNode 定位文件节点
  * 2. 检查节点存在且为文件类型
  * 3. 调用 isNodeVisible 校验 accessRule
- * 4. 通过则返回 content，否则返回 null
+ * 4. 通过则返回内容（本地覆盖层优先），否则返回 null
  *
  * @param pathStr - 文件路径
  * @param player  - 当前玩家快照
@@ -514,7 +539,7 @@ export function getFileContent(pathStr: string, player: PlayerSnapshot): string 
   const node = resolveFileNode(pathStr)
   if (!node || node.type !== 'file') return null
   if (!isNodeVisible(node, player)) return null
-  return node.content
+  return getEffectiveContent(pathStr, node.content)
 }
 
 // ─── 公共 API：工具 ──────────────────────────────────

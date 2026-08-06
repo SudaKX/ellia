@@ -66,7 +66,12 @@ import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
 import { playStoryScript } from '@/composables/useStoryDialog'
 import { storyScripts } from '@/story'
 import { puzzleRegistry } from '@/registries/puzzles'
-import { getRootTree, getVisibleChildren, buildPlayerSnapshot } from '@/composables/useFileSystem'
+import {
+  getEffectiveContent,
+  getRootTree,
+  getVisibleChildren,
+  buildPlayerSnapshot,
+} from '@/composables/useFileSystem'
 import type { FileNode } from '@/composables/useFileSystem'
 import type { WindowService } from '@/composables/useWindowService'
 
@@ -89,6 +94,24 @@ const pathStack = computed(() => {
 
 /** 当前选中的文件节点，驱动底部预览区显示 */
 const selectedFile = ref<FileNode | null>(null)
+
+/** 选中文件的有效内容（已合并玩家本地覆盖层，本地版本优先） */
+const selectedContent = ref<string | null>(null)
+
+/**
+ * 选中文件并刷新底部预览内容。
+ *
+ * 必须用 getEffectiveContent 合并玩家本地覆盖层：玩家保存后的版本在
+ * localStorage（见 usePlayerFiles），不能直接显示静态基线 file.content，
+ * 否则预览不会反映玩家修改。每次选中都重新计算，保证读到最新本地版本。
+ *
+ * @param file - 被单击/双击选中的文件节点
+ */
+function setSelection(file: FileNode) {
+  selectedFile.value = file
+  const path = currentPath.value === '/' ? `/${file.name}` : `${currentPath.value}/${file.name}`
+  selectedContent.value = getEffectiveContent(path, file.content)
+}
 
 // ─── 数据：从统一文件系统获取 ─────────────────────
 
@@ -148,6 +171,7 @@ const files = computed(() => currentEntries.value.filter((n) => n.type === 'file
 function navigateTo(path: string) {
   currentPath.value = path
   selectedFile.value = null
+  selectedContent.value = null
 }
 
 /**
@@ -173,6 +197,20 @@ function navigateToSegment(index: number) {
  */
 function handleDirClick(dirName: string) {
   navigateTo('/' + dirName)
+}
+
+/**
+ * 主区域目录双击：进入**当前路径下**的子目录（拼接 currentPath）。
+ *
+ * 与侧边栏的区别：
+ * - 侧边栏列的是根目录的一级子目录 → 从根绝对跳转（'/' + name）
+ * - 主区域列的是当前目录里的子目录 → 必须拼当前路径，
+ *   否则从 /home 双击 PLAYER 会错误跳到根下不存在的 /PLAYER（显示空目录）
+ *
+ * @param dir - 被双击的目录节点
+ */
+function handleDirDblClick(dir: FileNode) {
+  navigateTo(currentPath.value === '/' ? `/${dir.name}` : `${currentPath.value}/${dir.name}`)
 }
 
 /**
@@ -202,7 +240,7 @@ function handleFileDblClick(file: FileNode) {
 
   const dotIndex = file.name.lastIndexOf('.')
   if (dotIndex <= 0) {
-    selectedFile.value = file
+    setSelection(file)
     return
   }
 
@@ -233,7 +271,7 @@ function handleFileDblClick(file: FileNode) {
     return
   }
 
-  selectedFile.value = file
+  setSelection(file)
 }
 
 /**
@@ -244,11 +282,15 @@ function handleFileDblClick(file: FileNode) {
  *   组件（componentProps.windowId），供其注册关闭会话。
  * - `dockable: true` → DesktopView 按"每个窗口一个条目"渲染到 Dock 栏，
  *   `dockTitle` 取文件名，因此打开多个文件会出现多个命名条目。
+ * - 传入绝对路径 `filePath`（编辑器保存时判断是否可写）；
+ *   内容用 getEffectiveContent 合并玩家本地覆盖层（本地版本优先）。
  *
  * @param file - 被双击的 .txt / .log 文件节点
  */
 function openTextEditor(file: FileNode) {
   if (!windowService) return
+  // 由当前导航路径拼出文件绝对路径
+  const filePath = currentPath.value === '/' ? `/${file.name}` : `${currentPath.value}/${file.name}`
   const result = windowService.send({
     type: 'create-window',
     payload: {
@@ -258,7 +300,8 @@ function openTextEditor(file: FileNode) {
       component: TextEditor,
       componentProps: {
         fileName: file.name,
-        fileContent: file.content ?? '',
+        filePath,
+        fileContent: getEffectiveContent(filePath, file.content) ?? '',
       },
       defaultWidth: 480,
       defaultHeight: 340,
@@ -274,12 +317,12 @@ function openTextEditor(file: FileNode) {
 }
 
 /**
- * 单击文件：选中并在底部预览区显示简要信息。
+ * 单击文件：选中并在底部预览区显示简要信息（内容为本地覆盖层优先）。
  *
  * @param file - 被单击的文件节点
  */
 function handleFileClick(file: FileNode) {
-  selectedFile.value = file
+  setSelection(file)
 }
 </script>
 
@@ -325,12 +368,12 @@ function handleFileClick(file: FileNode) {
           {{ t('applications.files.emptyDir') }}
         </p>
 
-        <!-- 目录：双击进入 -->
+        <!-- 目录：双击进入（拼接当前路径，见 handleDirDblClick） -->
         <div
           v-for="dir in dirs"
           :key="'d-' + dir.name"
           class="explorer__entry"
-          @dblclick="handleDirClick(dir.name)"
+          @dblclick="handleDirDblClick(dir)"
         >
           <Folder :size="14" :stroke-width="1.8" class="explorer__icon--dir" />
           <span>{{ dir.name }}/</span>
@@ -355,7 +398,7 @@ function handleFileClick(file: FileNode) {
         <div class="explorer__preview-header">
           <span>{{ t('applications.files.previewTitle') }}: {{ selectedFile.name }}</span>
         </div>
-        <pre class="explorer__preview-content">{{ selectedFile.content ?? t('applications.files.cannotOpen') }}</pre>
+        <pre class="explorer__preview-content">{{ selectedContent ?? t('applications.files.cannotOpen') }}</pre>
       </div>
     </div>
   </div>

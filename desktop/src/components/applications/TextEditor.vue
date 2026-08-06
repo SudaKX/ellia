@@ -61,6 +61,7 @@ import { useI18n } from 'vue-i18n'
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import { useAudioService } from '@/composables/useAudioService'
+import { isPlayerWritable, savePlayerFile } from '@/composables/usePlayerFiles'
 import {
   registerTextEditorSession,
   unregisterTextEditorSession,
@@ -70,7 +71,9 @@ import type { WindowService } from '@/composables/useWindowService'
 const props = defineProps<{
   /** 打开的文件名（窗口标题 / Dock 条目名 / 提示文案共用） */
   fileName: string
-  /** 文件初始内容 */
+  /** 文件绝对路径（保存时判断是否可写：home/PLAYER/ 内才落盘） */
+  filePath: string
+  /** 文件初始内容（读取时已按"本地覆盖层优先"合并） */
   fileContent: string
   /** 所属窗口 ID（FileExplorer 创建窗口后回填，用于会话注册） */
   windowId: string
@@ -152,17 +155,43 @@ function openPermissionDenied() {
   })
 }
 
-/** 工具栏"保存"按钮：直接触发权限不足弹窗 */
+/**
+ * 尝试保存当前内容到玩家本地覆盖层。
+ *
+ * 规则（与 usePlayerFiles 一致）：
+ * - 文件在 `home/PLAYER/` 内 → 写入 localStorage，成功后清除"未保存"标记
+ * - 其他路径 → 无权限，弹出权限不足窗口（保留叙事）
+ *
+ * @returns true 表示已成功保存到本地
+ */
+function trySave(): boolean {
+  if (props.filePath && isPlayerWritable(props.filePath)) {
+    if (savePlayerFile(props.filePath, content.value)) {
+      // 保存成功：以当前内容为新基准，清除 * 未保存标记
+      originalContent.value = content.value
+      return true
+    }
+  }
+  return false
+}
+
+/** 工具栏"保存"按钮：玩家主目录内落盘，否则权限不足 */
 function handleSave() {
-  openPermissionDenied()
+  if (!trySave()) {
+    openPermissionDenied()
+  }
 }
 
 // ─── 保存确认层动作 ──────────────────────────────────
 
-/** 保存确认 → 保存：弹权限不足（保存永远失败） */
+/** 保存确认 → 保存：可写文件落盘后关闭；否则弹权限不足（保持打开） */
 function handleSavePromptSave() {
   showSavePrompt.value = false
-  openPermissionDenied()
+  if (trySave()) {
+    emit('close')
+  } else {
+    openPermissionDenied()
+  }
 }
 
 /** 保存确认 → 不保存：直接关闭窗口 */
