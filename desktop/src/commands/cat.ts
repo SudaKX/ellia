@@ -43,6 +43,7 @@
 
 import type { CommandContext } from '@/registries/commands'
 import { registerCommand } from '@/registries/commands'
+import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
 import { getFileContent, resolveFileNode, buildPlayerSnapshot } from '@/composables/useFileSystem'
 import { useTerminalCwd } from '@/composables/useTerminalCwd'
 
@@ -65,6 +66,9 @@ registerCommand({
     // 第一层：尝试获取内容（内部已包含 accessRule 校验）
     const content = getFileContent(filePath, player)
     if (content !== null) {
+      // 通用剧情机制：文件节点绑定成就 id（FileNode.achievementId）时，
+      // 首次读取自动解锁（与文件资源管理器双击一致），不写死文件名/路径
+      unlockAchievementById(resolveFileNode(filePath)?.achievementId)
       return content.split('\n')
     }
 

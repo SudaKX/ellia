@@ -63,6 +63,7 @@ import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import AiAssistant from '@/components/applications/AiAssistant.vue'
 // Live2D 暂时隐藏 — 取消注释以下行 + initLive2dWindow() 即可恢复
 // import Live2DAssistant from '@/components/applications/Live2DAssistant.vue'
+import { initAchievementAudio } from '@/composables/useAchievementUnlocks'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
 import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
@@ -84,6 +85,8 @@ provide('windowService', windowService)
 // 注册剧情对话服务（openStoryDialog 从任意位置调用）
 initStoryDialog(windowService)
 const audioService = useAudioService()
+// 注册成就音效服务（unlockAchievement 播放解锁语音）
+initAchievementAudio(audioService)
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()

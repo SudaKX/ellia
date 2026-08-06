@@ -39,6 +39,8 @@ export interface AchievementToastItem {
   icon?: Component
   /** 自定义图片 URL（如叙事立绘）；提供时优先于 icon 显示 */
   image?: string
+  /** 解锁音效 URL（走音频管线 AudioService.playFile）；可选 */
+  sound?: string
 }
 
 /** 每条成就的停留时长（ms） */

@@ -62,6 +62,7 @@
 import { computed, defineAsyncComponent, inject, ref } from 'vue'
 import { ChevronRight, File, FileText, Folder } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
 import { puzzleRegistry } from '@/registries/puzzles'
 import { getRootTree, getVisibleChildren, buildPlayerSnapshot } from '@/composables/useFileSystem'
 import type { FileNode } from '@/composables/useFileSystem'
@@ -184,6 +185,10 @@ function handleDirClick(dirName: string) {
  * @param file - 被双击的文件节点
  */
 function handleFileDblClick(file: FileNode) {
+  // 通用剧情机制：文件节点绑定成就 id（FileNode.achievementId）时，
+  // 首次打开自动解锁，不写死文件名/路径（终端 cat 同样按节点触发）
+  unlockAchievementById(file.achievementId)
+
   const dotIndex = file.name.lastIndexOf('.')
   if (dotIndex <= 0) {
     selectedFile.value = file

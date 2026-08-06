@@ -123,6 +123,12 @@ export interface FileNode {
    * 纯函数，不得修改参数或产生副作用。
    */
   accessRule?: (player: PlayerSnapshot) => boolean
+  /**
+   * 可选成就绑定：首次打开/读取该文件时解锁对应成就（成就 id 见 useAchievementUnlocks）。
+   * 通用剧情机制——任何入口（文件资源管理器双击、终端 cat）都会触发，
+   * 无需在调用方写死文件名/路径。
+   */
+  achievementId?: string
 }
 
 // ─── 文件树数据 ──────────────────────────────────────
@@ -184,8 +190,10 @@ const rootTree: FileNode[] = [
   {
     name: 'home', type: 'dir', content: null, children: [
       {
-        // 开场白文件：JDK 触发器欢迎玩家，首次点开触发「第一次」成就（见 TextEditor 触发逻辑）
+        // 开场白文件：JDK 触发器欢迎玩家；绑定「第一次」成就，
+        // 首次读取（双击/cat）由各入口按节点 achievementId 通用触发
         name: '看这里看这里.txt', type: 'file',
+        achievementId: 'first-contact',
         content: `？？？：亲爱的新玩家，你好。欢迎来到【FAKE_OS】。
 JDK触发器：我是“JDK触发器”，【FAKE_OS】的开发者，大概也是你的学姐。
 JDK触发器：找到这个一定很不容易，但你也很幸运。因为你们学院的志愿时长系统也是学姐我写的。怎么样，厉害吧？
