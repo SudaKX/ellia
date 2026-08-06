@@ -239,7 +239,7 @@ export const enUS = {
     noAchievements: 'No achievements yet.',
     locked: 'LOCKED',
     unlockedAt: 'Unlocked on {date}',
-    toastTitle: 'ACHIEVEMENT UNLOCKED',
+    toastTitle: 'Achievement!',
     /** Achievement definitions */
     achievementList: {
       firstLogin: {
@@ -257,6 +257,10 @@ export const enUS = {
       persistent: {
         name: 'Persistent',
         description: 'Solve 5 puzzles. Keep going!',
+      },
+      firstContact: {
+        name: 'First Time',
+        description: 'Welcome, welcome......',
       },
     },
   },

@@ -61,11 +61,17 @@ const unlockedTime = computed(() =>
       aria-live="polite"
     >
       <div class="achievement-toast__icon" aria-hidden="true">
-        <component :is="iconComponent" :size="22" :stroke-width="1.7" />
+        <img
+          v-if="visible.image"
+          class="achievement-toast__img"
+          :src="visible.image"
+          alt=""
+        />
+        <component v-else :is="iconComponent" :size="22" :stroke-width="1.7" />
       </div>
       <div class="achievement-toast__body">
         <p class="achievement-toast__title">
-          {{ t('achievements.toastTitle') }}
+          {{ t('archive.toastTitle') }}
           <span class="achievement-toast__time">{{ unlockedTime }}</span>
         </p>
         <p class="achievement-toast__name">{{ t(visible.nameKey) }}</p>
@@ -101,6 +107,14 @@ const unlockedTime = computed(() =>
   border-right: 1px solid var(--line-subtle);
   background: var(--surface-panel);
   color: var(--signal-mint);
+  overflow: hidden;
+}
+
+/* 叙事立绘填满图标块（正方形裁剪） */
+.achievement-toast__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .achievement-toast__body {

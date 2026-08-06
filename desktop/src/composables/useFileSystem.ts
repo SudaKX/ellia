@@ -141,6 +141,7 @@ export interface FileNode {
  * │   ├── hosts                 主机名映射
  * │   └── shadow                密码哈希（仅 ADMIN 可见）
  * ├── home/
+ * │   ├── 看这里看这里.txt      玩家首次进入的开场白（首次打开解锁成就）
  * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见）
  * │       └── notes.txt         玩家笔记（叙事线索）
  * ├── log/                      系统运行日志（叙事线索）
@@ -182,6 +183,16 @@ const rootTree: FileNode[] = [
   },
   {
     name: 'home', type: 'dir', content: null, children: [
+      {
+        // 开场白文件：JDK 触发器欢迎玩家，首次点开触发「第一次」成就（见 TextEditor 触发逻辑）
+        name: '看这里看这里.txt', type: 'file',
+        content: `？？？：亲爱的新玩家，你好。欢迎来到【FAKE_OS】。
+JDK触发器：我是“JDK触发器”，【FAKE_OS】的开发者，大概也是你的学姐。
+JDK触发器：找到这个一定很不容易，但你也很幸运。因为你们学院的志愿时长系统也是学姐我写的。怎么样，厉害吧？
+JDK触发器：言归正传，【FAKE_OS】是个解谜游戏。通过浏览文件读取内容再进行解谜的形式获得密码，将文件中的一切信息上交给辅助人工智能Ellia，将她释放，她就能接到学院服务器上，帮你获得无限的志愿时长啦。
+JDK触发器：怎么样？学姐我够意思吧。接下来，来见见Ellia吧。祝你玩得愉快。`,
+        children: null,
+      },
       {
         name: 'PLAYER', type: 'dir', content: null,
         /** 仅主角账户可进入自己的主目录 */

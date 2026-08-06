@@ -241,7 +241,7 @@ export const zhTW = {
     noAchievements: '暫未獲得成就。',
     locked: '未解鎖',
     unlockedAt: '解鎖於 {date}',
-    toastTitle: '成就已解鎖',
+    toastTitle: '成就！',
     /** 成就定義 */
     achievementList: {
       firstLogin: {
@@ -259,6 +259,10 @@ export const zhTW = {
       persistent: {
         name: '持之以恆',
         description: '解決 5 個謎題。繼續加油！',
+      },
+      firstContact: {
+        name: '第一次',
+        description: '歡迎歡迎......',
       },
     },
   },

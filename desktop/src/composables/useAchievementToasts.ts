@@ -37,6 +37,8 @@ export interface AchievementToastItem {
   descriptionKey: string
   /** 自定义图标（缺省用默认奖杯图标） */
   icon?: Component
+  /** 自定义图片 URL（如叙事立绘）；提供时优先于 icon 显示 */
+  image?: string
 }
 
 /** 每条成就的停留时长（ms） */

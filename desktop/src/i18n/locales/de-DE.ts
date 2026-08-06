@@ -241,7 +241,7 @@ export const deDE = {
     noAchievements: 'Noch keine Erfolge.',
     locked: 'GESPERRT',
     unlockedAt: 'Freigeschaltet am {date}',
-    toastTitle: 'ERFOLG FREIGESCHALTET',
+    toastTitle: 'Erfolg!',
     /** Erfolgsdefinitionen */
     achievementList: {
       firstLogin: {
@@ -259,6 +259,10 @@ export const deDE = {
       persistent: {
         name: 'Beharrlich',
         description: 'Lösen Sie 5 Rätsel. Weiter so!',
+      },
+      firstContact: {
+        name: 'Erstes Mal',
+        description: 'Willkommen, willkommen......',
       },
     },
   },

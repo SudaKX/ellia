@@ -241,7 +241,7 @@ export const jaJP = {
     noAchievements: 'まだ実績がありません。',
     locked: 'ロック中',
     unlockedAt: '{date} に解除',
-    toastTitle: '実績解除',
+    toastTitle: '実績！',
     /** 実績定義 */
     achievementList: {
       firstLogin: {
@@ -259,6 +259,10 @@ export const jaJP = {
       persistent: {
         name: '継続は力なり',
         description: '5 つのパズルを解決する。頑張って！',
+      },
+      firstContact: {
+        name: '初めて',
+        description: 'ようこそ、ようこそ......',
       },
     },
   },

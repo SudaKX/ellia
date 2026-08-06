@@ -60,6 +60,7 @@ import { useI18n } from 'vue-i18n'
 
 import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
+import { showAchievementToast } from '@/composables/useAchievementToasts'
 import { useAudioService } from '@/composables/useAudioService'
 import {
   registerTextEditorSession,
@@ -120,11 +121,38 @@ onMounted(() => {
     },
     requestClose,
   })
+  maybeUnlockFirstContact()
 })
 
 onBeforeUnmount(() => {
   unregisterTextEditorSession(props.windowId)
 })
+
+// ─── 首次打开开场白文件 → 解锁「第一次」成就 ────────────
+
+/** 「第一次」成就的解锁记录 key（localStorage 去重） */
+const FIRST_CONTACT_KEY = 'ellia.desktop.achievement.first-contact'
+
+/**
+ * 首次打开 `/home/看这里看这里.txt` 时弹出成就 toast（仅一次）。
+ * 用 localStorage 记录已解锁状态，刷新/重复打开不再触发。
+ *
+ * 说明：这是剧情接入点——后续若有多文件触发场景，
+ * 建议把"文件名 → 成就"映射抽成配置表，避免在组件里硬编码文件名。
+ */
+function maybeUnlockFirstContact() {
+  if (props.fileName !== '看这里看这里.txt') return
+  if (localStorage.getItem(FIRST_CONTACT_KEY)) return
+
+  localStorage.setItem(FIRST_CONTACT_KEY, '1')
+  showAchievementToast({
+    id: 'first-contact',
+    // 与 ArchiveViewer 成就列表共用同一组定义（archive.achievementList.*）
+    nameKey: 'archive.achievementList.firstContact.name',
+    descriptionKey: 'archive.achievementList.firstContact.description',
+    image: `${import.meta.env.BASE_URL}images/kei/kei_happy2.webp`,
+  })
+}
 
 // ─── 保存与权限不足弹窗 ──────────────────────────────
 
