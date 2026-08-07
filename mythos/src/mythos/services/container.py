@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.registry.files import FileTree
+from mythos.registry.files import FileTree, MergedFileTree
 from mythos.registry.hints import HintCatalog
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
@@ -31,6 +31,7 @@ class ServiceContainer:
     def create(
         cls,
         file_tree: FileTree,
+        merged_file_tree: MergedFileTree,
         hint_catalog: HintCatalog,
         progress_graph: ProgressGraph,
         script_catalog: ScriptCatalog,
@@ -46,6 +47,7 @@ class ServiceContainer:
             accounts=AccountService(),
             files=FileService(
                 file_tree,
+                merged_file_tree,
                 object_store,
                 file_content_url_ttl_seconds,
                 file_content_cache_max_age_seconds,

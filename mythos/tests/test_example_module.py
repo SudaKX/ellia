@@ -85,6 +85,9 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
 
                 initial_progress = await client.get("/api/v1/progress", headers=headers)
                 assert initial_progress.json()["unlocked_nodes"] == ["example.entry"]
+                initial_dynamic_version = await client.get("/api/v1/files/d/version", headers=headers)
+                assert initial_dynamic_version.status_code == 200
+                assert initial_dynamic_version.json()["tree_version"].startswith("pft4_")
                 initial_tree = await client.get("/api/v1/files/tree", headers=headers)
                 assert [directory["path"] for directory in initial_tree.json()["directories"]] == ["/public"]
                 assert (await client.get("/api/v1/files/ls", params={"path": "/admin"}, headers=headers)).status_code == 404
@@ -105,6 +108,15 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert guest_login.status_code == 200
                 assert guest_login.json()["content"]["current_account"]["account_id"] == "example.guest"
 
+                guest_dynamic_version = await client.get("/api/v1/files/d/version", headers=headers)
+                assert guest_dynamic_version.status_code == 200
+                assert guest_dynamic_version.json()["tree_version"] != initial_dynamic_version.json()["tree_version"]
+                stale_dynamic_version = await client.get(
+                    "/api/v1/files/d/version",
+                    headers={**headers, "If-None-Match": initial_dynamic_version.headers["etag"]},
+                )
+                assert stale_dynamic_version.status_code == 200
+
                 guest_scripts = await client.get("/api/v1/scripts", headers=headers)
                 assert [item["stable_id"] for item in guest_scripts.json()["items"]] == ["example.boot"]
 
@@ -121,6 +133,10 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                     ),
                 )
                 assert completed.json() == repeated.json() == {"content": {"accepted": True}, "followups": []}
+
+                completed_dynamic_version = await client.get("/api/v1/files/d/version", headers=headers)
+                assert completed_dynamic_version.status_code == 200
+                assert completed_dynamic_version.json()["tree_version"] != guest_dynamic_version.json()["tree_version"]
 
                 completed_hints = await client.get("/api/v1/hints", headers=headers)
                 assert len(completed_hints.json()["hints"]) == 3

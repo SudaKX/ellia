@@ -12,7 +12,7 @@
 | Player lifecycle handler | `LifecycleRegistry.register_lifecycle()`、`on_construct`、`on_deconstruct` | `(PlayerLifecycleContext) -> Awaitable[None]` | 必须异步 | Construct/Deconstruct 分发事务内；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续回调 |
 | Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步、恰好一个位置参数 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
 | Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, Mapping[str, Any], ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步、恰好三个位置参数 | 由 Artifact Interface 调用；meta 来自 Artifact generator |
-| 文件与 Artifact Node access rule | `StaticNodeSpec`、文件 manifest、`ArtifactNodeTemplate.access_rule` | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数、带 callback ID | FileService 在目录遍历、文件路径链和下载授权时直接求值 |
+| 文件与 Artifact Node access rule | `StaticNodeSpec`、文件 manifest、`ArtifactNodeTemplate.access_rule` | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数、带 callback ID 和显式 `PlayerInterfaces` dependency | FileService 在目录遍历、文件路径链和下载授权时直接求值 |
 | Hint access rule | `Hint.access_rule` | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数 | HintService 在列表、购买与预签名 URL 签发前求值 |
 | Script access rule | `Script.access_rule` | `(Player) -> bool` | 必须同步、纯读取 | ScriptCatalog 在读取脚本列表时直接求值 |
 | Progress branch selector | `BranchProgressNode.how` | `(Any) -> tuple[str, ...]` | 必须同步 | ProgressGraph 在推进分支节点时直接求值；返回目标必须是声明过且不重复的字符串 ID |
@@ -23,7 +23,11 @@ Validation、Lifecycle 和 Artifact 回调的调用点均直接使用 `await`。
 
 Lifecycle Construct 在注册和既有玩家首次真实登录时触发。Lifecycle 回调失败会使 Construct 标记与同一事务中的状态修改一并回滚。
 
-Artifact generator 与 node generator 必须以 `module_handler(module)(revision)` 标记。该 callback ID 是模板版本与 Catalog 快照的一部分，改变装饰器所属模块、函数限定名或 revision 会触发对应 Artifact 重建。
+Artifact generator 与 node generator 必须以 `module_handler(module)(revision)` 标记。文件 access_rule 还必须使用 `module_handler(module)(revision, dependencies=...)` 显式声明依赖；未声明依赖的文件规则在注册或 freeze 阶段拒绝。callback ID 使用 schema 2 和新的固定 UUID namespace，依赖 mask 的变化会触发对应资源版本变化。
+
+`node_generator` 返回的 path 必须保持 `ArtifactNodeTemplate.path`，不能修改节点身份路径；display、hidden 和 download name 仍可按既有规则生成运行时值。
+
+当前 `HintInterface` 没有可用于文件版本计划的状态 revision，因此 Hint disclosure 不能声明为文件 access_rule 依赖。未来若开放该依赖，必须先增加独立的 Hint state revision 和对应迁移，再加入 `VersionedPlayerInterface` 版本向量。
 
 ### 同步决策回调
 

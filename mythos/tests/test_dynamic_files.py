@@ -12,7 +12,8 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.auth.tokens import decode_access_token
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerArtifact, PlayerArtifactNode
+from mythos.persistence.models import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactRegistry,
@@ -42,11 +43,16 @@ async def _node_generator(_player, _meta, node):
     return node
 
 
+@module_handler("test")(2, dependencies=PlayerInterfaces.NONE)
+def _deny_artifact(_player) -> bool:
+    return False
+
+
 _FILE_ID_SIGNING_KEY = SecretStr("test-file-id-signing-key-with-at-least-32-bytes")
 _FILE_IDS = FileIdCodec(_FILE_ID_SIGNING_KEY.get_secret_value())
 
 
-def _setup_registries():
+def _setup_registries(*, access_rule=None):
     registries = RegistryBundle()
     registries.files.register_source(FileReference("test", "assets/file.txt", "text/plain"))
     registries.files.register_node(
@@ -71,6 +77,7 @@ def _setup_registries():
         artifact_locator="test.artifact",
         display=_display("Result"),
         node_generator=_node_generator,
+        access_rule=access_rule,
     )
     registries.artifacts.register_node(node_template)
     return registries, artifact_template
@@ -103,7 +110,7 @@ async def _seed_artifact(
         hidden=False,
         download_name=None,
     )
-    session.add_all([artifact, node])
+    session.add_all([artifact, node, PlayerArtifactState(player_id=player_id, version=1)])
     await session.commit()
 
 
@@ -141,6 +148,9 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             player_id = decode_access_token(access_token, settings).player_id
             headers = {"Authorization": f"Bearer {access_token}"}
 
+            before_artifact = await client.get("/api/v1/files/d/version", headers=headers)
+            assert before_artifact.status_code == 200
+
             async with database.session_factory() as session:
                 await _seed_artifact(
                     session,
@@ -156,7 +166,8 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
             assert dynamic_root.status_code == 200
             assert [item["path"] for item in dynamic_root.json()["directories"]] == ["/dynamic", "/static"]
             dynamic_tree_version = dynamic_root.json()["tree_version"]
-            assert dynamic_tree_version.startswith("pft3_")
+            assert dynamic_tree_version.startswith("pft4_")
+            assert dynamic_tree_version != before_artifact.json()["tree_version"]
 
             dynamic_dir = await client.get("/api/v1/files/d/ls", params={"path": "/dynamic"}, headers=headers)
             assert dynamic_dir.status_code == 200
@@ -195,5 +206,57 @@ async def test_dynamic_endpoints_include_artifact_nodes(tmp_path) -> None:
                 headers={**headers, "If-None-Match": version.headers["etag"]},
             )
             assert unchanged_version.status_code == 304
+
+    await database.dispose()
+
+
+async def test_owned_artifact_without_access_is_filtered(tmp_path) -> None:
+    puzzle_root = tmp_path / "puzzles"
+    source_file = puzzle_root / "test" / "assets" / "file.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("static", encoding="utf-8")
+    registries, artifact_template = _setup_registries(access_rule=_deny_artifact)
+    object_store = FakeObjectStore()
+    settings = Settings(
+        environment="test",
+        database_url=f"sqlite+aiosqlite:///{(tmp_path / 'restricted.sqlite3').as_posix()}",
+        jwt_signing_key=SecretStr("test-jwt-signing-key-with-at-least-32-bytes"),
+        refresh_token_pepper=SecretStr("test-refresh-token-pepper-with-at-least-32-bytes"),
+        file_id_signing_key=_FILE_ID_SIGNING_KEY,
+        refresh_cookie_secure=False,
+        puzzle_root=puzzle_root,
+    )
+    database = Database(settings.database_url)
+    async with database.engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    await database.dispose()
+
+    app = create_app(settings, registries=registries, object_store=object_store)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            registered = await client.post(
+                "/api/v1/auth/register",
+                json={"username": "restricted-player", "password": "correct-horse-battery"},
+            )
+            access_token = registered.json()["access_token"]
+            player_id = decode_access_token(access_token, settings).player_id
+            headers = {"Authorization": f"Bearer {access_token}"}
+
+            async with database.session_factory() as session:
+                await _seed_artifact(
+                    session,
+                    player_id,
+                    artifact_template.version,
+                    app.state.runtime.catalogs.artifacts.node_version("test.artifact-node"),
+                )
+
+            listing = await client.get("/api/v1/files/d/ls", params={"path": "/dynamic"}, headers=headers)
+            assert listing.status_code == 200
+            assert listing.json()["files"] == []
+
+            file_id = _FILE_IDS.encode("test.artifact-node")
+            metadata = await client.get(f"/api/v1/files/{file_id}", headers=headers)
+            assert metadata.status_code == 403
 
     await database.dispose()

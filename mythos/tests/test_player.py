@@ -12,7 +12,7 @@ from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerProgress
 from mythos.players.factory import PlayerFactory, PlayerNotFoundError
 from mythos.players.interface_selection import PlayerInterfaces
-from mythos.players.player import PlayerInterfaceNotLoadedError
+from mythos.players.player import PlayerInterfaceNotLoadedError, PlayerInterfaceVersionError
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
 
@@ -183,6 +183,73 @@ async def test_player_factory_load_initializes_both_interfaces(session) -> None:
     assert player.accounts.accounts == ()
     assert player.credits.vtb == 0
     assert player.hints.disclosures == ()
+
+
+async def test_player_state_versions_require_versioned_loaded_interfaces(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=False)
+    versioned_interfaces = (
+        PlayerInterfaces.PROGRESS
+        | PlayerInterfaces.ARTIFACTS
+        | PlayerInterfaces.ACCOUNTS
+        | PlayerInterfaces.CREDITS
+    )
+    await player.load_interfaces(versioned_interfaces)
+
+    assert player.state_versions(versioned_interfaces) == {
+        "progress": 1,
+        "artifacts": 0,
+        "accounts": 0,
+        "credits": 0,
+    }
+
+    await player.load_hints()
+    with pytest.raises(PlayerInterfaceVersionError, match="hints"):
+        player.state_versions(PlayerInterfaces.HINTS)
+
+
+async def test_player_owns_file_tree_cache_and_mutations_invalidate_it(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=True)
+    await player.load_artifacts()
+    await player.load_credits()
+    first = player.get_file_tree(_CATALOGS.merged_files, "pft4_first")
+    assert player.get_file_tree(_CATALOGS.merged_files, "pft4_second") is first
+
+    await player.credits.grant_vtb(1)
+    second = player.get_file_tree(_CATALOGS.merged_files, "pft4_third")
+    assert second is not first
+
+    player.invalidate_cache()
+    assert player.get_file_tree(_CATALOGS.merged_files, "pft4_fourth") is not second
+
+
+async def test_unrelated_credits_do_not_change_file_tree_version(session) -> None:
+    player_id = uuid4()
+    await _seed_player(session, player_id)
+    await session.commit()
+
+    player = await _factory().create(session, player_id, writable=True)
+    await player.load_artifacts()
+    await player.load_credits()
+    version_before = _FILE_IDS.encode_player_tree_version(
+        _CATALOGS.merged_files.resource_version,
+        player.state_versions(PlayerInterfaces.ARTIFACTS),
+    )
+    await player.credits.grant_vtb(1)
+    version_after = _FILE_IDS.encode_player_tree_version(
+        _CATALOGS.merged_files.resource_version,
+        player.state_versions(PlayerInterfaces.ARTIFACTS),
+    )
+
+    assert version_before.startswith("pft4_")
+    assert version_after == version_before
 
 
 async def test_player_factory_load_unknown_player_raises(session) -> None:

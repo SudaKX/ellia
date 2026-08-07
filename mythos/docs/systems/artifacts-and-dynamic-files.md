@@ -6,7 +6,7 @@ Artifact 拥有 `player_artifacts` / `PlayerArtifact`、`player_artifact_nodes` 
 
 ## Interface、Registry 与数据对象
 
-`ArtifactInterface` 是 Player 的惰性 Interface。`generate_artifact()` 与 `generate_node()` 只允许可写 Player，且均为幂等创建操作；前者不会自动创建节点。`refresh_artifact()`、`refresh_node()` 与 `refresh_stale()` 按计算版本更新已有记录，由启动期 reconciliation 调用。每次创建、刷新或移除 Artifact/Node 都递增 PlayerVersion 并清空请求内 `PlayerFileTree` 缓存。`get_tree()` 将静态 `FileTree` 与当前玩家节点合并。
+`ArtifactInterface` 是 Player 的惰性 Interface。`generate_artifact()` 与 `generate_node()` 只允许可写 Player，且均为幂等创建操作；前者不会自动创建节点。`refresh_artifact()`、`refresh_node()` 与 `refresh_stale()` 按计算版本更新已有记录，由启动期 reconciliation 调用。每次创建、刷新或移除 Artifact/Node 都递增 `ArtifactInterface.version`，并通过 Player 注入的 mutation callback 清空 Player 的请求内 `PlayerFileTree` 缓存。`tree_nodes()` 只构造当前玩家实际拥有的 Artifact TreeNode，不复制静态树；请求期由 `MergedFileTree.fruit()` 按 path 映射到 Slot。
 
 模块先注册 `ArtifactTemplate`，再注册指向它的 `ArtifactNodeTemplate`。模板版本由全部可序列化字段和 callback ID 计算，前缀分别为 `atv1_` 与 `antv2_`；Artifact node version 还包含对应的 ArtifactTemplate version，使新的 Artifact meta 可以触发 node generator 重建。callback 必须以 `module_handler(module)(revision)` 标记。Artifact generator 接收 `Player`；Node generator 严格接收 `Player`、Artifact meta 与运行时 node。ArtifactTemplate 提供默认下载名，ArtifactNodeTemplate 和运行时 node 可覆盖该名称。Registry 冻结为 `ArtifactCatalog`，其 `version` 使用 `acv1_` 汇总全部 Artifact 与 ArtifactNode 模板版本。
 
@@ -19,7 +19,7 @@ Artifact 拥有 `player_artifacts` / `PlayerArtifact`、`player_artifact_nodes` 
 - `GET /api/v1/files/d/ls`、`/d/tree`、`/d/version` 返回静态与 Artifact 合并树。
 - 通用 metadata、content URL、download URL 路由也读取合并树。
 
-Artifact content token 使用 `act3_`，payload 绑定 player ID、artifact ID、node ID、ArtifactVersion、ArtifactNodeVersion、媒体类型和最终下载名，因而每位玩家的 token 不可互用。Artifact 对象 key 为 `artifacts/<player_id>/<artifact_version>`；相同玩家和 ArtifactVersion 的 generator 必须生成确定性内容。
+Artifact content token 使用 `act3_`，payload 绑定 player ID、artifact ID、node ID、ArtifactVersion、ArtifactNodeVersion、媒体类型和最终下载名，因而每位玩家的 token 不可互用。Artifact 对象 key 为 `artifacts/<player_id>/<artifact_version>`；相同玩家和 ArtifactVersion 的 generator 必须生成确定性内容。`node_generator` 返回的 path 必须等于模板 path，否则写入失败。
 
 ## Example 与限制
 

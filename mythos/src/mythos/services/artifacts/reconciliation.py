@@ -58,7 +58,7 @@ class ArtifactReconciliationRunner:
         await self._snapshot_store.write(current)
 
     async def _requires_full_reconciliation(self) -> bool:
-        statement = (
+        state_statement = (
             select(PlayerArtifact.player_id)
             .outerjoin(PlayerArtifactState, PlayerArtifactState.player_id == PlayerArtifact.player_id)
             .where(PlayerArtifactState.player_id.is_(None))
@@ -66,7 +66,22 @@ class ArtifactReconciliationRunner:
         )
         try:
             async with self._session_factory() as session:
-                return await session.scalar(statement) is not None
+                if await session.scalar(state_statement) is not None:
+                    return True
+                node_rows = (
+                    await session.execute(
+                        select(
+                            PlayerArtifactNode.player_id,
+                            PlayerArtifactNode.node_id,
+                            PlayerArtifactNode.path,
+                        )
+                    )
+                ).all()
+                return any(
+                    (template := self._catalog.node_template_or_none(node_id)) is None
+                    or path != template.path
+                    for _, node_id, path in node_rows
+                )
         except OperationalError as error:
             if not self._allow_missing_tables or "no such table" not in str(error).lower():
                 raise

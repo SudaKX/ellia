@@ -230,6 +230,7 @@ class FileRegistry:
                     field_name="Static node access rule",
                     parameter_count=1,
                     asynchronous=False,
+                    require_dependencies=True,
                 )
             except ValueError as error:
                 raise RegistryError(str(error)) from error

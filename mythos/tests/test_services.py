@@ -6,6 +6,7 @@ from pydantic import SecretStr
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.artifacts import module_handler
@@ -20,29 +21,29 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
         hidden_leaf_rule_calls = 0
         hidden_directory_rule_calls = 0
 
-        @module_handler("test.services")(1)
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def child_rule(_player) -> bool:
             nonlocal child_rule_calls
             child_rule_calls += 1
             return True
 
-        @module_handler("test.services")(1)
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def hidden_leaf_rule(_player) -> bool:
             nonlocal hidden_leaf_rule_calls
             hidden_leaf_rule_calls += 1
             return False
 
-        @module_handler("test.services")(1)
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def hidden_directory_rule(_player) -> bool:
             nonlocal hidden_directory_rule_calls
             hidden_directory_rule_calls += 1
             return True
 
-        @module_handler("test.services")(1)
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def _deny(_player) -> bool:
             return False
 
-        @module_handler("test.services")(1)
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def _allow(_player) -> bool:
             return True
 
@@ -290,7 +291,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert metadata.headers["vary"] == "Authorization"
                 assert metadata.json()["download_name"] == "README.txt"
                 assert metadata.json()["content_token"] == readme_token
-                assert metadata.json()["tree_version"].startswith("pft3_")
+                assert metadata.json()["tree_version"].startswith("pft4_")
                 assert metadata.json()["tree_version"] != listing.json()["tree_version"]
                 assert metadata.json()["display"]["label"] == "README.txt"
                 version = await client.get("/api/v1/files/version", headers=headers)

@@ -8,7 +8,7 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
 from mythos.registry.errors import DuplicateStableIdError, RegistryError
-from mythos.registry.files import FileRegistry, FileTree
+from mythos.registry.files import FileRegistry, FileTree, MergedFileTree
 from mythos.registry.hints import HintCatalog, HintRegistry
 from mythos.registry.lifecycle import LifecycleCatalog, LifecycleRegistry
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class RuntimeCatalogs:
     files: FileTree
+    merged_files: MergedFileTree
     progress: ProgressGraph
     scripts: ScriptCatalog
     validations: ValidationCatalog
@@ -56,12 +57,15 @@ class RegistryBundle:
         duplicates = static_ids & artifact_ids
         if duplicates:
             raise DuplicateStableIdError(next(iter(sorted(duplicates))))
+        files = self.files.freeze(file_ids)
+        artifacts = self.artifacts.freeze()
         self._catalogs = RuntimeCatalogs(
-            files=self.files.freeze(file_ids),
+            files=files,
+            merged_files=MergedFileTree.build(files, artifacts, file_ids),
             progress=self.progress.freeze(),
             scripts=self.scripts.freeze(),
             validations=self.validations.freeze(),
-            artifacts=self.artifacts.freeze(),
+            artifacts=artifacts,
             accounts=self.accounts.freeze(),
             hints=self.hints.freeze(file_ids),
             lifecycle=self.lifecycle.freeze(),

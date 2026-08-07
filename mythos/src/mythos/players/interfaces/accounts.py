@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import unicodedata
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from types import MappingProxyType
@@ -89,12 +89,14 @@ class AccountInterface:
         accounts: Iterable[PlayerVirtualAccount],
         *,
         writable: bool,
+        on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._catalog = catalog
         self._session = session
         self._state = state
         self._writable = writable
+        self._on_mutation = on_mutation or (lambda: None)
         self._accounts_by_id = {account.account_id: account for account in accounts}
         self._accounts_by_username = {
             account.username_normalized: account for account in self._accounts_by_id.values()
@@ -150,6 +152,7 @@ class AccountInterface:
         self._accounts_by_id[account_id] = record
         self._accounts_by_username[normalized_username] = record
         self._bump_version()
+        self._on_mutation()
         return self._view_with_template(record, template)
 
     async def delete(self, account_id: str) -> bool:
@@ -181,6 +184,7 @@ class AccountInterface:
         record.login_count = (record.login_count or 0) + 1
         self._state.current_account_id = record.account_id
         self._bump_version()
+        self._on_mutation()
         return self._view_with_template(record, template)
 
     async def logout(self) -> bool:
@@ -189,6 +193,7 @@ class AccountInterface:
             return False
         self._state.current_account_id = None
         self._bump_version()
+        self._on_mutation()
         return True
 
     async def remove_unregistered(self, account_ids: frozenset[str]) -> bool:
@@ -211,6 +216,7 @@ class AccountInterface:
             self._accounts_by_id.pop(record.account_id, None)
             self._accounts_by_username.pop(record.username_normalized, None)
         self._bump_version()
+        self._on_mutation()
 
     def _view(self, record: PlayerVirtualAccount) -> Account | None:
         template = self._catalog.template_or_none(record.account_id)

@@ -109,6 +109,7 @@ def create_app(
             player_factory=player_factory,
             services=ServiceContainer.create(
                 catalogs.files,
+                catalogs.merged_files,
                 catalogs.hints,
                 catalogs.progress,
                 catalogs.scripts,

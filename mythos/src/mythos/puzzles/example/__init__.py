@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from mythos.players.context import CommandContext, PlayerLifecycleContext
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
     ArtifactNode,
@@ -184,17 +185,17 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
     )
 
 
-@_handler(1)
+@_handler(1, dependencies=PlayerInterfaces.ACCOUNTS)
 def _is_guest(player: Player) -> bool:
     return player.accounts.is_current(GUEST_ACCOUNT_ID)
 
 
-@_handler(1)
+@_handler(1, dependencies=PlayerInterfaces.ACCOUNTS | PlayerInterfaces.PROGRESS)
 def _is_guest_completed(player: Player) -> bool:
     return _is_guest(player) and player.progress.is_unlocked(COMPLETED_NODE_ID)
 
 
-@_handler(1)
+@_handler(1, dependencies=PlayerInterfaces.ACCOUNTS)
 def _is_admin(player: Player) -> bool:
     return player.accounts.is_current(ADMIN_ACCOUNT_ID)
 

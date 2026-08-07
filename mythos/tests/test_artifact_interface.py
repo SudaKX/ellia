@@ -20,7 +20,7 @@ from mythos.registry.artifacts import (
     module_handler,
 )
 from mythos.registry.files import NodeDisplayParams
-from mythos.registry.files.tree import FileTree, TreeNode
+from mythos.registry.files.tree import TreeNode
 
 
 def _display(label: str) -> NodeDisplayParams:
@@ -49,8 +49,13 @@ async def _node_download_name_generator(_player: Player, _meta, node):
 async def _node_generator(player: Player, meta, node):
     assert isinstance(player, Player)
     assert meta == {"answer": 42}
-    node.path = "/dynamic/result.txt"
     node.display = _display("Result")
+    return node
+
+
+@module_handler("test")(3)
+async def _path_changing_node_generator(_player, _meta, node):
+    node.path = "/dynamic/moved.txt"
     return node
 
 
@@ -67,7 +72,7 @@ def _make_catalog(generator=_artifact_generator):
     registry.register_node(
         ArtifactNodeTemplate(
             stable_id="test.artifact-node",
-            path="/placeholder.txt",
+            path="/dynamic/result.txt",
             artifact_locator="test.artifact",
             display=_display("Placeholder"),
             node_generator=_node_generator,
@@ -193,6 +198,39 @@ async def test_artifact_interface_rejects_generation_when_read_only(session, pla
         await interface.generate_artifact("test.artifact", player)
 
 
+async def test_artifact_node_generator_cannot_change_path(session, player) -> None:
+    registry = ArtifactRegistry()
+    registry.register_template(
+        ArtifactTemplate(
+            artifact_id="test.path-artifact",
+            media_type="text/plain",
+            download_name="path.txt",
+            generator=_artifact_generator,
+        )
+    )
+    registry.register_node(
+        ArtifactNodeTemplate(
+            stable_id="test.path-node",
+            path="/dynamic/path.txt",
+            artifact_locator="test.path-artifact",
+            display=_display("Path"),
+            node_generator=_path_changing_node_generator,
+        )
+    )
+    catalog = registry.freeze()
+    interface = await ArtifactInterface.load(
+        session,
+        uuid4(),
+        catalog,
+        FakeObjectStore(),
+        _FILE_IDS,
+        writable=True,
+    )
+    await interface.generate_artifact("test.path-artifact", player)
+    with pytest.raises(RuntimeError, match="modified the path"):
+        await interface.generate_node("test.path-node", player)
+
+
 async def test_artifact_interface_repeated_generation_is_idempotent(session, player) -> None:
     store = FakeObjectStore()
     interface = await ArtifactInterface.load(
@@ -206,13 +244,13 @@ async def test_artifact_interface_repeated_generation_is_idempotent(session, pla
 
     artifact = await interface.generate_artifact("test.artifact", player)
     node = await interface.generate_node("test.artifact-node", player)
-    first_player_version = interface.player_version
+    first_player_version = interface.version
 
     assert await interface.generate_artifact("test.artifact", player) is artifact
     repeated_node = await interface.generate_node("test.artifact-node", player)
 
     assert repeated_node.version == node.version
-    assert interface.player_version == first_player_version
+    assert interface.version == first_player_version
     assert len(store.uploads) == 1
 
 
@@ -240,12 +278,12 @@ async def test_artifact_refresh_reloads_upserted_records_in_same_session(session
     )
     artifact = await refreshed.refresh_artifact("test.artifact", player)
     assert artifact is not None
-    first_player_version = refreshed.player_version
+    first_player_version = refreshed.version
     assert artifact.version == _make_catalog(_artifact_generator_v2).template("test.artifact").version
 
     repeated = await refreshed.refresh_artifact("test.artifact", player)
     assert repeated is artifact
-    assert refreshed.player_version == first_player_version
+    assert refreshed.version == first_player_version
     assert len(store.uploads) == 2
 
 
@@ -381,47 +419,6 @@ async def test_artifact_interface_object_key_is_deterministic(session) -> None:
     assert key == f"artifacts/{player_id}/{_CATALOG.template('test.artifact').version}"
 
 
-async def test_artifact_interface_caches_player_tree(session) -> None:
-    interface = await ArtifactInterface.load(
-        session,
-        uuid4(),
-        _CATALOG,
-        FakeObjectStore(),
-        _FILE_IDS,
-        writable=True,
-    )
-    static_tree = FileTree.build({}, {}, _FILE_IDS)
-
-    first = interface.get_tree(static_tree, _FILE_IDS)
-    second = interface.get_tree(static_tree, _FILE_IDS)
-    assert first is second
-
-
-async def test_artifact_interface_current_records_preserve_tree_cache(session, player) -> None:
-    store = FakeObjectStore()
-    interface = await ArtifactInterface.load(
-        session,
-        uuid4(),
-        _CATALOG,
-        store,
-        _FILE_IDS,
-        writable=True,
-    )
-    static_tree = FileTree.build({}, {}, _FILE_IDS)
-
-    await interface.generate_artifact("test.artifact", player)
-    await interface.generate_node("test.artifact-node", player)
-    first = interface.get_tree(static_tree, _FILE_IDS)
-
-    await interface.generate_artifact("test.artifact", player)
-    await interface.generate_node("test.artifact-node", player)
-    assert await interface.refresh_artifact("test.artifact", player) is not None
-    assert await interface.refresh_node("test.artifact-node", player) is not None
-    second = interface.get_tree(static_tree, _FILE_IDS)
-    assert first is second
-    assert len(store.uploads) == 1
-
-
 async def test_artifact_interface_upsert_keeps_single_row(session, player) -> None:
     from sqlalchemy import func, select as sa_select
 
@@ -456,14 +453,13 @@ def _make_hidden_catalog():
 
     @module_handler("hidden")(1)
     async def _hidden_node_generator(_player, _meta, node):
-        node.path = "/dynamic/hidden.txt"
         node.hidden = True
         return node
 
     registry.register_node(
         ArtifactNodeTemplate(
             stable_id="hidden.artifact-node",
-            path="/placeholder.txt",
+            path="/dynamic/hidden.txt",
             artifact_locator="hidden.artifact",
             display=_display("Hidden"),
             node_generator=_hidden_node_generator,

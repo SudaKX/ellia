@@ -115,6 +115,7 @@ class ArtifactNodeTemplate:
                 field_name="Artifact node access rule",
                 parameter_count=1,
                 asynchronous=False,
+                require_dependencies=True,
             )
 
     @property

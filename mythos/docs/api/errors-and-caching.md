@@ -42,6 +42,6 @@ Bearer 认证失败不会主动发送 `WWW-Authenticate`。框架也不会移除
 
 缓存边界：认证响应和 download URL 使用 `no-store`；content URL 使用私有缓存且其 max-age 小于签名 TTL；目录和 metadata 响应使用 `no-store`；version 端点支持 ETag/`If-None-Match`。预签名 URL、refresh cookie 和 access token 不应写入持久化前端状态。
 
-动态文件客户端同时受 `progress.version` 与动态 `tree_version` 影响：validation 成功后不要仅刷新静态 `/files/version`，必须刷新 `/files/d/version` 或直接获取 `/files/d/tree`。
+动态文件客户端以 `/files/d/version` 的 `pft4_` 为唯一树刷新依据：validation 成功、账号切换或其他已声明 access_rule 状态变化后，不要仅刷新静态 `/files/version`，必须重新请求 `/files/d/version`，在版本变化时再获取 `/files/d/tree`。客户端不需要自行比较 `progress.version` 或账号版本。
 
 服务端的异常处理器、中间件顺序、命令缓存释放和 Example 恢复路径见 [错误响应与中间件](../architecture/error-response-and-middleware.md)。

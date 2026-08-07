@@ -16,7 +16,7 @@ Settings + RegistryBundle
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle` 八个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、六个全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle` 八个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、六个全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
 
 ## 服务和 HTTP
 
@@ -40,7 +40,7 @@ Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Playe
 
 ## 重要约束
 
-- 静态文件必须在 freeze 前完成对象存储物化；Registry/Catalog 在运行期只读。
+- 静态文件必须在 freeze 前完成对象存储物化；Registry/Catalog 和 `MergedFileTree` 在运行期只读。
 - Service 是启动期单例，只接收请求级 Player 或 Context，不能保存 Session 或自行提交事务。
 - 需要写入的路由必须通过 `CommandTransactionExecutor`；模块只注册内容和 handler，不能添加通用 HTTP 回调。
 

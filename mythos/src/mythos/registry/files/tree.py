@@ -17,13 +17,28 @@ class FileTreeDirectoryNotFoundError(RegistryError):
 class TreeNode:
     path: str
     definition: VirtualNode | None
-    children: dict[str, TreeNode]
+    children: dict[str, TreeNode | TreeNodeSlot]
     content: FileContent | None = None
     file_id: str | None = None
 
     @property
     def is_file(self) -> bool:
         return self.content is not None
+
+
+@dataclass
+class TreeNodeSlot:
+    path: str
+    children: dict[str, TreeNode | TreeNodeSlot]
+    artifact_locator: str | None = None
+    file_id: str | None = None
+
+    @property
+    def is_file(self) -> bool:
+        return self.artifact_locator is not None
+
+
+type TreeEntry = TreeNode | TreeNodeSlot
 
 
 class FileTree:

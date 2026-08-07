@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+from collections.abc import Mapping
 
 
 class FileIdCodec:
@@ -46,17 +47,15 @@ class FileIdCodec:
 
     def encode_player_tree_version(
         self,
-        static_tree_version: str,
-        artifact_catalog_version: str,
-        player_version: int,
+        merged_file_tree_version: str,
+        state_versions: Mapping[str, int],
     ) -> str:
         return _fingerprint(
-            "pft3_",
+            "pft4_",
             {
-                "schema": 3,
-                "file_catalog_version": static_tree_version,
-                "artifact_catalog_version": artifact_catalog_version,
-                "player_version": player_version,
+                "schema": 4,
+                "merged_file_tree_version": merged_file_tree_version,
+                "state_versions": dict(state_versions),
             },
         )
 

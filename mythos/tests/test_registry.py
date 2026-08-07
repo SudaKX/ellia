@@ -4,6 +4,8 @@ import json
 import pytest
 
 from mythos.core.file_ids import FileIdCodec
+from mythos.players.interface_selection import PlayerInterfaces
+from mythos.registry.callbacks import callback_dependencies, callback_id
 from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactRegistry,
@@ -101,6 +103,41 @@ def test_hint_registry_rejects_unsafe_sources_and_async_access_rules() -> None:
         registry.register(_hint("test.traversal", FileReference("test", "../secret.txt", "text/plain")))
     with pytest.raises(RegistryError, match="synchronous"):
         registry.register(_hint("test.async-rule", FileReference("test", "assets/hint.txt", "text/plain"), access_rule=async_rule))
+
+
+def test_callback_ids_include_declared_access_rule_dependencies() -> None:
+    @module_handler("test.callback")(1, dependencies=PlayerInterfaces.NONE)
+    def no_state_rule(_player) -> bool:
+        return True
+
+    @module_handler("test.callback")(1, dependencies=PlayerInterfaces.ACCOUNTS)
+    def account_rule(_player) -> bool:
+        return True
+
+    assert callback_id(no_state_rule, field_name="no-state rule") != callback_id(
+        account_rule,
+        field_name="account rule",
+    )
+    assert callback_id(account_rule, field_name="account rule") == "ffa02417-16fc-5810-b323-cdfe7711509e"
+    assert callback_dependencies(no_state_rule, field_name="no-state rule") is PlayerInterfaces.NONE
+    assert callback_dependencies(account_rule, field_name="account rule") is PlayerInterfaces.ACCOUNTS
+
+
+def test_file_access_rules_require_explicit_dependencies() -> None:
+    @module_handler("test.callback")(1)
+    def unspecified_rule(_player) -> bool:
+        return True
+
+    registry = FileRegistry()
+    with pytest.raises(RegistryError, match="dependencies"):
+        registry.register_node(
+            StaticNodeSpec.directory(
+                "test.unspecified-rule",
+                "/unspecified",
+                unspecified_rule,
+                display=_display("Unspecified", "folder"),
+            )
+        )
 
 
 def test_hint_registry_requires_the_original_file_id_key_after_freeze() -> None:
@@ -447,7 +484,7 @@ def test_file_registry_registers_json_tree_atomically() -> None:
             },
         ],
     }
-    @module_handler("test")(1)
+    @module_handler("test")(1, dependencies=PlayerInterfaces.NONE)
     def docs_visible(_player) -> bool:
         return True
 

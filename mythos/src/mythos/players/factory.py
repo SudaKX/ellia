@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import select
@@ -45,7 +46,14 @@ class PlayerFactory:
     async def create(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> Player:
         return Player(player_id, session, self, writable=writable)
 
-    async def load_progress(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> ProgressInterface:
+    async def load_progress(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> ProgressInterface:
         progress = await session.scalar(
             select(PlayerProgress)
             .where(PlayerProgress.player_id == player_id)
@@ -67,9 +75,17 @@ class PlayerFactory:
             writable=writable,
             catalogs=self._catalogs,
             checkpoint=checkpoint,
+            on_mutation=on_mutation,
         )
 
-    async def load_artifacts(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> ArtifactInterface:
+    async def load_artifacts(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> ArtifactInterface:
         return await ArtifactInterface.load(
             session,
             player_id,
@@ -77,9 +93,17 @@ class PlayerFactory:
             self._object_store,
             self._file_ids,
             writable=writable,
+            on_mutation=on_mutation,
         )
 
-    async def load_accounts(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> AccountInterface:
+    async def load_accounts(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> AccountInterface:
         accounts = tuple(
             (
                 await session.scalars(
@@ -99,22 +123,37 @@ class PlayerFactory:
             state,
             accounts,
             writable=writable,
+            on_mutation=on_mutation,
         )
 
-    async def load_credits(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> CreditInterface:
+    async def load_credits(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> CreditInterface:
         credits = await session.get(PlayerCredits, player_id)
         if credits is None:
             credits = PlayerCredits(player_id=player_id, vtb=0, version=0)
             if writable:
                 session.add(credits)
                 await session.flush()
-        return CreditInterface(player_id, session, credits, writable=writable)
+        return CreditInterface(player_id, session, credits, writable=writable, on_mutation=on_mutation)
 
-    async def load_hints(self, session: AsyncSession, player_id: UUID, *, writable: bool) -> HintInterface:
+    async def load_hints(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> HintInterface:
         disclosures = tuple(
             (await session.scalars(select(PlayerHintDisclosure).where(PlayerHintDisclosure.player_id == player_id))).all()
         )
-        return HintInterface(player_id, session, disclosures, writable=writable)
+        return HintInterface(player_id, session, disclosures, writable=writable, on_mutation=on_mutation)
 
     async def load(
         self,

@@ -23,7 +23,6 @@ async def _artifact_generator(_player):
 
 @module_handler("test")(1)
 async def _node_generator(_player, _meta, node):
-    node.path = "/dynamic/result.txt"
     return node
 
 
@@ -230,12 +229,11 @@ def test_artifact_node_generator_can_mutate_runtime_node() -> None:
 
 
     def generator(_context, node):
-        node.path = "/dynamic/moved.txt"
         node.hidden = True
         return node
 
     modified = generator(None, runtime)
-    assert modified.path == "/dynamic/moved.txt"
+    assert modified.path == "/report.txt"
     assert modified.version == runtime.version
     assert modified.hidden is True
 

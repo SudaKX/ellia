@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 from uuid import UUID
 
@@ -33,11 +34,13 @@ class CreditInterface:
         credits: PlayerCredits,
         *,
         writable: bool,
+        on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._session = session
         self._credits = credits
         self._writable = writable
+        self._on_mutation = on_mutation or (lambda: None)
 
     @property
     def vtb(self) -> int:
@@ -74,6 +77,7 @@ class CreditInterface:
         setattr(self._credits, kind.value, current)
         self._credits.version = version
         self._credits.updated_at = now
+        self._on_mutation()
         return current
 
     async def _try_spend(self, kind: PlayerCreditKind, amount: int) -> int:
@@ -100,6 +104,7 @@ class CreditInterface:
         setattr(self._credits, kind.value, current)
         self._credits.version = version
         self._credits.updated_at = now
+        self._on_mutation()
         return current
 
     @staticmethod

@@ -25,7 +25,7 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 
 ## 测试与重要限制
 
-`test_example_module.py` 使用 FakeObjectStore 验证端到端行为、Hint 购买、Credits 余额、`act3_` token、固定对象键和重复提交；`test_hints.py` 验证 Hint 的原子扣费和内容访问；`test_example_rustfs_integration.py` 在启用 RustFS 时读取真实预签名 URL，测试 bucket 不启用 versioning。浏览器交互由开发者手工验收。
+`test_example_module.py` 使用 FakeObjectStore 验证端到端行为、Hint 购买、Credits 余额、账号/进度变化后的 `pft4_` ETag、`act3_` token、固定对象键和重复提交；`test_hints.py` 验证 Hint 的原子扣费和内容访问；`test_example_rustfs_integration.py` 在启用 RustFS 时读取真实预签名 URL，测试 bucket 不启用 versioning。浏览器交互由开发者手工验收。
 
 手工验收清单：
 

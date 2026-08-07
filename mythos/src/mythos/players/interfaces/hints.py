@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -35,10 +36,12 @@ class HintInterface:
         disclosures: tuple[PlayerHintDisclosure, ...],
         *,
         writable: bool,
+        on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._session = session
         self._writable = writable
+        self._on_mutation = on_mutation or (lambda: None)
         self._disclosures_by_stable_id = {
             disclosure.hint_stable_id: HintDisclosure(
                 hint_stable_id=disclosure.hint_stable_id,
@@ -78,6 +81,7 @@ class HintInterface:
             return HintClaim(disclosure, created=False)
         disclosure = HintDisclosure(hint_stable_id=hint_stable_id, disclosed_at=disclosed_at)
         self._disclosures_by_stable_id[hint_stable_id] = disclosure
+        self._on_mutation()
         return HintClaim(disclosure, created=True)
 
     def _ensure_writable(self) -> None:

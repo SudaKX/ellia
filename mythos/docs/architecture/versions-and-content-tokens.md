@@ -27,7 +27,8 @@ Mythos 使用四种不同的标识：
 | VirtualAccount Catalog | `VirtualAccountCatalog.template_version` | `vac1_` | 所有 VirtualAccount snapshot entries | 启动期账号模板 reconciliation |
 | 静态 `FileCatalog` | `FileCatalog.version` | `fcv1_` | schema、File ID signing-key fingerprint、所有 `(stable_id, StaticNode.version)` | 静态内容 Catalog 版本 |
 | 静态 `FileTree` | `FileTree.tree_version` | `fcv1_` | schema、File ID signing-key fingerprint、所有 `(stable_id, StaticNode.version)` | 静态树列表、树接口和 ETag |
-| 玩家 `PlayerFileTree` | `PlayerFileTree.tree_version` | `pft3_` | 静态 FileTree version、Artifact Catalog version、玩家 `PlayerArtifactState.version` | 动态树列表、树接口和 ETag |
+| `MergedFileTree` | `MergedFileTree.resource_version` | `mft1_` | schema、静态 FileTree version、Artifact Catalog version | 启动期共享静态合并拓扑和 Slot 资源版本 |
+| 玩家 `PlayerFileTree` | `PlayerFileTree.tree_version` | `pft4_` | `mft1_`、ArtifactInterface.version、声明依赖的 PlayerInterface 状态版本 | 动态树列表、树接口和 ETag |
 | Artifact 文件内容 | `FileContent.content_token` | `act3_` | player ID、artifact ID、ArtifactVersion、node ID、node version、媒体类型、最终下载名 | Artifact content/download URL 的当前快照校验 |
 
 通用 `TemplateSnapshot` 默认使用 `tv1_` 计算指纹，但 Artifact Catalog 明确传入 `acv1_`。这里的前缀属于协议的一部分，新增 schema 时应递增前缀版本，而不是复用旧前缀解释新 payload。
@@ -135,18 +136,32 @@ file_id_key_fingerprint
 
 由于 `StaticNode.version` 已包含路径、显示属性和源内容摘要，静态文件内容、文件名、访问回调和目录元数据的变更都会传播到 `fcv1_`。File ID signing key 变化也会使树版本变化，因为公开 ID 映射随之变化。
 
-### PlayerFileTree：`pft3_`
+### MergedFileTree：`mft1_`
 
-`PlayerFileTree` 将静态树与当前玩家 Artifact nodes 合并，但树版本不重新遍历所有文件内容，而是由 `FileIdCodec.encode_player_tree_version()` 使用以下 payload 计算：
+`MergedFileTree` 在 Registry freeze 后只构建一次，物理合并静态 `FileTree` 和所有 ArtifactNodeTemplate 的 `TreeNodeSlot`。其资源版本不重复写入 Slot 布局，而是由以下 payload 计算：
 
 ```text
-schema: 3
-file_catalog_version: fcv1_
+schema: 1
+static_tree_version: fcv1_
 artifact_catalog_version: acv1_
-player_version: PlayerArtifactState.version
 ```
 
-玩家新增、刷新或移除 Artifact/Artifact node 时递增 `PlayerArtifactState.version` 并清空请求内树缓存。这样即使静态 Catalog 不变，玩家动态树也会得到新的 `pft3_`。
+`TreeNodeSlot` 以 path 作为请求期映射键；目录 Slot 的 `artifact_locator` 为 `None`，文件 Slot 带有 Artifact locator 和 File ID。静态文件、静态目录和 Slot 的同路径冲突在 freeze 时拒绝。
+
+### PlayerFileTree：`pft4_`
+
+`PlayerFileTree` 不复制 `MergedFileTree`。请求期只通过 `MergedFileTree.fruit()` 保存当前玩家实际 Artifact 文件节点和祖先目录的 `nodes_by_path` 映射。`FileIdCodec.encode_player_tree_version()` 使用以下 payload：
+
+```text
+schema: 4
+merged_file_tree_version: mft1_...
+state_versions:
+  artifacts: ArtifactInterface.version
+  accounts: AccountInterface.version       # 仅在 access_rule 声明时出现
+  progress: ProgressInterface.version     # 仅在 access_rule 声明时出现
+```
+
+文件 access_rule 通过 `module_handler(..., dependencies=PlayerInterfaces.X)` 显式声明依赖；依赖 mask 进入 callback ID，继续沿 StaticNode/ArtifactNode 和 Catalog 版本链传播。`Player.invalidate_cache()` 负责请求内缓存失效，版本向量不作为缓存 key。
 
 ## Content-Token 生成与校验
 
@@ -208,7 +223,8 @@ h1_: HMAC(hint:v1, stable_id)
 | ArtifactTemplate 定义或 generator callback revision 改变 | `atv1_`、`acv1_` | reconciliation 刷新已有玩家 Artifact |
 | ArtifactTemplate 定义或 generator callback revision 改变 | `atv1_`、对应 `antv2_`、`acv1_` | reconciliation 刷新 Artifact，并重新执行其 node generator |
 | ArtifactNodeTemplate 定义或 callback revision 改变 | `antv2_`、`acv1_` | reconciliation 刷新受影响玩家 node |
-| 玩家 Artifact/Artifact node 创建、刷新或删除 | `PlayerArtifactState.version` | `pft3_` 改变，树缓存清空 |
+| 玩家 Artifact/Artifact node 创建、刷新或删除 | `PlayerArtifactState.version`、`ArtifactInterface.version` | `pft4_` 改变，Player 树缓存清空 |
+| 文件 access_rule 依赖的账号或进度改变 | 对应 `PlayerInterface.version` | 相关玩家的 `pft4_` 改变；旧 ETag 不返回 `304` |
 | Artifact 的版本、node 版本、媒体类型或最终下载名改变 | `act3_` | 旧 Artifact token 返回 `412` |
 | File ID signing key 改变 | `f1_`/`h1_` 映射和 key fingerprint | 新 File ID 与新的 `fcv1_` 生效 |
 
@@ -234,7 +250,7 @@ bucket 仍应保持私有，应用只向客户端返回短期预签名 URL。对
 - `PlayerProgress.version` 是玩家进度和 checkpoint 状态的整数版本。
 - `PlayerCredits.version` 是 VTB 余额状态的整数版本。
 - `PlayerVirtualAccountState.version` 是当前虚拟账号状态的整数版本。
-- `PlayerArtifactState.version` 是 Artifact 动态树的整数版本，并作为 `pft3_` 的输入。
+- `PlayerArtifactState.version` 是 Artifact 动态树的整数版本，并由 `ArtifactInterface.version` 暴露，作为 `pft4_` 的输入。
 
 这些玩家状态版本用于状态同步、条件更新或树失效，不由对象字节直接 hash，也不依赖 RustFS/S3 的版本管理。`vat1_`、`vac1_` 虽然是 SHA-256 Catalog 版本，但它们只描述虚拟账号定义，不生成文件 content-token。
 
@@ -246,10 +262,11 @@ bucket 仍应保持私有，应用只向客户端返回短期预签名 URL。对
 - `src/mythos/registry/files/catalog.py`：`FileCatalog` 和 `fcv1_`。
 - `src/mythos/registry/files/registry.py`：静态源物化、freeze 和 FileContent 构造。
 - `src/mythos/registry/files/tree.py`：`FileTree` 和 `fcv1_`。
-- `src/mythos/registry/files/player_tree.py`：`PlayerFileTree` 和 `pft3_`。
+- `src/mythos/registry/files/merged_tree.py`：`MergedFileTree`、`TreeNodeSlot` 拓扑和 `mft1_`。
+- `src/mythos/registry/files/player_tree.py`：`PlayerFileTree`、Slot resolve 和 `pft4_` 消费。
 - `src/mythos/registry/hints/definitions.py`、`src/mythos/registry/hints/catalog.py`：Hint 版本和 `hcv1_`。
 - `src/mythos/registry/accounts/versions.py`、`src/mythos/registry/accounts/catalog.py`：`vat1_` 和 `vac1_`。
-- `src/mythos/core/file_ids.py`：`f1_`、`h1_`、`act3_` 和 `pft3_` 编码。
+- `src/mythos/core/file_ids.py`：`f1_`、`h1_`、`act3_` 和 `pft4_` 编码。
 - `src/mythos/services/files/service.py`：授权、token 校验和预签名 URL。
 - `src/mythos/services/files/static_assets.py`：静态源摘要物化和固定对象 key。
-- `src/mythos/players/interfaces/artifacts.py`：Artifact 生成、持久化、合并树和动态 token。
+- `src/mythos/players/interfaces/artifacts.py`：Artifact 生成、持久化、实际节点和动态 token。

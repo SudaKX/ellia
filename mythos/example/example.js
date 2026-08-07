@@ -248,8 +248,7 @@ async function loadWorkspace({ forceTree = false } = {}) {
       callApi("/hints").then(readJson),
     ]);
 
-    const progressChanged = state.progress !== null && state.progress.version !== progress.version;
-    const shouldLoadTree = forceTree || !version.unchanged || !state.tree || progressChanged;
+    const shouldLoadTree = forceTree || !version.unchanged || !state.tree;
     let tree = state.tree;
     if (shouldLoadTree) {
       tree = await callApi("/files/d/tree?path=/").then(readJson);

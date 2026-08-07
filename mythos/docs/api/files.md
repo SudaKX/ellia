@@ -2,7 +2,7 @@
 
 ## 树类型与端点
 
-所有端点均要求 Bearer token。静态树只含启动期冻结的文件；动态树合并当前玩家 Artifact。`/files/tree` 和 `/files/s/tree` 等价，`/files/s/version` 不存在。
+所有端点均要求 Bearer token。静态树只含启动期冻结的文件；动态树遍历启动期 `MergedFileTree`，并将当前玩家 Artifact fruiting 到对应 Slot。`/files/tree` 和 `/files/s/tree` 等价，`/files/s/version` 不存在。
 
 | 方法 | 路径 | 树 |
 | --- | --- | --- |
@@ -33,7 +33,9 @@ metadata 额外返回 `content_digest`、`download_name` 和合并树 `tree_vers
 
 content URL 响应为 `{url, expires_at, content_token}`，带 `ETag`（token）、`Vary: Authorization` 与私有、可重新验证缓存策略。download URL 使用 `no-store`。前端先使用 Bearer 调 Mythos，再以返回 URL 直接读取 RustFS/S3；不要把 URL 持久化。
 
-`/version` 与 `/d/version` 支持 `If-None-Match`，命中返回 `304`。动态 tree version 是 FileCatalog version、ArtifactCatalog version 与玩家 PlayerVersion 的不透明组合；静态 tree version 不包含 Artifact。
+`/version` 与 `/d/version` 支持 `If-None-Match`，命中返回 `304`。动态 tree version 为 `pft4_`，是 `MergedFileTree.resource_version`（`mft1_`）、ArtifactInterface.version 和文件 access_rule 显式声明的 PlayerInterface 状态版本的不透明组合；静态 tree version 不包含 Artifact。
+
+文件 access_rule 的依赖 mask 进入 callback ID。账号或进度变化可能使 `/files/d/version` 返回新的 ETag，即使静态拓扑没有变化；没有声明依赖的 credits 或 hints 变化不会无条件改变 `pft4_`。动态读取仍然每次重新执行 hidden、路径链 access_rule 和 content-token 校验。
 
 | 状态 | 含义与动作 |
 | --- | --- |

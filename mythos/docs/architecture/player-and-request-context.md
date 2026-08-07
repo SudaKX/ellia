@@ -9,13 +9,13 @@
 | Interface | 所属数据 | 读取 API | 写入限制 |
 | --- | --- | --- | --- |
 | `ProgressInterface` | `player_progress` 及关联表 | `is_unlocked()`、`is_frontier()` | 仅可写 Player 可调用 `push()`、恢复内部状态 |
-| `ArtifactInterface` | `player_artifacts` 及节点表 | `has_artifact()`、`get_tree()` | 仅可写 Player 可调用 `generate()` |
+| `ArtifactInterface` | `player_artifacts` 及节点表 | `has_artifact()`、`tree_nodes()`、`version` | 仅可写 Player 可调用生成、刷新和删除 |
 
-`Player` 懒加载 Interface；未加载时访问属性会抛出 `PlayerInterfaceNotLoadedError`。`PlayerFactory.load()` 仅供需要两个 Interface 的调用方，读路由通过 bitmap 精确加载。
+`Player` 懒加载 Interface；未加载时访问属性会抛出 `PlayerInterfaceNotLoadedError`。Progress、Account、Artifact 和 Credit Interface 实现 `VersionedPlayerInterface`。`Player.state_versions()` 按稳定顺序返回请求的状态版本，未加载或没有有效版本的 Interface 会抛出明确错误。完整 `PlayerFileTree` 缓存由 Player 持有，状态写入成功后通过 `Player.invalidate_cache()` 清空。
 
 ## 请求对象、服务与端点
 
-`PlayerInterfaces` 位图为 `PROGRESS`、`ARTIFACTS` 和 `ALL`。`get_context()` 创建只读 `RequestContext`，文件动态端点需要两者，进度和脚本端点仅需 progress。`RequestContext` 保存 identity、Player 和 followup 收集器；`CommandContext` 增加 UUID `request_id` 与 `reject()`。
+`PlayerInterfaces` 位图为 `PROGRESS`、`ARTIFACTS`、`ACCOUNTS`、`CREDITS`、`HINTS` 和 `ALL`。`get_context()` 创建只读 `RequestContext`，文件动态端点加载全部 Interface，但 `pft4_` 只采集 Artifact 和文件 access_rule 声明的状态版本。`RequestContext` 保存 identity、Player 和 followup 收集器；`CommandContext` 增加 UUID `request_id` 与 `reject()`。
 
 它们没有独立 Router、Registry 或 HTTP 端点；由认证依赖、文件/进度/脚本读取路由和命令执行器使用。相关 API 行为见 [命令契约](../api/commands.md)。
 

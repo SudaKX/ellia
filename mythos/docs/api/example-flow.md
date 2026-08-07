@@ -5,7 +5,7 @@
 ```text
 POST /auth/register 或 /auth/login
   -> 并行 GET /credits, /hints, /progress, /files/d/version, /scripts
-  -> 版本变化或玩家状态变化时 GET /files/d/tree；版本未变化时复用现有树
+  -> `/files/d/version` 返回新的 `pft4_` 时 GET /files/d/tree；命中 304 时复用现有树
   -> 页面展示 VTB 余额与当前可见 Hint
   -> POST /hints/{hint_id}/disclose + Request-ID
   -> 成功后重新 GET /credits 与 /hints

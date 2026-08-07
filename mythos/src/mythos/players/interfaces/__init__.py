@@ -8,6 +8,7 @@ from mythos.players.interfaces.credits import (
 )
 from mythos.players.interfaces.hints import HintDisclosure, HintInterface, ReadOnlyHintsError
 from mythos.players.interfaces.progress import ProgressInterface, ProgressTransitionError, ReadOnlyPlayerError
+from mythos.players.interfaces.versioning import VersionedPlayerInterface
 
 __all__ = [
     "Account",
@@ -25,4 +26,5 @@ __all__ = [
     "ReadOnlyArtifactError",
     "ReadOnlyCreditsError",
     "ReadOnlyHintsError",
+    "VersionedPlayerInterface",
 ]

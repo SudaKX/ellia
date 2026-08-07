@@ -92,6 +92,7 @@ progress    -> ProgressGraph
 scripts     -> ScriptCatalog
 validations -> ValidationCatalog
 artifacts   -> ArtifactCatalog
+merged file -> MergedFileTree (mft1_)
 accounts    -> VirtualAccountCatalog
 hints       -> HintCatalog
 lifecycle   -> LifecycleCatalog
@@ -115,7 +116,7 @@ Registry freeze 后继续创建：
 
 两个 reconciliation 成功后才写入对应的本地 Catalog snapshot。任何 reconciliation 异常都会阻止 lifespan 进入 `yield`。
 
-最后创建 `ServiceContainer`，把静态 FileTree、HintCatalog、ProgressGraph、ScriptCatalog、ValidationCatalog 和对象存储等注入全局 Service，并将完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
+最后创建 `ServiceContainer`，把静态 FileTree、启动期共享的 MergedFileTree、HintCatalog、ProgressGraph、ScriptCatalog、ValidationCatalog 和对象存储等注入全局 Service，并将完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
 
 应用退出时，lifespan 的 `finally` 释放 Database。Catalog、Service 和 PlayerFactory 的生命周期属于当前应用进程。
 
@@ -336,8 +337,14 @@ module_handler(module)(revision)
   -> callback_id
       -> ArtifactTemplate.version: atv1_
           -> ArtifactCatalog.node_version: antv2_  (linked Artifact node)
-              -> ArtifactCatalog.version: acv1_
-                  -> PlayerFileTree.tree_version: pft3_
+               -> ArtifactCatalog.version: acv1_
+                   -> MergedFileTree.resource_version: mft1_
+                       -> PlayerFileTree.tree_version: pft4_
+
+access_rule dependencies
+  -> callback ID schema 2
+      -> StaticNode/ArtifactNode version and Catalog version
+          -> MergedFileTree.resource_version: mft1_
 
 static source bytes
   -> ObjectReference.content_digest
@@ -354,8 +361,8 @@ FileIdCodec signing key
   -> stable_id
       -> File ID: f1_ / h1_
 
-PlayerArtifactState.version
-  -> PlayerFileTree.tree_version: pft3_
+PlayerInterface.version vector
+  -> PlayerFileTree.tree_version: pft4_
 
 PlayerArtifact.version + PlayerArtifactNode.version
   -> Artifact content_token: act3_
@@ -368,8 +375,9 @@ PlayerArtifact.version + PlayerArtifactNode.version
 3. Files freeze 生成 `snv1_`、静态 File ID、`fcv1_`。
 4. Hints freeze 生成 `hv1_`、Hint File ID、`hcv1_`。
 5. Artifact Catalog freeze 生成 `atv1_`，再用关联 Artifact version 生成 `antv2_`，最后生成 `acv1_`。
-6. PlayerFileTree 第一次构建时生成 `pft3_`。
-7. ArtifactInterface 构建动态 TreeNode 时生成 `act3_`。
+6. Registry freeze 使用静态 FileTree 和 Artifact Catalog 构建 MergedFileTree，生成 `mft1_`。
+7. Player 第一次请求动态文件时以 path fruiting 生成 `pft4_`。
+8. ArtifactInterface 构建动态 TreeNode 时生成 `act3_`。
 
 ### 3. 各版本和 token 的输入
 
@@ -383,8 +391,9 @@ PlayerArtifact.version + PlayerArtifactNode.version
 | `hcv1_` | HintCatalog freeze | 排序后的 Hint versions | Hint Catalog 版本 |
 | `atv1_` | ArtifactCatalog freeze / lookup | ArtifactTemplate 声明和 generator callback ID | Artifact 逻辑版本、Artifact object key |
 | `antv2_` | ArtifactCatalog freeze | Artifact node 声明、callback IDs、关联 `atv1_` | 判断 Artifact node 是否 stale |
-| `acv1_` | ArtifactCatalog freeze | 排序后的 Artifact 和 node snapshot entries | 启动 reconciliation、pft3 输入 |
-| `pft3_` | PlayerFileTree build | `fcv1_`、`acv1_`、PlayerArtifactState.version | 当前玩家动态树版本 |
+| `acv1_` | ArtifactCatalog freeze | 排序后的 Artifact 和 node snapshot entries | 启动 reconciliation、mft1 输入 |
+| `mft1_` | RegistryBundle freeze | schema、`fcv1_`、`acv1_` | 共享静态合并拓扑资源版本 |
+| `pft4_` | Player 动态文件查询 | `mft1_`、ArtifactInterface.version、声明依赖的状态版本 | 当前玩家动态树版本 |
 | `act3_` | ArtifactInterface.tree_nodes | player ID、Artifact ID/version、node ID/version、最终下载名、media type | Artifact 下载 URL 前置条件 |
 
 对象 key 不参与这些 version/token 的 hash。静态 key 是 `static/{module}/{relative_path}`；Artifact key 是 `artifacts/{player_id}/{artifact_version}`。对象存储 VersionId 不参与当前运行时模型。
@@ -513,12 +522,13 @@ runtime_node = await template.node_generator(
 )
 ```
 
-第二个参数是当前 `PlayerArtifact.meta` 的浅复制。generator 可以修改运行时属性，例如 path、display、hidden 和 download name，但不能改变：
+第二个参数是当前 `PlayerArtifact.meta` 的浅复制。generator 可以修改运行时属性，例如 display、hidden 和 download name，但不能改变：
 
 ```text
 stable_id
 artifact_locator
 version
+path
 ```
 
 调用返回后依次校验：
@@ -526,8 +536,9 @@ version
 1. stable ID 仍等于模板 stable ID。
 2. artifact locator 仍等于模板 locator。
 3. version 仍等于 effective `antv2_`。
-4. path 仍是 canonical virtual path。
-5. download name 为空或通过安全下载名校验。
+4. path 仍等于 `ArtifactNodeTemplate.path`。
+5. path 仍是 canonical virtual path。
+6. download name 为空或通过安全下载名校验。
 
 #### 5.3 `PlayerArtifactNode` upsert
 
@@ -538,7 +549,7 @@ version
 | `player_id` | 当前 ArtifactInterface 的玩家 ID |
 | `node_id` | `ArtifactNodeTemplate.stable_id` |
 | `artifact_id` | `ArtifactNodeTemplate.artifact_locator` |
-| `path` | generator 返回的 `runtime_node.path` |
+| `path` | `ArtifactNodeTemplate.path`；generator 不得修改 |
 | `version` | generator 返回的 effective `runtime_node.version` |
 | `display` | generator 返回的 `runtime_node.display.as_dict()` |
 | `hidden` | generator 返回的 `runtime_node.hidden` |
@@ -548,7 +559,7 @@ version
 
 写入使用 `(player_id, node_id)` 冲突更新，然后重新查询并 refresh `PlayerArtifactNode`，再更新 ArtifactInterface 的 `_nodes` 映射。
 
-Artifact node 完成新增或刷新后，调用 `_bump_player_version()` 更新 `PlayerArtifactState.version`，并清空当前 ArtifactInterface 的 PlayerFileTree cache。
+Artifact node 完成新增或刷新后，调用 `_bump_player_version()` 更新 `PlayerArtifactState.version`，再通过 Player 注入的 mutation callback 清空 Player 的 PlayerFileTree cache。
 
 ### 6. 请求内写入顺序
 
@@ -602,13 +613,13 @@ HintInterface
 2. 通过 `selectinload` 同时加载每个 Artifact 的 `PlayerArtifactNode`。
 3. 将 Artifact 放入 `_artifacts[artifact_id]`。
 4. 将 node 放入 `_nodes[node_id]`。
-5. 查询 `PlayerArtifactState`，不存在时使用 `player_version = 0`。
+5. 查询 `PlayerArtifactState`，不存在时使用 `version = 0`。
 
 此时不会调用 Artifact generator 或 node generator。
 
 ### 2. 构建动态 TreeNode 和 `act3_`
 
-第一次调用 `ArtifactInterface.get_tree()` 或 `tree_nodes()` 时，按每条 `_nodes` 记录：
+第一次调用 `ArtifactInterface.tree_nodes()` 时，按每条 `_nodes` 记录：
 
 1. 找到所属 `_artifacts[node_record.artifact_id]`。
 2. 找到当前 Catalog 中的 node template 和 ArtifactTemplate。
@@ -625,17 +636,18 @@ node_record.download_name or artifact_template.download_name
 
 这里的 `act3_` 是延迟生成的请求级内存值，不写入数据库；数据库保存的是构成它的 Artifact、node 和 object metadata。
 
-### 3. 构建 PlayerFileTree 和 `pft3_`
+### 3. Fruiting PlayerFileTree 和 `pft4_`
 
-`PlayerFileTree.build()`：
+`MergedFileTree.fruit()`：
 
-1. 深复制静态 `FileTree.root`。
-2. 按动态 node path 排序，把每个 Artifact `TreeNode` 插入静态树。
-3. 重新建立动态树的 File ID 索引。
-4. 用静态 `fcv1_`、全局 `acv1_` 和当前 `PlayerArtifactState.version` 生成 `pft3_`。
-5. 保存到 ArtifactInterface 的 `_player_tree_cache`。
+1. 保留共享 `MergedFileTree` 拓扑，不复制或修改 root。
+2. 按实际 Artifact node path 建立 `nodes_by_path`。
+3. 为每个实际 Artifact 文件补全祖先目录 TreeNode；重复祖先只保存一次。
+4. 遍历 Slot 时按 path resolve 当前玩家映射；无映射 Slot 在枚举中跳过。
+5. 由 `mft1_`、ArtifactInterface.version 和 access_rule 所需状态版本生成 `pft4_`。
+6. 将请求级 PlayerFileTree 缓存保存到 Player，而不是 ArtifactInterface。
 
-后续相同 Interface 生命周期内的读取复用该 cache；Artifact 新增、刷新或删除时会清空 cache。
+后续相同 Player 生命周期内的读取复用该 cache；任意影响动态树的 Interface 成功写入都会调用 `Player.invalidate_cache()`。
 
 ### 4. Metadata、目录和 URL 请求
 

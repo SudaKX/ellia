@@ -73,7 +73,7 @@ async def _create_artifact(app, player_id: UUID) -> tuple[str, int]:
             player = await app.state.runtime.player_factory.load(session, player_id, writable=True)
             artifact = await player.artifacts.generate_artifact("reconciliation.report", player)
             await player.artifacts.generate_node("reconciliation.report-file", player)
-            return artifact.version, player.artifacts.player_version
+            return artifact.version, player.artifacts.version
 
 
 async def _artifact_state(app, player_id: UUID) -> tuple[str, int]:
@@ -97,6 +97,13 @@ async def _node_display_label(app, player_id: UUID) -> str:
         node = await session.get(PlayerArtifactNode, (player_id, "reconciliation.report-file"))
         assert node is not None
         return node.display["label"]
+
+
+async def _node_path(app, player_id: UUID) -> str:
+    async with app.state.database.session_factory() as session:
+        node = await session.get(PlayerArtifactNode, (player_id, "reconciliation.report-file"))
+        assert node is not None
+        return node.path
 
 
 async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_changed_artifact(tmp_path) -> None:
@@ -129,11 +136,23 @@ async def test_startup_reconciliation_skips_matching_snapshot_and_refreshes_chan
     assert settings.artifact_snapshot_path.exists()
     upload_count = len(store.uploads)
 
+    async with first.state.database.session_factory() as session:
+        async with session.begin():
+            await session.execute(
+                update(PlayerArtifactNode)
+                .where(
+                    PlayerArtifactNode.player_id == player_id,
+                    PlayerArtifactNode.node_id == "reconciliation.report-file",
+                )
+                .values(path="/legacy/report.txt")
+            )
+
     unchanged = create_app(settings, registries=_registries(_artifact_v1), object_store=store)
     async with unchanged.router.lifespan_context(unchanged):
         version, player_version = await _artifact_state(unchanged, player_id)
         assert version == first_version
-        assert player_version == first_player_version
+        assert player_version == first_player_version + 1
+        assert await _node_path(unchanged, player_id) == "/reports/report.txt"
     assert len(store.uploads) == upload_count
 
     # Migration 0006 maps the legacy revision into this field without creating state.

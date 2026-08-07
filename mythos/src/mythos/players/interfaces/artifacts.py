@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -19,14 +19,12 @@ from mythos.registry.artifacts import (
 )
 from mythos.registry.artifacts.catalog import ArtifactCatalog
 from mythos.registry.artifacts.definitions import _is_canonical_virtual_path
-from mythos.registry.files import FileTree
 from mythos.registry.files.definitions import (
     FileContent,
     NodeDisplayParams,
     ObjectReference,
     is_safe_download_name,
 )
-from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.registry.files.tree import TreeNode
 from mythos.services.object_store.service import ObjectStore
 
@@ -51,6 +49,7 @@ class ArtifactInterface:
         artifacts: Mapping[str, PlayerArtifact] | None = None,
         nodes: Mapping[str, PlayerArtifactNode] | None = None,
         player_version: int = 0,
+        on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._catalog = catalog
@@ -61,14 +60,14 @@ class ArtifactInterface:
         self._artifacts: dict[str, PlayerArtifact] = dict(artifacts or {})
         self._nodes: dict[str, PlayerArtifactNode] = dict(nodes or {})
         self._player_version = player_version
-        self._player_tree_cache: PlayerFileTree | None = None
+        self._on_mutation = on_mutation or (lambda: None)
 
     @property
     def player_id(self) -> UUID:
         return self._player_id
 
     @property
-    def player_version(self) -> int:
+    def version(self) -> int:
         return self._player_version
 
     def has_artifact(self, artifact_id: str) -> bool:
@@ -76,17 +75,6 @@ class ArtifactInterface:
 
     def has_node(self, node_id: str) -> bool:
         return node_id in self._nodes
-
-    def get_tree(self, static_tree: FileTree, file_ids: FileIdCodec) -> PlayerFileTree:
-        if self._player_tree_cache is None:
-            self._player_tree_cache = PlayerFileTree.build(
-                static_tree,
-                self.tree_nodes(),
-                file_ids,
-                artifact_catalog_version=self._catalog.version,
-                player_version=self._player_version,
-            )
-        return self._player_tree_cache
 
     @staticmethod
     def _artifact_object_key(
@@ -106,7 +94,6 @@ class ArtifactInterface:
             return existing
         artifact = await self._materialize_artifact(self._catalog.template(artifact_id), player)
         await self._bump_player_version()
-        self._player_tree_cache = None
         return artifact
 
     async def generate_node(
@@ -120,7 +107,6 @@ class ArtifactInterface:
             return self._runtime_node(existing)
         node = await self._materialize_node(self._catalog.node_template(node_id), player)
         await self._bump_player_version()
-        self._player_tree_cache = None
         return node
 
     async def refresh_artifact(
@@ -139,7 +125,6 @@ class ArtifactInterface:
             return artifact
         refreshed = await self._materialize_artifact(template, player)
         await self._bump_player_version()
-        self._player_tree_cache = None
         return refreshed
 
     async def refresh_node(
@@ -158,11 +143,11 @@ class ArtifactInterface:
                 return None
             refreshed = await self._materialize_node(template, player)
             await self._bump_player_version()
-            self._player_tree_cache = None
             return refreshed
         if (
             node.version == self._catalog.node_version(node_id)
             and node.artifact_id == template.artifact_locator
+            and node.path == template.path
         ):
             return self._runtime_node(node)
         if template.artifact_locator not in self._artifacts:
@@ -170,7 +155,6 @@ class ArtifactInterface:
             return None
         refreshed = await self._materialize_node(template, player)
         await self._bump_player_version()
-        self._player_tree_cache = None
         return refreshed
 
     async def remove_artifact(self, artifact_id: str) -> bool:
@@ -190,7 +174,6 @@ class ArtifactInterface:
             if node.artifact_id != artifact_id
         }
         await self._bump_player_version()
-        self._player_tree_cache = None
         return True
 
     async def remove_node(self, node_id: str) -> bool:
@@ -204,7 +187,6 @@ class ArtifactInterface:
         )
         self._nodes.pop(node_id, None)
         await self._bump_player_version()
-        self._player_tree_cache = None
         return True
 
     async def refresh_stale(self, player: Player) -> None:
@@ -253,6 +235,8 @@ class ArtifactInterface:
             raise RuntimeError("Artifact node generator modified the artifact_locator.")
         if runtime_node.version != expected_version:
             raise RuntimeError("Artifact node generator modified the version.")
+        if runtime_node.path != template.path:
+            raise RuntimeError("Artifact node generator modified the path.")
         if not _is_canonical_virtual_path(runtime_node.path):
             raise RuntimeError("Artifact node generator produced a non-canonical path.")
         if runtime_node.download_name is not None and not is_safe_download_name(runtime_node.download_name):
@@ -344,6 +328,7 @@ class ArtifactInterface:
         if version is None:
             raise RuntimeError("Player artifact version increment failed.")
         self._player_version = version
+        self._on_mutation()
 
     def _runtime_node(self, node_record: PlayerArtifactNode) -> ArtifactNode:
         template = self._catalog.node_template(node_record.node_id)
@@ -418,6 +403,7 @@ class ArtifactInterface:
         file_ids: FileIdCodec,
         *,
         writable: bool,
+        on_mutation: Callable[[], None] | None = None,
     ) -> ArtifactInterface:
         artifacts = await session.scalars(
             select(PlayerArtifact)
@@ -442,4 +428,5 @@ class ArtifactInterface:
             artifacts=artifact_dict,
             nodes=node_dict,
             player_version=state.version if state is not None else 0,
+            on_mutation=on_mutation,
         )
