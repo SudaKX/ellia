@@ -23,7 +23,7 @@ RegistryBundle -> RuntimeCatalogs -> ApplicationRuntime
 
 `ApplicationRuntime` 保存运行期 Catalog、PlayerFactory、全局 Service 和 `CommandTransactionExecutor`，并通过 `app.state.runtime` 提供给 Router。Service 使用具体 `Player` 调用模块注册的纯 Read 权限函数；Registry 不创建或保存 Player。
 
-`RuntimeCatalogs.progress` 保存启动期冻结的 `ProgressGraph`。模块以可读字符串 ID 注册 ProgressNode，Graph 生成稳定数字 ID 供玩家状态持久化使用。ProgressInterface 管理 unlocked/frontier 节点集合、分支和自动 merge；checkpoint 约定见 [Progress V1](progress_v1.md)。
+`RuntimeCatalogs.progress` 保存启动期冻结的 `ProgressGraph`。模块以可读字符串 ID 注册 ProgressNode，Graph 生成稳定数字 ID 供玩家状态持久化使用。ProgressInterface 管理 unlocked/frontier 节点集合、分支和自动 merge；checkpoint 约定已由当前的 [进度系统](../systems/progress-and-checkpoints.md) 取代。
 
 ## 3. Player 与 Interface
 
@@ -57,7 +57,7 @@ services/validations/ # ValidationService 与验证提交 API
 
 Service 通过请求级 Player 判断内容可见性。GET Router 通过 `get_read_context()` 使用 `writable=False` 的 `RequestContext`；写入 Router 通过 `CommandTransactionExecutor` 创建 `writable=True` 的 `CommandContext`，并复用命令事务与 Request-ID，不能直接提交 Session。
 
-FileService 的静态文件注册分为 `register_source(FileReference)` 与 `register_node(VirtualNode)`；`register_json_tree()` 使用严格 Pydantic manifest 模型将声明式 JSON 子树展开为这两个低层 API，`register_json_tree_asset(module, relative_asset_path)` 则从 `Settings.puzzle_root` 下的模块 assets 读取同一 manifest。Source 使用 `module + relative_path` 定位 `puzzles/<module>/` 下的本地文件；启动期发布器以 mtime 物化或复用 RustFS 对象，FileTree 仅保存已解析的 `ObjectReference`。VirtualNode 必须声明供前端使用的 `DisplayParams`，并可表示空目录。FileTree 提供仅反映静态 Catalog 的 `tree_version`，每个文件提供由 Node revision 与对象 VersionId 派生的 `content_token`；两者均不包含玩家进度。公开文件 ID 和预签名下载 URL 约定见 [FileService V1](file_service_v1.md)。
+FileService 的静态文件注册分为 `register_source(FileReference)` 与 `register_node(VirtualNode)`；`register_json_tree()` 使用严格 Pydantic manifest 模型将声明式 JSON 子树展开为这两个低层 API，`register_json_tree_asset(module, relative_asset_path)` 则从 `Settings.puzzle_root` 下的模块 assets 读取同一 manifest。Source 使用 `module + relative_path` 定位 `puzzles/<module>/` 下的本地文件；启动期发布器以 mtime 物化或复用 RustFS 对象，FileTree 仅保存已解析的 `ObjectReference`。VirtualNode 必须声明供前端使用的 `DisplayParams`，并可表示空目录。FileTree 提供仅反映静态 Catalog 的 `tree_version`，每个文件提供由 Node revision 与对象 VersionId 派生的 `content_token`；两者均不包含玩家进度。公开文件 ID 和预签名下载 URL 约定已由当前的 [文件 API](../api/files.md) 取代。
 
 ## 6. Registry
 

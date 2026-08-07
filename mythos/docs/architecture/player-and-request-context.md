@@ -21,7 +21,7 @@
 
 ## Example
 
-Example 的文件访问规则读取 `player.progress`；答案处理器得到 `CommandContext` 后先推进进度，再调用 `player.artifacts.generate()`。
+Example 的文件访问规则读取 `player.accounts` 和 `player.progress`；答案处理器得到 `CommandContext` 后先推进进度，再调用 `player.artifacts.generate_artifact()` 和 `generate_node()`。
 
 ## 重要约束
 

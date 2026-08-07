@@ -4,7 +4,7 @@
 
 文件发布拥有 `static_file_registrations` 表和 `StaticFileRegistration` Model。每个 `source_locator` 记录稳定对象 key、SHA-256 摘要、媒体类型、尺寸、发布/最后发现时间和退休时间；启动期会完整读取每个 source 并以摘要决定是否覆盖对象。文件字节不在 SQLite 中。
 
-该系统没有专属 Player Interface。静态目录读取依赖已加载的 PlayerInterface 供 access rule 使用；文件 metadata 与 URL 路由使用启动期共享的 `MergedFileTree` 和请求级 `PlayerFileTree`，因此还加载 ArtifactInterface。
+该系统没有专属 Player Interface。当前静态 `/ls`、`/tree` 及 `/s/*` 路由只加载 `PROGRESS | ACCOUNTS`，静态文件 access rule 只应依赖这两个 Interface；动态目录、metadata 与 URL 路由使用启动期共享的 `MergedFileTree` 和请求级 `PlayerFileTree`，加载全部 Player Interface。
 
 ## Registry 与数据对象
 
@@ -13,7 +13,7 @@
 - `NodeDisplayParams`：文件节点前端标签、描述、语义 icon、排序。
 - `ObjectReference`：对象 key、SHA-256 摘要、媒体类型、尺寸；不保存对象存储的 VersionId。bucket versioning 已停用。
 - `FileContent`：对象引用、下载名、content token。
-- `StaticNode`：文件或目录；`access_rule` 是纯读取函数，必须通过 callback handler 显式声明 PlayerInterface 依赖。
+- `StaticNode`：文件或目录；`access_rule` 是纯读取函数，必须通过 callback handler 显式声明依赖，且当前静态路由只支持 `PROGRESS | ACCOUNTS`。
 - `MergedFileTree`：freeze 后由静态 FileTree 和 ArtifactNodeTemplate path 构建的共享只读拓扑，资源版本为 `mft1_`。
 - `TreeNodeSlot`：Artifact 文件或前置目录的占位节点；请求期以 path resolve 当前玩家实际节点。
 
@@ -31,6 +31,6 @@
 
 ## Example 与重要限制
 
-Example manifest 注册无登录可见的 `/public/README.txt`、`/public/GUEST_ACCESS.txt`，以及仅 Administrator 可见的 `/admin/CONTROL.txt`。Guest 完成 Echo 后通过 Artifact 系统生成 `/archive/ADMIN_ACCESS.txt`。bucket 保持私有且不启用 versioning；对象 key 和摘要由应用管理，不依赖 provider 的 VersionId。已签发 URL 无法因后续账号切换而撤销。完整客户端契约见 [文件 API](../api/files.md)。
+Example manifest 注册平台认证后、无需 VirtualAccount 登录即可见的 `/public/README.txt`、`/public/GUEST_ACCESS.txt`，以及仅 Administrator 可见的 `/admin/CONTROL.txt`。Guest 完成 Echo 后通过 Artifact 系统生成 `/archive/ADMIN_ACCESS.txt`。bucket 保持私有且不启用 versioning；对象 key 和摘要由应用管理，不依赖 provider 的 VersionId。已签发 URL 无法因后续账号切换而撤销。完整客户端契约见 [文件 API](../api/files.md)。
 
 相关实现：`registry/files/`、`services/files/`、`services/object_store/service.py`。

@@ -161,7 +161,7 @@ state_versions:
   progress: ProgressInterface.version     # 仅在 access_rule 声明时出现
 ```
 
-文件 access_rule 通过 `module_handler(..., dependencies=PlayerInterfaces.X)` 显式声明依赖；依赖 mask 进入 callback ID，继续沿 StaticNode/ArtifactNode 和 Catalog 版本链传播。`Player.invalidate_cache()` 负责请求内缓存失效，版本向量不作为缓存 key。
+静态文件 access_rule 通过 `module_handler(..., dependencies=PlayerInterfaces.X)` 显式声明依赖，但当前静态文件路由只支持 `PROGRESS | ACCOUNTS`。Artifact Node access_rule 的动态文件路由加载全部 Interface，并将受支持的已声明状态版本纳入 `pft4_`；Hint Interface 没有状态版本，不能作为动态文件 access_rule 的版本依赖。依赖 mask 进入 callback ID，继续沿 StaticNode/ArtifactNode 和 Catalog 版本链传播。`Player.invalidate_cache()` 负责请求内缓存失效，版本向量不作为缓存 key。
 
 ## Content-Token 生成与校验
 

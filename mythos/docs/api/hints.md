@@ -34,9 +34,9 @@ Credits 响应使用 `Cache-Control: no-store` 和 `Vary: Authorization`。Hint 
 }
 ```
 
-购买成功的命令响应为 `{ "content": { "hint": <Hint metadata> }, "followups": [] }`。余额不足返回 `409 insufficient-credits`；不存在的 Hint 返回 `404 hint-not-found`；不可用 Hint 返回 `409 hint-unavailable`。
+购买成功的命令响应为 `{ "content": { "hint": <Hint metadata> }, "followups": [] }`。余额不足返回 `409 insufficient-credits`；不存在的 Hint 返回 `404 hint-not-found`；disclose 时不可用 Hint 返回 `409 hint-unavailable`。
 
-content URL 响应为 `{url, expires_at, content_token}`，token 为当前 Hint 的 `hv1_` version，带 token ETag、`Vary: Authorization` 与私有缓存策略。旧 version 返回 `412 hint-content-version-mismatch`；客户端刷新 Hint 列表后最多重试一次。预签名 URL 不应写入持久化前端状态。
+content URL 响应为 `{url, expires_at, content_token}`，token 为当前 Hint 的 `hv1_` version，带 token ETag、`Vary: Authorization` 与私有缓存策略。未购买或当前不可用时返回 `403 hint-unavailable`；旧 version 返回 `412 hint-content-version-mismatch`；客户端刷新 Hint 列表后最多重试一次。预签名 URL 不应写入持久化前端状态。
 
 ## Example 演示
 

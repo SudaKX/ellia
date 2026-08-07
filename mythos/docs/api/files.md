@@ -35,7 +35,7 @@ content URL 响应为 `{url, expires_at, content_token}`，带 `ETag`（token）
 
 `/version` 与 `/d/version` 支持 `If-None-Match`，命中返回 `304`。动态 tree version 为 `pft4_`，是 `MergedFileTree.resource_version`（`mft1_`）、ArtifactInterface.version 和文件 access_rule 显式声明的 PlayerInterface 状态版本的不透明组合；静态 tree version 不包含 Artifact。
 
-文件 access_rule 的依赖 mask 进入 callback ID。账号或进度变化可能使 `/files/d/version` 返回新的 ETag，即使静态拓扑没有变化；没有声明依赖的 credits 或 hints 变化不会无条件改变 `pft4_`。动态读取仍然每次重新执行 hidden、路径链 access_rule 和 content-token 校验。
+动态文件 access_rule 的依赖 mask 进入 callback ID。账号或进度变化可能使 `/files/d/version` 返回新的 ETag，即使静态拓扑没有变化；没有声明依赖的 credits 或 hints 变化不会无条件改变 `pft4_`。动态读取仍然每次重新执行 hidden、路径链 access_rule 和 content-token 校验。静态文件 access rule 的当前支持范围见 [文件系统](../systems/files-and-object-storage.md)。
 
 | 状态 | 含义与动作 |
 | --- | --- |

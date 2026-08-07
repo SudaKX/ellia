@@ -21,6 +21,7 @@
 - [脚本](systems/scripts.md)
 - [验证](systems/validations.md)
 - [Credits 与 Hint](systems/credits-and-hints.md)
+- [VirtualAccount](systems/virtual-accounts.md)
 
 ## API 对接
 
@@ -32,6 +33,7 @@
 - [脚本契约](api/scripts.md)
 - [验证契约](api/validations.md)
 - [Hint 契约](api/hints.md)
+- [VirtualAccount 契约](api/virtual-accounts.md)
 - [错误与缓存](api/errors-and-caching.md)
 - [Example 调用流](api/example-flow.md)
 

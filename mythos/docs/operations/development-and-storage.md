@@ -16,7 +16,7 @@
 <repository>/mythos/.venv/
 ```
 
-当前默认装配 `Example` 模块。它包含静态文件 Source，应用启动期必须将这些文件发布到版本化的 S3 兼容对象存储。因此，已配置并可访问的 RustFS 或 S3 bucket 是启动后端的必要条件，不是可选增强。
+当前默认装配 `Example` 模块。它包含静态文件 Source，应用启动期必须将这些文件发布到 S3 兼容对象存储；应用自身管理内容摘要和 token，bucket versioning 必须停用。因此，已配置并可访问的 RustFS 或 S3 bucket 是启动后端的必要条件，不是可选增强。
 
 ## 2. 运行路径
 
@@ -132,4 +132,4 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 - 生产 secrets 的部署平台注入。
 - `/console/`、`/api/v1/` 等同源路由策略。
 
-当前 SQLite、checkpoint 文件和进程内 Request-ID cache 只适合单实例运行，不能直接水平扩容。
+当前 SQLite、checkpoint 文件、Artifact/VirtualAccount Catalog 快照和进程内 Request-ID cache 只适合单实例运行，不能直接水平扩容。

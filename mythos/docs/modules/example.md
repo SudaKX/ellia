@@ -9,7 +9,7 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 | Registry | 注册内容 |
 | --- | --- |
 | progress | entry `example.entry`；checkpoint 节点 `example.completed` |
-| files | 无登录可见的 `/public`；仅 Administrator 可见的 `/admin/CONTROL.txt` |
+| files | 平台认证后无需 VirtualAccount 登录即可见的 `/public`；仅 Administrator 可见的 `/admin/CONTROL.txt` |
 | hints | 两个认证后可见的 Hint（2、3 VTB）；一个完成 Echo 后可见的 Hint（5 VTB） |
 | accounts | Guest 与 Administrator 模板；Construct 时发放 Guest |
 | lifecycle | `on_construct` 发放固定 Guest 账号；development/test 演示模式发放一次性 5 VTB |

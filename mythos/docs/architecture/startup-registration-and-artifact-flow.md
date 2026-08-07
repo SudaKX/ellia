@@ -48,6 +48,7 @@ lifespan startup
 ```text
 Progress nodes
   -> File tree manifest and static FileReference/StaticNodeSpec
+  -> Hint definitions and Hint sources
   -> VirtualAccountTemplate
   -> Construct lifecycle handler
   -> ArtifactTemplate
@@ -84,15 +85,15 @@ Progress nodes
 
 ### 4. Registry freeze
 
-`RegistryBundle.freeze(file_ids)` 首先检查静态 File node 与 Artifact node 的 `stable_id` 不冲突，然后按固定顺序冻结：
+`RegistryBundle.freeze(file_ids)` 首先检查静态 File node 与 Artifact node 的 `stable_id` 不冲突，然后按代码中的固定顺序冻结：
 
 ```text
 files       -> FileTree
+artifacts   -> ArtifactCatalog
+merged file -> MergedFileTree (mft1_)
 progress    -> ProgressGraph
 scripts     -> ScriptCatalog
 validations -> ValidationCatalog
-artifacts   -> ArtifactCatalog
-merged file -> MergedFileTree (mft1_)
 accounts    -> VirtualAccountCatalog
 hints       -> HintCatalog
 lifecycle   -> LifecycleCatalog

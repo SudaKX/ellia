@@ -18,7 +18,7 @@ Router 先从 Catalog 查找 attempt，再交给命令执行器。未知 validat
 
 ## Example 与约束
 
-Example 注册 validation ID `example-answer`。其 handler 仅在当前账号为 Guest 时规范化并接受 `answer`；首次正确提交推进进度、发放 Administrator 并生成 `ADMIN_ACCESS.txt`；已完成时直接接受。它说明 validation 是模块语义命令入口，而非可由模块自行新增的 HTTP 回调。
+Example 注册 validation ID `example-answer`。其 handler 仅在当前账号为 Guest 时规范化并接受 `answer`；Guest 首次正确提交推进进度、发放 Administrator 并生成 `ADMIN_ACCESS.txt`；Guest 在已完成状态下重复提交直接接受，其他当前账号仍返回拒绝。它说明 validation 是模块语义命令入口，而非可由模块自行新增的 HTTP 回调。
 
 Request-ID 缓存仅进程内、短 TTL；对象存储副作用不能随 SQL 回滚。前端协议见 [验证契约](../api/validations.md) 和 [命令契约](../api/commands.md)。
 

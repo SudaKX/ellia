@@ -14,7 +14,7 @@ Mythos 的 API 错误响应使用 RFC 9457 `application/problem+json`。所有 `
 }
 ```
 
-`type` 由 `MYTHOS_PROBLEM_TYPE_BASE_URL` 与 Problem Type 后缀组成。`detail` 只用于向用户说明本次问题，客户端不能解析它做控制流；机器逻辑使用完整 `type` URI。`instance` 是服务端生成的错误关联 ID。Problem Details 默认有 `Cache-Control: no-store`。框架不会主动添加 `WWW-Authenticate`，但会保留调用方显式提供的该 Header。
+`type` 由 `MYTHOS_PROBLEM_TYPE_BASE_URL` 与 Problem Type 后缀组成。`detail` 只用于向用户说明本次问题，客户端不能解析它做控制流；机器逻辑使用完整 `type` URI。`instance` 是服务端生成的错误关联 ID。Problem Details 默认有 `Cache-Control: no-store`，但序列化器会保留调用方显式提供的响应 Header。框架不会主动添加 `WWW-Authenticate`，但会保留调用方显式提供的该 Header。
 
 ## 请求路径
 

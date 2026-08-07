@@ -2,7 +2,7 @@
 
 ## 职责与持久化
 
-命令框架没有 SQL 表、ORM Model、Registry 或独立 HTTP Router。`CommandTransactionExecutor` 为 validation 和 checkpoint restore 提供同一写入边界；`RequestCache` 是进程内 TTLCache，不是持久化请求日志。
+命令框架没有 SQL 表、ORM Model、Registry 或独立 HTTP Router。`CommandTransactionExecutor` 为 validation、checkpoint restore、Hint disclosure 和 VirtualAccount 登录/登出提供同一写入边界；`RequestCache` 是进程内 TTLCache，不是持久化请求日志。
 
 ## 调用流
 
@@ -10,7 +10,7 @@
 Command Router -> JWT identity + AsyncSession
   -> RequestCache.reserve(Request-ID, player)
   -> session.begin()
-  -> writable Player with progress + artifacts
+  -> writable Player with the interfaces required by the operation
   -> CommandContext -> Service / module handler
   -> pre-commit hooks -> commit -> cache completed response
 ```
@@ -23,8 +23,11 @@ Command Router -> JWT identity + AsyncSession
 
 - `POST /api/v1/validations/{validation_id}/attempts`
 - `POST /api/v1/progress/checkpoints/restore`
+- `POST /api/v1/hints/{hint_id}/disclose`
+- `POST /api/v1/vac/login`
+- `POST /api/v1/vac/logout`
 
-两者均要求 Bearer JWT 和 UUID `Request-ID` 请求头。相同玩家在 TTL 内重放已完成 ID 返回缓存响应；执行中或由其他玩家使用则返回 `409`。完整契约见 [命令 API](../api/commands.md)。
+以上端点均要求 Bearer JWT 和 UUID `Request-ID` 请求头。相同玩家在 TTL 内重放已完成 ID 返回缓存响应；执行中或由其他玩家使用则返回 `409`。完整契约见 [命令 API](../api/commands.md)。
 
 ## Hook、Example 与限制
 

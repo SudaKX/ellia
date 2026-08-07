@@ -28,6 +28,7 @@ Settings + RegistryBundle
 | 脚本 | `ScriptService` | `/api/v1/scripts` |
 | 验证 | `ValidationService` | `/api/v1/validations` |
 | VirtualAccount | `AccountService` | `/api/v1/vac` |
+| Credits | 无独立全局 Service；通过请求级 `Player.credits` | `/api/v1/credits` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
 Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。

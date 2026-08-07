@@ -8,7 +8,7 @@
 
 ## Player Interface 与模块
 
-`Player.accounts` 是惰性 Interface。模块在可写命令中调用 `issue(account_id, username, password)` 发放账号，或调用 `delete(account_id)` 删除账号；读取 `current`、`accounts`、`has()` 和 `is_current()` 获取状态。模块永远不能读取密码哈希或明文密码。
+`Player.accounts` 是惰性 Interface。模块在 Construct lifecycle callback 或可写命令中调用 `issue(account_id, username, password)` 发放账号，或调用 `delete(account_id)` 删除账号；读取 `current`、`accounts`、`has()` 和 `is_current()` 获取状态。模块永远不能读取密码哈希或明文密码。
 
 模块访问规则、验证命令和 Artifact 生成器均会加载 Account Interface，因此可读取当前账号及模板权限。Catalog 无法解析的账号在只读路径中 fail closed，表现为未登录且不提供权限。
 
