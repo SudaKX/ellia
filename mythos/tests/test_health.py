@@ -34,7 +34,8 @@ def test_development_serves_example_page() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "Example Runtime" in response.text
+    assert "示例运行时" in response.text
+    assert "hints-section" in response.text
 
 
 def test_development_serves_example_assets() -> None:

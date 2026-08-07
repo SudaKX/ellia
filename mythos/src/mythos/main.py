@@ -23,6 +23,7 @@ from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
 from mythos.services.files.router import router as files_router
 from mythos.services.hints.router import router as hints_router
+from mythos.services.credits.router import router as credits_router
 from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
 from mythos.services.progress.router import router as progress_router
@@ -53,7 +54,10 @@ def create_app(
     resolved_settings = settings or get_settings()
     if registries is None:
         registered_content = RegistryBundle(resolved_settings.puzzle_root)
-        register_all(registered_content)
+        register_all(
+            registered_content,
+            example_initial_vtb=5 if resolved_settings.environment in {"development", "test"} else 0,
+        )
     else:
         registered_content = registries
     registered_content.configure_puzzle_root(resolved_settings.puzzle_root)
@@ -146,6 +150,7 @@ def create_app(
     application.include_router(accounts_router, prefix="/api/v1")
     application.include_router(files_router, prefix="/api/v1")
     application.include_router(hints_router, prefix="/api/v1")
+    application.include_router(credits_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")
     application.include_router(validations_router, prefix="/api/v1")

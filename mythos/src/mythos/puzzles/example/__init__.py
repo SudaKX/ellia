@@ -14,7 +14,8 @@ from mythos.registry.artifacts import (
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
-from mythos.registry.files import NodeDisplayParams
+from mythos.registry.files import FileReference, NodeDisplayParams
+from mythos.registry.hints import Hint, HintDisplayParams
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationOutcome
@@ -35,7 +36,7 @@ _ANSWER = "echo-7"
 _handler = module_handler(MODULE_ID)
 
 
-def register(registries: RegistryBundle) -> None:
+def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
     registries.progress.register(NormalProgressNode(ENTRY_NODE_ID, (COMPLETED_NODE_ID,), is_entry=True))
     registries.progress.register(NormalProgressNode(COMPLETED_NODE_ID, (), triggers_checkpoint=True))
     registries.files.register_json_tree_asset(
@@ -46,6 +47,49 @@ def register(registries: RegistryBundle) -> None:
             "guest_completed": _is_guest_completed,
             "admin": _is_admin,
         },
+    )
+    registries.hints.register(
+        Hint(
+            stable_id="example.hint.echo",
+            source=FileReference(MODULE_ID, "assets/hints/echo-clue.txt", "text/plain; charset=utf-8"),
+            download_name="echo-clue.txt",
+            display=HintDisplayParams(
+                title="Echo 线索",
+                teaser="从重复片段中寻找稳定信号。",
+                icon="hint",
+                sort_order=0,
+            ),
+            vtb_cost=2,
+        )
+    )
+    registries.hints.register(
+        Hint(
+            stable_id="example.hint.archive",
+            source=FileReference(MODULE_ID, "assets/hints/archive-clue.txt", "text/plain; charset=utf-8"),
+            download_name="archive-clue.txt",
+            display=HintDisplayParams(
+                title="归档线索",
+                teaser="理解验证完成后的动态文件变化。",
+                icon="archive",
+                sort_order=1,
+            ),
+            vtb_cost=3,
+        )
+    )
+    registries.hints.register(
+        Hint(
+            stable_id="example.hint.final",
+            source=FileReference(MODULE_ID, "assets/hints/final-clue.txt", "text/plain; charset=utf-8"),
+            download_name="final-clue.txt",
+            display=HintDisplayParams(
+                title="最终线索",
+                teaser="完成 Echo 后解锁的最后提示。",
+                icon="key",
+                sort_order=2,
+            ),
+            vtb_cost=5,
+            access_rule=_is_guest_completed,
+        )
     )
     registries.accounts.register_template(
         VirtualAccountTemplate(
@@ -70,6 +114,10 @@ def register(registries: RegistryBundle) -> None:
             GUEST_USERNAME,
             GUEST_PASSWORD,
         )
+    if initial_vtb:
+        @registries.lifecycle.on_construct
+        async def _grant_initial_vtb(context: PlayerLifecycleContext) -> None:
+            await context.player.credits.grant_vtb(initial_vtb)
     registries.artifacts.register_template(
         ArtifactTemplate(
             artifact_id=ADMIN_ACCESS_ARTIFACT_ID,

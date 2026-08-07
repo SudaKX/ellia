@@ -10,6 +10,11 @@ const state = {
   treeVersion: null,
   scripts: [],
   selectedFile: null,
+  credits: null,
+  hints: [],
+  selectedHint: null,
+  hintPreview: null,
+  hintPending: new Set(),
   lastAttempt: null,
   events: [],
 };
@@ -31,8 +36,13 @@ const elements = {
   authForm: document.querySelector("#auth-form"),
   authMessage: document.querySelector("#auth-message"),
   authSubmit: document.querySelector("#auth-submit"),
+  creditsBalance: document.querySelector("#credits-balance"),
   eventList: document.querySelector("#event-list"),
   fileTree: document.querySelector("#file-tree"),
+  hintList: document.querySelector("#hint-list"),
+  hintMessage: document.querySelector("#hint-message"),
+  hintPreviewContent: document.querySelector("#hint-preview-content"),
+  hintPreviewName: document.querySelector("#hint-preview-name"),
   loginMode: document.querySelector("#login-mode"),
   logoutButton: document.querySelector("#logout-button"),
   openFileButton: document.querySelector("#open-file-button"),
@@ -62,20 +72,25 @@ function clearWorkspaceData() {
   state.treeVersion = null;
   state.scripts = [];
   state.selectedFile = null;
+  state.credits = null;
+  state.hints = [];
+  state.selectedHint = null;
+  state.hintPreview = null;
+  state.hintPending = new Set();
   state.lastAttempt = null;
 }
 
 function setAuthenticated(token, username) {
   state.token = token;
   state.username = username;
-  elements.sessionStatus.textContent = `Authenticated as ${username}`;
+  elements.sessionStatus.textContent = `已认证：${username}`;
   elements.statusDot.className = "status-dot active";
   elements.refreshButton.disabled = false;
   elements.logoutButton.disabled = false;
   elements.accountSection.hidden = false;
 }
 
-function clearSession(message = "Not authenticated") {
+function clearSession(message = "未认证") {
   state.token = null;
   state.username = "";
   clearWorkspaceData();
@@ -85,8 +100,9 @@ function clearSession(message = "Not authenticated") {
   elements.refreshButton.disabled = true;
   elements.logoutButton.disabled = true;
   elements.accountSection.hidden = true;
-  elements.accountStatus.textContent = "Not selected";
+  elements.accountStatus.textContent = "未选择";
   elements.accountPassword.value = "";
+  setNotice(elements.hintMessage, "");
   renderWorkspace();
 }
 
@@ -104,7 +120,7 @@ function addEvent(method, path, status, duration) {
     status.className = event.status >= 400 || event.status === "ERR" ? "failed" : "";
     method.textContent = event.method;
     path.textContent = event.path;
-    status.textContent = `${event.status}${duration === null ? "" : ` ${duration}ms`}`;
+    status.textContent = `${event.status}${event.duration === null ? "" : ` ${event.duration}ms`}`;
     item.append(method, path, status);
     elements.eventList.append(item);
   }
@@ -155,26 +171,49 @@ async function readJson(response) {
     const error = new Error(
       payload && (payload.detail || payload.title)
         ? payload.detail || payload.title
-        : `Request failed with ${response.status}.`,
+        : `请求失败（状态码 ${response.status}）。`,
     );
     error.status = response.status;
+    error.problemType = payload && typeof payload.type === "string" ? payload.type : "";
     throw error;
   }
   return payload;
+}
+
+function displayErrorMessage(error) {
+  if (error.problemType && error.problemType.endsWith("/access-token-invalid")) {
+    return "认证已失效，请重新登录。";
+  }
+  if (error.problemType && error.problemType.endsWith("/primary-credentials-invalid")) {
+    return "用户名或密码不正确。";
+  }
+  if (error.problemType && error.problemType.endsWith("/virtual-account-invalid-credentials")) {
+    return "虚拟账号凭据不正确。";
+  }
+  if (error.status === 401) {
+    return "认证失败，请重新登录。";
+  }
+  if (error.status === 404) {
+    return "请求的资源不存在。";
+  }
+  if (error.status === 422) {
+    return "请求参数无效。";
+  }
+  return error.message || "请求失败。";
 }
 
 async function refreshAccessToken() {
   try {
     const response = await callApi("/auth/refresh", { method: "POST" }, false);
     if (!response.ok) {
-      clearSession("Session expired");
+      clearSession("会话已过期");
       return false;
     }
     const payload = await readJson(response);
-    setAuthenticated(payload.access_token, state.username || "Restored session");
+    setAuthenticated(payload.access_token, state.username || "恢复的会话");
     return true;
   } catch (_) {
-    clearSession("Session unavailable");
+    clearSession("会话不可用");
     return false;
   }
 }
@@ -201,10 +240,12 @@ async function loadWorkspace({ forceTree = false } = {}) {
   }
   elements.refreshButton.disabled = true;
   try {
-    const [progress, version, scripts] = await Promise.all([
+    const [progress, version, scripts, credits, hints] = await Promise.all([
       callApi("/progress").then(readJson),
       fetchTreeVersion(forceTree),
       callApi("/scripts").then(readJson),
+      callApi("/credits").then(readJson),
+      callApi("/hints").then(readJson),
     ]);
 
     const progressChanged = state.progress !== null && state.progress.version !== progress.version;
@@ -223,11 +264,19 @@ async function loadWorkspace({ forceTree = false } = {}) {
         : `"${tree.tree_version}"`;
     }
     state.scripts = scripts.items;
+    state.credits = credits;
+    state.hints = hints.hints;
+    if (state.selectedHint) {
+      state.selectedHint = state.hints.find((hint) => hint.hint_id === state.selectedHint.hint_id) || null;
+      if (!state.selectedHint) {
+        state.hintPreview = null;
+      }
+    }
     renderWorkspace();
     return true;
   } catch (error) {
     elements.statusDot.className = "status-dot error";
-    setNotice(elements.authMessage, error.message, "error");
+    setNotice(elements.authMessage, displayErrorMessage(error), "error");
     return false;
   } finally {
     elements.refreshButton.disabled = !state.token;
@@ -236,26 +285,33 @@ async function loadWorkspace({ forceTree = false } = {}) {
 
 function renderWorkspace() {
   elements.treeVersion.textContent = state.treeVersion || "--";
+  renderCredits();
   renderProgress();
   renderScripts();
+  renderHints();
   renderFiles();
   renderPreview();
+  renderHintPreview();
   renderAnswerForm();
+}
+
+function renderCredits() {
+  elements.creditsBalance.textContent = state.credits ? `VTB ${state.credits.vtb}` : "VTB --";
 }
 
 function renderProgress() {
   elements.progressList.replaceChildren();
   if (!state.progress) {
     const item = document.createElement("li");
-    item.innerHTML = "<strong>Status</strong><span>Not loaded</span>";
+    item.innerHTML = "<strong>状态</strong><span>未加载</span>";
     elements.progressList.append(item);
     return;
   }
   const rows = [
-    ["Unlocked", state.progress.unlocked_nodes.join(", ") || "--"],
-    ["Frontier", state.progress.frontier_nodes.join(", ") || "--"],
-    ["Checkpoint", String(state.progress.checkpoint_sequence)],
-    ["Version", String(state.progress.version)],
+    ["已解锁", state.progress.unlocked_nodes.join(", ") || "--"],
+    ["前沿", state.progress.frontier_nodes.join(", ") || "--"],
+    ["检查点", String(state.progress.checkpoint_sequence)],
+    ["版本", String(state.progress.version)],
   ];
   for (const [label, value] of rows) {
     const item = document.createElement("li");
@@ -272,7 +328,7 @@ function renderScripts() {
   elements.scriptList.replaceChildren();
   if (!state.scripts.length) {
     const item = document.createElement("li");
-    item.textContent = "No scripts loaded";
+    item.textContent = "暂无脚本";
     elements.scriptList.append(item);
     return;
   }
@@ -283,10 +339,91 @@ function renderScripts() {
     id.className = "script-id";
     kind.className = "script-kind";
     id.textContent = script.stable_id;
-    kind.textContent = `${script.body.kind || "unknown"} / revision ${script.revision}`;
+    kind.textContent = `${script.body.kind || "未知"} / 修订版 ${script.revision}`;
     item.append(id, kind);
     elements.scriptList.append(item);
   }
+}
+
+function renderHints() {
+  elements.hintList.replaceChildren();
+  if (!state.token) {
+    const notice = document.createElement("p");
+    notice.className = "notice";
+    notice.textContent = "认证后加载提示。";
+    elements.hintList.append(notice);
+    return;
+  }
+  if (!state.hints.length) {
+    const notice = document.createElement("p");
+    notice.className = "notice";
+    notice.textContent = "当前没有可见提示。";
+    elements.hintList.append(notice);
+    return;
+  }
+  for (const hint of state.hints) {
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("strong");
+    const price = document.createElement("span");
+    const teaser = document.createElement("p");
+    const meta = document.createElement("div");
+    const status = document.createElement("div");
+    const actions = document.createElement("div");
+    const pending = state.hintPending.has(hint.hint_id);
+
+    card.className = "hint-card";
+    card.dataset.hintId = hint.hint_id;
+    header.className = "hint-card-header";
+    title.className = "hint-title";
+    price.className = "hint-price";
+    teaser.className = "hint-teaser";
+    meta.className = "hint-meta";
+    status.className = `hint-status${hint.disclosed ? " disclosed" : ""}`;
+    actions.className = "hint-actions";
+
+    title.textContent = hint.display.title;
+    price.textContent = `${hint.vtb_cost} VTB`;
+    teaser.textContent = hint.display.teaser || "没有额外说明。";
+    meta.textContent = `${hint.media_type} · ${formatBytes(hint.size_bytes)}`;
+    status.textContent = pending ? "正在处理..." : hint.disclosed ? "已购买" : "尚未购买";
+    if (hint.disclosed) {
+      status.textContent += ` · ${hint.content_token.slice(0, 12)}...`;
+    }
+    header.append(title, price);
+    card.append(header, teaser, meta, status, actions);
+
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = hint.disclosed ? "primary" : "";
+    action.disabled = pending;
+    if (hint.disclosed) {
+      action.textContent = pending ? "正在读取..." : "揭示内容";
+      action.addEventListener("click", () => revealHint(hint));
+    } else {
+      action.textContent = pending ? "正在购买..." : "购买";
+      action.addEventListener("click", () => purchaseHint(hint));
+    }
+    actions.append(action);
+    elements.hintList.append(card);
+  }
+}
+
+function renderHintPreview() {
+  if (!state.hintPreview) {
+    elements.hintPreviewName.textContent = "未选择提示";
+    elements.hintPreviewContent.textContent = "购买并揭示提示后，内容会显示在这里。";
+    return;
+  }
+  elements.hintPreviewName.textContent = state.hintPreview.name;
+  elements.hintPreviewContent.textContent = state.hintPreview.text;
+}
+
+function formatBytes(sizeBytes) {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+  return `${(sizeBytes / 1024).toFixed(1)} KB`;
 }
 
 function renderFiles() {
@@ -294,7 +431,7 @@ function renderFiles() {
   if (!state.tree) {
     const notice = document.createElement("p");
     notice.className = "notice";
-    notice.textContent = "Authenticate to load files.";
+    notice.textContent = "请先认证以加载文件。";
     elements.fileTree.append(notice);
     return;
   }
@@ -345,7 +482,7 @@ function findFile(directory, fileId) {
 }
 
 async function openFile(file, retryOnStale = true) {
-  state.selectedFile = { ...file, text: "Loading preview...", url: null };
+  state.selectedFile = { ...file, text: "正在加载预览...", url: null };
   renderFiles();
   renderPreview();
   try {
@@ -353,7 +490,7 @@ async function openFile(file, retryOnStale = true) {
     state.selectedFile.url = issued.url;
     const content = await fetch(issued.url, { credentials: "omit" });
     if (!content.ok) {
-      throw new Error(`Object request failed with ${content.status}.`);
+      throw new Error(`对象请求失败（状态码 ${content.status}）。`);
     }
     state.selectedFile.text = await content.text();
   } catch (error) {
@@ -368,19 +505,19 @@ async function openFile(file, retryOnStale = true) {
         state.selectedFile = null;
         renderFiles();
         renderPreview();
-        setNotice(elements.authMessage, "File is no longer available.", "error");
+        setNotice(elements.authMessage, "文件已不可用。", "error");
         return;
       }
     }
-    state.selectedFile.text = `Preview unavailable: ${error.message}`;
+    state.selectedFile.text = `预览不可用：${error.message}`;
   }
   renderPreview();
 }
 
 function renderPreview() {
   if (!state.selectedFile) {
-    elements.previewName.textContent = "No file selected";
-    elements.previewContent.textContent = "Select a file from the tree.";
+    elements.previewName.textContent = "未选择文件";
+    elements.previewContent.textContent = "请从文件树中选择文件。";
     elements.openFileButton.disabled = true;
     return;
   }
@@ -393,16 +530,16 @@ function renderAnswerForm() {
   const validator = state.scripts.find((script) => script.body.kind === "answer-validator");
   if (!validator) {
     elements.answerForm.hidden = true;
-    setNotice(elements.answerMessage, "No answer validator available.");
+    setNotice(elements.answerMessage, "暂无答案验证器。", "");
     return;
   }
   elements.answerForm.hidden = false;
   elements.answerForm.dataset.validationId = validator.body.validation_id;
-  elements.answerLabel.textContent = validator.body.input && validator.body.input.label ? validator.body.input.label : "Answer";
+  elements.answerLabel.textContent = "答案";
   elements.answerInput.name = validator.body.input && validator.body.input.name ? validator.body.input.name : "answer";
   elements.answerMeta.textContent = validator.body.validation_id;
   if (!elements.answerMessage.classList.contains("success")) {
-    setNotice(elements.answerMessage, "Ready.");
+    setNotice(elements.answerMessage, "准备就绪。");
   }
 }
 
@@ -416,17 +553,111 @@ async function submitAnswer(attempt) {
       body: { answer: attempt.answer },
     }).then(readJson);
     if (!payload.content.accepted) {
-      setNotice(elements.answerMessage, "Answer rejected.", "error");
+      setNotice(elements.answerMessage, "答案不正确。", "error");
       return;
     }
-    setNotice(elements.answerMessage, "Accepted. Refreshing runtime state...", "success");
+    setNotice(elements.answerMessage, "答案已接受，正在刷新运行时状态...", "success");
     await loadWorkspace({ forceTree: true });
-    setNotice(elements.answerMessage, "Accepted.", "success");
+    setNotice(elements.answerMessage, "答案已接受。", "success");
   } catch (error) {
-    setNotice(elements.answerMessage, error.message, "error");
+    setNotice(elements.answerMessage, displayErrorMessage(error), "error");
     elements.retryAnswer.hidden = false;
   } finally {
     elements.answerSubmit.disabled = false;
+  }
+}
+
+function hintErrorMessage(error) {
+  if (error.problemType && error.problemType.endsWith("/insufficient-credits")) {
+    return "VTB 余额不足，提示未购买。";
+  }
+  if (error.problemType && error.problemType.endsWith("/hint-unavailable")) {
+    return "该提示当前不可用。";
+  }
+  if (error.problemType && error.problemType.endsWith("/hint-content-version-mismatch")) {
+    return "提示内容已更新，请刷新后重试。";
+  }
+  return displayErrorMessage(error);
+}
+
+async function purchaseHint(hint) {
+  if (state.hintPending.has(hint.hint_id)) {
+    return;
+  }
+  state.hintPending.add(hint.hint_id);
+  setNotice(elements.hintMessage, `正在购买“${hint.display.title}”...`);
+  renderHints();
+  try {
+    const payload = await callApi(`/hints/${encodeURIComponent(hint.hint_id)}/disclose`, {
+      method: "POST",
+      headers: { "Request-ID": crypto.randomUUID() },
+    }).then(readJson);
+    const disclosed = payload.content.hint;
+    state.selectedHint = disclosed;
+    state.hints = state.hints.map((item) => item.hint_id === disclosed.hint_id ? disclosed : item);
+    setNotice(elements.hintMessage, "提示已购买，可以揭示内容。", "success");
+    await loadWorkspace();
+  } catch (error) {
+    setNotice(elements.hintMessage, hintErrorMessage(error), "error");
+  } finally {
+    state.hintPending.delete(hint.hint_id);
+    renderHints();
+    renderHintPreview();
+  }
+}
+
+async function revealHint(hint) {
+  if (state.hintPending.has(hint.hint_id) || !hint.content_token) {
+    return;
+  }
+  state.hintPending.add(hint.hint_id);
+  state.selectedHint = hint;
+  state.hintPreview = { name: hint.display.title, text: "正在读取提示内容..." };
+  setNotice(elements.hintMessage, `正在揭示“${hint.display.title}”...`);
+  renderHints();
+  renderHintPreview();
+  try {
+    let currentHint = hint;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const issued = await callApi(
+          `/hints/${encodeURIComponent(currentHint.hint_id)}/${currentHint.content_token}/content-url`,
+        ).then(readJson);
+        const content = await fetch(issued.url, { credentials: "omit" });
+        if (!content.ok) {
+          throw new Error(`对象请求失败（状态码 ${content.status}）。`);
+        }
+        state.selectedHint = currentHint;
+        state.hintPreview = {
+          name: currentHint.display.title,
+          text: await content.text(),
+        };
+        setNotice(elements.hintMessage, "提示内容已揭示。", "success");
+        return;
+      } catch (error) {
+        if (attempt === 0 && error.status === 412) {
+          const refreshed = await loadWorkspace();
+          const refreshedHint = refreshed
+            ? state.hints.find((item) => item.hint_id === currentHint.hint_id)
+            : null;
+          if (refreshedHint && refreshedHint.content_token !== currentHint.content_token) {
+            currentHint = refreshedHint;
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
+  } catch (error) {
+    state.hintPreview = {
+      name: hint.display.title,
+      text: `提示不可用：${hintErrorMessage(error)}`,
+    };
+    setNotice(elements.hintMessage, hintErrorMessage(error), "error");
+  } finally {
+    state.hintPending.delete(hint.hint_id);
+    renderHints();
+    renderHintPreview();
   }
 }
 
@@ -434,7 +665,7 @@ function setAuthMode(mode) {
   state.authMode = mode;
   elements.registerMode.classList.toggle("active", mode === "register");
   elements.loginMode.classList.toggle("active", mode === "login");
-  elements.authSubmit.textContent = mode === "register" ? "Create session" : "Log in";
+  elements.authSubmit.textContent = mode === "register" ? "创建会话" : "登录";
   setNotice(elements.authMessage, "");
 }
 
@@ -464,15 +695,15 @@ elements.authForm.addEventListener("submit", async (event) => {
     const payload = await callApi(path, { method: "POST", body: { username, password } }).then(readJson);
     setAuthenticated(payload.access_token, username);
     state.currentAccount = null;
-    elements.accountStatus.textContent = "Not selected";
+    elements.accountStatus.textContent = "未选择";
     elements.accountPassword.value = "";
     setNotice(elements.accountMessage, "");
-    setNotice(elements.authMessage, "Session ready.", "success");
+    setNotice(elements.authMessage, "会话已就绪。", "success");
     clearWorkspaceData();
     renderWorkspace();
     await loadWorkspace({ forceTree: true });
   } catch (error) {
-    setNotice(elements.authMessage, error.message, "error");
+    setNotice(elements.authMessage, displayErrorMessage(error), "error");
   } finally {
     elements.authSubmit.disabled = false;
   }
@@ -490,14 +721,14 @@ elements.accountForm.addEventListener("submit", async (event) => {
       },
     }).then(readJson);
     state.currentAccount = payload.content.current_account;
-    elements.accountStatus.textContent = state.currentAccount ? state.currentAccount.display_name : "Not selected";
+    elements.accountStatus.textContent = state.currentAccount ? state.currentAccount.display_name : "未选择";
     elements.accountPassword.value = "";
     clearWorkspaceData();
     renderWorkspace();
-    setNotice(elements.accountMessage, "Account active.", "success");
+    setNotice(elements.accountMessage, "账号已激活。", "success");
     await loadWorkspace({ forceTree: true });
   } catch (error) {
-    setNotice(elements.accountMessage, error.message, "error");
+    setNotice(elements.accountMessage, displayErrorMessage(error), "error");
   } finally {
     elements.accountSubmit.disabled = false;
   }
