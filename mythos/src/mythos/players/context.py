@@ -8,7 +8,7 @@ from typing import Any, Mapping, NoReturn
 from uuid import UUID
 
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands.exceptions import CommandRejected
+from mythos.core.exceptions import CommandRejected
 from mythos.core.followups import FollowupBody, FollowupCollector
 from mythos.players.player import Player
 from mythos.registry.lifecycle.definitions import PlayerLifecycleEvent
