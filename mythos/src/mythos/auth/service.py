@@ -115,6 +115,7 @@ class AuthService:
                 self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
                 await self.session.flush()
                 await self._construct(player, "registration")
+                await self.command_executor.execute_tasks_nocache_itx(self.session, player.id)
         except IntegrityError as error:
             if "players.username_normalized" in str(error).lower():
                 raise UsernameAlreadyExistsError from error
@@ -151,6 +152,7 @@ class AuthService:
             auth.refresh_secret_hash = hash_refresh_secret(credential.secret, self.settings)
             auth.refresh_expires_at = now + timedelta(seconds=self.settings.refresh_token_ttl_seconds)
             auth.refresh_rotated_at = now
+            await self.command_executor.execute_tasks_nocache_itx(self.session, player.id)
 
         return AuthenticationResult(
             access_token=issue_access_token(player.id, self.settings),
@@ -206,6 +208,7 @@ class AuthService:
 
     async def logout(self, player_id: UUID) -> None:
         async with self.session.begin():
+            await self.command_executor.execute_tasks_nocache_itx(self.session, player_id)
             await self.session.execute(
                 update(PlayerAuth)
                 .where(PlayerAuth.player_id == player_id)

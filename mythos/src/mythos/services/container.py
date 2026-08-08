@@ -15,6 +15,7 @@ from mythos.services.object_store.service import ObjectStoreReader
 from mythos.services.progress.checkpoint_store import LocalCheckpointStore
 from mythos.services.progress.service import ProgressService
 from mythos.services.scripts.service import ScriptService
+from mythos.services.tasks.service import TaskService
 from mythos.services.validations.service import ValidationService
 
 
@@ -26,6 +27,7 @@ class ServiceContainer:
     progress: ProgressService
     scripts: ScriptService
     validations: ValidationService
+    tasks: TaskService
 
     @classmethod
     def create(
@@ -42,6 +44,7 @@ class ServiceContainer:
         file_download_url_ttl_seconds: int,
         checkpoint_store: LocalCheckpointStore,
         file_ids: FileIdCodec,
+        task_service: TaskService,
     ) -> ServiceContainer:
         return cls(
             accounts=AccountService(),
@@ -63,4 +66,5 @@ class ServiceContainer:
             progress=ProgressService(progress_graph, checkpoint_store),
             scripts=ScriptService(script_catalog),
             validations=ValidationService(validation_catalog),
+            tasks=task_service,
         )

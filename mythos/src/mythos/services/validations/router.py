@@ -48,7 +48,7 @@ async def submit_attempt(
     except ValidationAttemptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Validation not found.") from error
     try:
-        result = await runtime.command_executor.execute(
+        result = await runtime.command_executor.execute_with_task(
             session,
             identity,
             request_id,

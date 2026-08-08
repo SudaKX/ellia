@@ -13,6 +13,7 @@ from mythos.registry.hints import HintCatalog, HintRegistry
 from mythos.registry.lifecycle import LifecycleCatalog, LifecycleRegistry
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
+from mythos.registry.tasks import TaskCatalog, TaskRegistry
 from mythos.registry.validations import ValidationCatalog, ValidationRegistry
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ class RuntimeCatalogs:
     accounts: VirtualAccountCatalog
     hints: HintCatalog
     lifecycle: LifecycleCatalog
+    tasks: TaskCatalog
 
 
 class RegistryBundle:
@@ -42,6 +44,7 @@ class RegistryBundle:
         self.accounts = VirtualAccountRegistry()
         self.hints = HintRegistry()
         self.lifecycle = LifecycleRegistry()
+        self.tasks = TaskRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -69,6 +72,7 @@ class RegistryBundle:
             accounts=self.accounts.freeze(),
             hints=self.hints.freeze(file_ids),
             lifecycle=self.lifecycle.freeze(),
+            tasks=self.tasks.freeze(),
         )
         return self._catalogs
 

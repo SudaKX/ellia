@@ -11,6 +11,7 @@ from mythos.persistence.models.progress import (
     PlayerProgressUnlockedNode,
 )
 from mythos.persistence.models.static_files import StaticFileRegistration
+from mythos.persistence.models.tasks import PlayerTaskState
 
 __all__ = [
     "PlayerArtifact",
@@ -27,4 +28,5 @@ __all__ = [
     "PlayerProgressUnlockedNode",
     "PlayerRecord",
     "StaticFileRegistration",
+    "PlayerTaskState",
 ]

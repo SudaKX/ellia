@@ -11,6 +11,7 @@
 | [脚本](scripts.md) | 可见脚本 DTO |
 | [验证](validations.md) | 模块 validation 提交 |
 | [VirtualAccount](virtual-accounts.md) | 玩家虚拟账号登录和登出 |
+| [任务](tasks.md) | 玩家任务状态读取和显式惰性处理 |
 | [错误与缓存](errors-and-caching.md) | 跨端点恢复策略 |
 | [Example 流程](example-flow.md) | 开发页面调用顺序 |
 

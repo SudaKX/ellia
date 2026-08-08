@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
     artifact_template_snapshot_path: Path | None = None
     virtual_account_template_snapshot_path: Path | None = None
+    task_registry_snapshot_path: Path | None = None
     allow_empty_virtual_account_catalog_reconciliation: bool = False
 
     @model_validator(mode="after")
@@ -177,6 +178,15 @@ class Settings(BaseSettings):
         if database_path is not None:
             return database_path.parent / "virtual-account-template-catalog.json"
         return PROJECT_ROOT / "data" / "virtual-account-template-catalog.json"
+
+    @property
+    def task_snapshot_path(self) -> Path:
+        if self.task_registry_snapshot_path is not None:
+            return self.task_registry_snapshot_path
+        database_path = make_database_path(self.database_url)
+        if database_path is not None:
+            return database_path.parent / "task-registry-catalog.json"
+        return PROJECT_ROOT / "data" / "task-registry-catalog.json"
 
 
 def make_database_path(database_url: str) -> Path | None:

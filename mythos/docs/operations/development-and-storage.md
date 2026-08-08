@@ -27,6 +27,7 @@
 | 配置文件 | `<repository>/mythos/.env` |
 | SQLite 数据库 | `<repository>/mythos/data/mythos.sqlite3` |
 | checkpoint 目录 | `<repository>/mythos/data/checkpoints` |
+| Task Registry 快照 | `<repository>/mythos/data/task-registry-catalog.json` |
 | 谜题资产根目录 | `<repository>/mythos/src/mythos/puzzles` |
 | 开发交互页 | `<repository>/mythos/example` |
 
@@ -100,7 +101,7 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 .\.venv\Scripts\python.exe -m mythos --reload
 ```
 
-迁移必须先于应用启动执行。`Example` 发布静态资产时会查询静态文件登记表，未执行迁移会导致启动失败。`python -m mythos` 默认监听 `127.0.0.1:8000`；可使用 `--host`、`--port` 和 `--reload` 参数覆盖。
+迁移必须先于应用启动执行。`Example` 发布静态资产时会查询静态文件登记表，任务 reconciliation 也需要 `player_task_states`，未执行迁移会导致生产启动失败。`python -m mythos` 默认监听 `127.0.0.1:8000`；可使用 `--host`、`--port` 和 `--reload` 参数覆盖。
 
 启动成功后：
 

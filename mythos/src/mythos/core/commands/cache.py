@@ -30,20 +30,25 @@ class RequestCache:
             self._entries: TTLCache[UUID, CachedResponse | None] = TTLCache(maxsize=maxsize, ttl=ttl_seconds)
         else:
             self._entries = TTLCache(maxsize=maxsize, ttl=ttl_seconds, timer=timer)
+        self._in_progress: set[UUID] = set()
 
     def reserve(self, request_id: UUID, player_id: UUID) -> CachedResponse | None:
         entry = self._entries.get(request_id, _MISSING)
-        if entry is _MISSING:
-            self._entries[request_id] = None
-            return None
-        if entry is None:
+        if entry is not _MISSING:
+            if entry is None:
+                raise RequestInProgressError
+            if entry.owner_player_id != player_id:
+                raise RequestReplayForbiddenError
+            return entry
+        if request_id in self._in_progress:
             raise RequestInProgressError
-        if entry.owner_player_id != player_id:
-            raise RequestReplayForbiddenError
-        return entry
+        self._in_progress.add(request_id)
+        return None
 
     def complete(self, request_id: UUID, response: CachedResponse) -> None:
+        self._in_progress.discard(request_id)
         self._entries[request_id] = response
 
     def release(self, request_id: UUID) -> None:
+        self._in_progress.discard(request_id)
         self._entries.pop(request_id, None)

@@ -49,7 +49,7 @@ async def disclose_hint(
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute(
+        result = await runtime.command_executor.execute_with_task(
             session,
             identity,
             request_id,

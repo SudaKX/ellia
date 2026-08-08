@@ -11,12 +11,12 @@ Settings + RegistryBundle
   -> puzzles.register_all()
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
-  -> PlayerFactory + checkpoint hook + CommandTransactionExecutor + PlayerLifecycleDispatcher
-  -> ArtifactReconciliationRunner + AccountReconciliationRunner
+  -> PlayerFactory + checkpoint hook + TaskExecutor + CommandTransactionExecutor + PlayerLifecycleDispatcher
+  -> ArtifactReconciliationRunner + AccountReconciliationRunner + TaskReconciliationRunner
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle` 八个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、六个全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle`、`tasks` 九个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、任务及其他全局 Service、对象存储、命令执行器和生命周期 Dispatcher，挂在 `app.state.runtime`。
 
 ## 服务和 HTTP
 
@@ -29,6 +29,7 @@ Settings + RegistryBundle
 | 验证 | `ValidationService` | `/api/v1/validations` |
 | VirtualAccount | `AccountService` | `/api/v1/vac` |
 | Credits | 无独立全局 Service；通过请求级 `Player.credits` | `/api/v1/credits` |
+| 惰性任务 | `TaskService` | `/api/v1/tasks` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
 Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
@@ -44,5 +45,6 @@ Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Playe
 - 静态文件必须在 freeze 前完成对象存储物化；Registry/Catalog 和 `MergedFileTree` 在运行期只读。
 - Service 是启动期单例，只接收请求级 Player 或 Context，不能保存 Session 或自行提交事务。
 - 需要写入的路由必须通过 `CommandTransactionExecutor`；模块只注册内容和 handler，不能添加通用 HTTP 回调。
+- Task Handler 只能通过冻结 TaskCatalog 调用；任务状态写入必须处于 Task transaction 或 Operation transaction 中，不能由 Service 自行提交 Session。
 
 相关实现：`main.py`、`registry/bundle.py`、`core/runtime.py`、`services/container.py`。

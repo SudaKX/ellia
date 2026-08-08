@@ -8,6 +8,7 @@ from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.credits import CreditInterface
 from mythos.players.interfaces.hints import HintInterface
 from mythos.players.interfaces.progress import ProgressInterface
+from mythos.players.interfaces.tasks import TaskInterface
 from mythos.players.interfaces.versioning import VersionedPlayerInterface
 from mythos.players.interface_selection import PlayerInterfaces
 from mythos.registry.files.merged_tree import MergedFileTree
@@ -53,6 +54,7 @@ class Player:
         self._accounts: AccountInterface | None = None
         self._credits: CreditInterface | None = None
         self._hints: HintInterface | None = None
+        self._tasks: TaskInterface | None = None
         self._file_tree_cache: PlayerFileTree | None = None
 
     @property
@@ -89,6 +91,12 @@ class Player:
             raise PlayerInterfaceNotLoadedError("hints interface not loaded")
         return self._hints
 
+    @property
+    def tasks(self) -> TaskInterface:
+        if self._tasks is None:
+            raise PlayerInterfaceNotLoadedError("tasks interface not loaded")
+        return self._tasks
+
     async def load_interfaces(
         self,
         interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
@@ -103,6 +111,8 @@ class Player:
             await self.load_credits()
         if PlayerInterfaces.HINTS in interfaces:
             await self.load_hints()
+        if PlayerInterfaces.TASKS in interfaces:
+            await self.load_tasks()
 
     async def load_progress(self) -> ProgressInterface:
         if self._progress is None:
@@ -153,6 +163,16 @@ class Player:
                 on_mutation=self.invalidate_cache,
             )
         return self._hints
+
+    async def load_tasks(self) -> TaskInterface:
+        if self._tasks is None:
+            self._tasks = await self._factory.load_tasks(
+                self._session,
+                self._player_id,
+                writable=self._writable,
+                on_mutation=self.invalidate_cache,
+            )
+        return self._tasks
 
     def invalidate_cache(self) -> None:
         self._file_tree_cache = None

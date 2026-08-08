@@ -84,7 +84,7 @@ async def _execute(
     operation: _AccountOperation,
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute(session, identity, request_id, operation)
+        result = await runtime.command_executor.execute_with_task(session, identity, request_id, operation)
     except RequestInProgressError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

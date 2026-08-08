@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, NoReturn
+from datetime import datetime
+from types import MappingProxyType
+from typing import Any, Mapping, NoReturn
 from uuid import UUID
 
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands.models import CommandRejected
+from mythos.core.commands.exceptions import CommandRejected
 from mythos.core.followups import FollowupBody, FollowupCollector
 from mythos.players.player import Player
 from mythos.registry.lifecycle.definitions import PlayerLifecycleEvent
@@ -34,6 +37,72 @@ class CommandContext(RequestContext):
 
     def reject(self, status_code: int, detail: str) -> NoReturn:
         raise CommandRejected(status_code, detail)
+
+
+class TaskContext:
+    """Mutable, request-local task state passed to an asynchronous Handler."""
+
+    def __init__(
+        self,
+        *,
+        player: Player,
+        task_id: str,
+        time_1: datetime | None,
+        time_2: datetime | None,
+        exception: int,
+        meta: Mapping[str, object],
+        now: datetime,
+    ) -> None:
+        self.player = player
+        self.task_id = task_id
+        self._time_1 = time_1
+        self._extra_time = time_2
+        self._exception = exception
+        self._meta = deepcopy(dict(meta))
+        self.now = now
+        self._deferred = False
+
+    @property
+    def time_1(self) -> datetime | None:
+        return self._time_1
+
+    @property
+    def time_2(self) -> datetime | None:
+        return self._extra_time
+
+    @property
+    def extra_time(self) -> datetime | None:
+        return self._extra_time
+
+    @property
+    def exception(self) -> int:
+        return self._exception
+
+    @property
+    def meta(self) -> Mapping[str, object]:
+        return MappingProxyType(self._meta)
+
+    @property
+    def deferred(self) -> bool:
+        return self._deferred
+
+    def set_extra_time(self, value: datetime | None) -> None:
+        self._extra_time = value
+
+    def replace_meta(self, value: Mapping[str, object]) -> None:
+        self._meta = deepcopy(dict(value))
+
+    def update_meta(self, values: Mapping[str, object]) -> None:
+        self._meta.update(deepcopy(dict(values)))
+
+    def delete_meta(self, key: str) -> None:
+        self._meta.pop(key, None)
+
+    def defer(self) -> None:
+        self._deferred = True
+
+    def _meta_value(self) -> dict[str, object]:
+        return deepcopy(self._meta)
 
 
 @dataclass(frozen=True, slots=True, eq=False)

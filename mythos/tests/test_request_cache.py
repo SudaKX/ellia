@@ -25,6 +25,9 @@ def test_request_cache_reserves_replays_and_expires() -> None:
     assert cache.reserve(request_id, owner) is None
     with pytest.raises(RequestInProgressError):
         cache.reserve(request_id, owner)
+    now[0] = 11.0
+    with pytest.raises(RequestInProgressError):
+        cache.reserve(request_id, owner)
 
     result = _result(owner)
     cache.complete(request_id, result)
@@ -32,7 +35,7 @@ def test_request_cache_reserves_replays_and_expires() -> None:
     with pytest.raises(RequestReplayForbiddenError):
         cache.reserve(request_id, uuid4())
 
-    now[0] = 11.0
+    now[0] = 22.0
     assert cache.reserve(request_id, owner) is None
 
 

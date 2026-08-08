@@ -18,6 +18,7 @@ from mythos.core.commands import CommandTransactionExecutor, RequestCache
 from mythos.puzzles import register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.factory import PlayerFactory
+from mythos.players.interface_selection import PlayerInterfaces
 from mythos.services.container import ServiceContainer
 from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
@@ -34,6 +35,8 @@ from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
 from mythos.services.lifecycle import PlayerLifecycleDispatcher
+from mythos.services.tasks import TaskExecutor, TaskReconciliationRunner, TaskService, TaskSnapshotStore
+from mythos.services.tasks.router import router as tasks_router
 from mythos.core.problems import (
     ApiProblem,
     PROBLEM_MEDIA_TYPE,
@@ -78,6 +81,12 @@ def create_app(
         player_factory = PlayerFactory(catalogs, resolved_object_store, file_ids)
         checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
+        task_executor = TaskExecutor(
+            player_factory,
+            catalogs.tasks,
+            (checkpoint_hook,),
+            pre_commit_interfaces=PlayerInterfaces.PROGRESS,
+        )
         command_executor = CommandTransactionExecutor(
             player_factory,
             RequestCache(
@@ -85,6 +94,7 @@ def create_app(
                 ttl_seconds=resolved_settings.request_cache_ttl_seconds,
             ),
             (checkpoint_hook,),
+            task_executor=task_executor,
         )
         lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
         await ArtifactReconciliationRunner(
@@ -100,6 +110,13 @@ def create_app(
             catalogs.accounts,
             VirtualAccountTemplateSnapshotStore(resolved_settings.virtual_account_snapshot_path),
             allow_empty_catalog=resolved_settings.allow_empty_virtual_account_catalog_reconciliation,
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await TaskReconciliationRunner(
+            database.session_factory,
+            command_executor,
+            catalogs.tasks,
+            TaskSnapshotStore(resolved_settings.task_snapshot_path),
             allow_missing_tables=resolved_settings.environment == "test",
         ).run()
         application.state.settings = resolved_settings
@@ -120,6 +137,7 @@ def create_app(
                 resolved_settings.file_download_url_ttl_seconds,
                 checkpoint_store,
                 file_ids,
+                TaskService(catalogs.tasks, task_executor),
             ),
             object_store=resolved_object_store,
             command_executor=command_executor,
@@ -155,6 +173,7 @@ def create_app(
     application.include_router(progress_router, prefix="/api/v1")
     application.include_router(scripts_router, prefix="/api/v1")
     application.include_router(validations_router, prefix="/api/v1")
+    application.include_router(tasks_router, prefix="/api/v1")
 
     @application.get("/health", tags=["system"])
     async def healthcheck() -> dict[str, str]:

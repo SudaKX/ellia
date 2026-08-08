@@ -14,6 +14,7 @@ from mythos.persistence.models import (
     PlayerHintDisclosure,
     PlayerProgress,
     PlayerProgressCheckpoint,
+    PlayerTaskState,
     PlayerVirtualAccount,
     PlayerVirtualAccountState,
 )
@@ -22,6 +23,7 @@ from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.credits import CreditInterface
 from mythos.players.interfaces.hints import HintInterface
 from mythos.players.interfaces.progress import ProgressInterface
+from mythos.players.interfaces.tasks import TaskInterface
 from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.bundle import RuntimeCatalogs
@@ -154,6 +156,32 @@ class PlayerFactory:
             (await session.scalars(select(PlayerHintDisclosure).where(PlayerHintDisclosure.player_id == player_id))).all()
         )
         return HintInterface(player_id, session, disclosures, writable=writable, on_mutation=on_mutation)
+
+    async def load_tasks(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> TaskInterface:
+        records = tuple(
+            (
+                await session.scalars(
+                    select(PlayerTaskState)
+                    .where(PlayerTaskState.player_id == player_id)
+                    .order_by(PlayerTaskState.task_id)
+                )
+            ).all()
+        )
+        return TaskInterface(
+            player_id,
+            self._catalogs.tasks,
+            session,
+            records,
+            writable=writable,
+            on_mutation=on_mutation,
+        )
 
     async def load(
         self,
