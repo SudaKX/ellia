@@ -22,7 +22,7 @@ from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerCredits, PlayerRecord, PlayerTaskState
 from mythos.players.factory import PlayerFactory
-from mythos.puzzles.example import VTB_TASK_ID, register
+from puzzles.example import VTB_TASK_ID, register
 from mythos.registry.bundle import RegistryBundle
 from mythos.services.tasks import TaskExecutor
 from mythos.services.tasks import executor as task_executor_module
@@ -63,7 +63,7 @@ async def _task_harness(
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 
-    registered = RegistryBundle(Path(__file__).parents[1] / "src" / "mythos" / "puzzles")
+    registered = RegistryBundle(Path(__file__).parents[1] / "puzzles")
     register(registered, initial_vtb=0)
     definition = registered.tasks.freeze().task(VTB_TASK_ID)
     registries = RegistryBundle()

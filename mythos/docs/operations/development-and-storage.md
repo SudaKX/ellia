@@ -20,7 +20,7 @@
 
 ## 2. 运行路径
 
-`mythos.core.config.PROJECT_ROOT` 从 `config.py` 的源码位置推导，默认路径不依赖进程当前工作目录：
+`mythos.core.config.PROJECT_ROOT` 等于进程启动时的 `Path.cwd().resolve()`。运行命令必须从后端项目根目录执行；框架源码即使安装在 wheel 的 `site-packages` 中，也不会改变运行根目录：
 
 | 项目 | 默认绝对位置 |
 | --- | --- |
@@ -28,17 +28,19 @@
 | SQLite 数据库 | `<repository>/mythos/data/mythos.sqlite3` |
 | checkpoint 目录 | `<repository>/mythos/data/checkpoints` |
 | Task Registry 快照 | `<repository>/mythos/data/task-registry-catalog.json` |
-| 谜题资产根目录 | `<repository>/mythos/src/mythos/puzzles` |
+| 外部 puzzles 插件和谜题资产根目录 | `<repository>/mythos/puzzles` |
 | 开发交互页 | `<repository>/mythos/example` |
 
-但以下值使用相对路径时，仍相对于启动进程的当前工作目录解析：
+Settings 中的相对文件路径统一相对于 `PROJECT_ROOT` 解析，绝对路径保持不变：
 
 - `MYTHOS_DATABASE_URL` 中的 SQLite 相对路径。
 - `MYTHOS_PUZZLE_ROOT`。
 - `MYTHOS_CHECKPOINT_DIRECTORY`。
-- Uvicorn 的 `--app-dir` 参数。
+- `MYTHOS_ARTIFACT_TEMPLATE_SNAPSHOT_PATH`、`MYTHOS_VIRTUAL_ACCOUNT_TEMPLATE_SNAPSHOT_PATH` 和 `MYTHOS_TASK_REGISTRY_SNAPSHOT_PATH`。
 
-因此项目规定从 `mythos/` 目录启动。不要在仓库根目录、IDE 的任意目录或服务管理器默认目录中复用下文命令。确需改变工作目录时，应为上述所有路径提供绝对值，或同步调整相对值。
+Uvicorn 的 `--app-dir` 只影响 Python 应用导入搜索路径，不改变 `PROJECT_ROOT`。外部 `puzzles` 插件由 Mythos 根据 `MYTHOS_PUZZLE_ROOT` 单独注入其上级路径。
+
+因此项目规定从 `mythos/` 目录启动。不要在仓库根目录、IDE 的任意目录或服务管理器默认目录中复用下文命令；错误的 cwd 可能导致读取错误的 `.env`、数据库或插件目录。确需改变工作目录时，应同步改变运行根目录下的完整部署布局，并使用绝对插件路径。
 
 ## 3. 前置服务
 
@@ -85,7 +87,7 @@ MYTHOS_OBJECT_STORE_USE_TLS=false
 
 ```text
 MYTHOS_DATABASE_URL=sqlite+aiosqlite:///./data/mythos.sqlite3
-MYTHOS_PUZZLE_ROOT=./src/mythos/puzzles
+MYTHOS_PUZZLE_ROOT=./puzzles
 MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 ```
 
@@ -103,6 +105,8 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 
 迁移必须先于应用启动执行。`Example` 发布静态资产时会查询静态文件登记表，任务 reconciliation 也需要 `player_task_states`，未执行迁移会导致生产启动失败。`python -m mythos` 默认监听 `127.0.0.1:8000`；可使用 `--host`、`--port` 和 `--reload` 参数覆盖。
 
+Mythos wheel 不包含 `puzzles/`。启动前必须确保 `puzzles/__init__.py` 存在，并且该包暴露 `register_all(registries, *, environment)`。默认插件位于 `PROJECT_ROOT/puzzles`；插件位于运行根目录之外时，Uvicorn 默认 reload 目录可能不会覆盖它，修改插件后应重启服务或额外配置 reload 监控目录。
+
 启动成功后：
 
 | 路径 | 用途 |
@@ -118,6 +122,8 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 | 现象 | 原因与处理 |
 | --- | --- |
 | `Object storage is not configured` | Example 有静态资产。补齐 endpoint、bucket、access key、secret key 和 TLS 配置，并确认 bucket 可私有读写。 |
+| `Puzzle plugin package is unavailable` | 确认从 `mythos/` 目录启动，检查解析后的 `PROJECT_ROOT` 和 `MYTHOS_PUZZLE_ROOT`，并确认插件包含 `puzzles/__init__.py`。 |
+| `Puzzle plugin root conflict` | 同一进程已经加载了另一个 `puzzles` 目录；重启进程并确保只配置一个插件根目录。 |
 | 静态资产发布失败 | 检查 bucket 存在、身份有上传权限、`MYTHOS_PUZZLE_ROOT` 指向 `puzzles` 目录，且 Source 文件存在。 |
 | `no such table: static_file_registrations` | 从 `mythos/` 目录执行 Alembic upgrade head。 |
 | `/example/` 返回 404 | 确认环境为 `development`，并通过开发服务器而非生产部署访问。 |
@@ -131,6 +137,7 @@ MYTHOS_CHECKPOINT_DIRECTORY=./data/checkpoints
 - 私有、停用 bucket versioning 的 RustFS/S3 bucket 及精确 CORS 规则。
 - 持久化 SQLite 与 checkpoint 存储卷。
 - 生产 secrets 的部署平台注入。
+- 框架 wheel 和外部 `puzzles/` 插件目录的独立交付，并将服务 working directory 设置为 `mythos/`。
 - `/console/`、`/api/v1/` 等同源路由策略。
 
 当前 SQLite、checkpoint 文件、Artifact/VirtualAccount Catalog 快照和进程内 Request-ID cache 只适合单实例运行，不能直接水平扩容。

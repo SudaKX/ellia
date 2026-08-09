@@ -15,7 +15,7 @@ from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.commands import CommandTransactionExecutor, RequestCache
-from mythos.puzzles import register_all
+from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.factory import PlayerFactory
 from mythos.players.interface_selection import PlayerInterfaces
@@ -56,11 +56,15 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if registries is None:
+        try:
+            register_all = load_puzzle_register_all(resolved_settings.puzzle_root)
+        except PuzzlePluginError as error:
+            raise PuzzlePluginError(
+                "Could not assemble the puzzle plugin "
+                f"(PROJECT_ROOT={PROJECT_ROOT}, puzzle_root={resolved_settings.puzzle_root}): {error}"
+            ) from error
         registered_content = RegistryBundle(resolved_settings.puzzle_root)
-        register_all(
-            registered_content,
-            example_initial_vtb=5 if resolved_settings.environment in {"development", "test"} else 0,
-        )
+        register_all(registered_content, environment=resolved_settings.environment)
     else:
         registered_content = registries
     registered_content.configure_puzzle_root(resolved_settings.puzzle_root)

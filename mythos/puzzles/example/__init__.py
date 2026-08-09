@@ -115,6 +115,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             metadata={"tier": "admin"},
         )
     )
+
     @registries.lifecycle.on_construct
     async def _issue_guest(context: PlayerLifecycleContext) -> None:
         await context.player.accounts.issue(
@@ -122,10 +123,12 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             GUEST_USERNAME,
             GUEST_PASSWORD,
         )
+
     if initial_vtb:
         @registries.lifecycle.on_construct
         async def _grant_initial_vtb(context: PlayerLifecycleContext) -> None:
             await context.player.credits.grant_vtb(initial_vtb)
+
     @registries.tasks.task(VTB_TASK_ID, dependencies=PlayerInterfaces.CREDITS)
     async def _grant_vtb_allowance(context: TaskContext) -> None:
         now = context.now.astimezone(UTC)
@@ -198,6 +201,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
     @registries.lifecycle.on_construct(priority=LifecyclePriority.LATE)
     async def _activate_vtb_allowance(context: PlayerLifecycleContext) -> None:
         await context.player.tasks.add_task(VTB_TASK_ID)
+
     registries.artifacts.register_template(
         ArtifactTemplate(
             artifact_id=ADMIN_ACCESS_ARTIFACT_ID,
@@ -221,6 +225,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             node_generator=_generate_admin_access_node,
         )
     )
+
     registries.scripts.register(
         Script(
             "example.boot",
@@ -259,6 +264,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             _is_admin,
         )
     )
+
     registries.validations.register_attempt(
         ValidationAttempt("example.answer.submit", VALIDATION_ID, _submit_answer)
     )

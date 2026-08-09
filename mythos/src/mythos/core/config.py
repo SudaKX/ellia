@@ -8,8 +8,9 @@ from urllib.parse import urlparse
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path.cwd().resolve()
 _DEFAULT_PROBLEM_TYPE_BASE_URL = "https://problems.invalid/ellia/problems"
 
 
@@ -48,7 +49,7 @@ class Settings(BaseSettings):
     file_content_url_ttl_seconds: int = 43_200
     file_content_cache_max_age_seconds: int = 42_900
     file_download_url_ttl_seconds: int = 900
-    puzzle_root: Path = PROJECT_ROOT / "src" / "mythos" / "puzzles"
+    puzzle_root: Path = PROJECT_ROOT / "puzzles"
     checkpoint_directory: Path = PROJECT_ROOT / "data" / "checkpoints"
     artifact_template_snapshot_path: Path | None = None
     virtual_account_template_snapshot_path: Path | None = None
@@ -57,6 +58,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def configure_secrets(self) -> Settings:
+        self.database_url = resolve_database_url(self.database_url)
+        self.puzzle_root = resolve_runtime_path(self.puzzle_root)
+        self.checkpoint_directory = resolve_runtime_path(self.checkpoint_directory)
+        if self.artifact_template_snapshot_path is not None:
+            self.artifact_template_snapshot_path = resolve_runtime_path(self.artifact_template_snapshot_path)
+        if self.virtual_account_template_snapshot_path is not None:
+            self.virtual_account_template_snapshot_path = resolve_runtime_path(
+                self.virtual_account_template_snapshot_path
+            )
+        if self.task_registry_snapshot_path is not None:
+            self.task_registry_snapshot_path = resolve_runtime_path(self.task_registry_snapshot_path)
         if self.environment == "production":
             if (
                 self.jwt_signing_key is None
@@ -190,10 +202,34 @@ class Settings(BaseSettings):
 
 
 def make_database_path(database_url: str) -> Path | None:
-    parsed = urlparse(database_url)
-    if not parsed.scheme.startswith("sqlite") or not parsed.path or parsed.path == "/:memory:":
+    url = make_url(database_url)
+    database = url.database
+    if url.get_backend_name() != "sqlite" or not database or database == ":memory:" or database.startswith("file:"):
         return None
-    return Path(parsed.path.lstrip("/"))
+    return resolve_database_file_path(database)
+
+
+def resolve_runtime_path(value: Path) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
+
+def resolve_database_url(database_url: str) -> str:
+    url = make_url(database_url)
+    database = url.database
+    if url.get_backend_name() != "sqlite" or not database or database == ":memory:" or database.startswith("file:"):
+        return database_url
+    resolved = resolve_database_file_path(database)
+    return url.set(database=resolved.as_posix()).render_as_string(hide_password=False)
+
+
+def resolve_database_file_path(database: str) -> Path:
+    path = Path(database)
+    if not path.is_absolute() and not database.startswith(("/", "\\")):
+        path = PROJECT_ROOT / path
+    return path.resolve()
 
 
 @lru_cache

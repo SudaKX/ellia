@@ -56,7 +56,7 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
                 object_store_access_key=SecretStr(access_key),
                 object_store_secret_key=SecretStr(secret_key),
                 object_store_use_tls=endpoint.startswith("https://"),
-                puzzle_root=Path(__file__).resolve().parents[1] / "src" / "mythos" / "puzzles",
+                puzzle_root=Path(__file__).resolve().parents[1] / "puzzles",
             )
             database = Database(settings.database_url)
             async with database.engine.begin() as connection:

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from mythos.core.config import get_settings
+from mythos.core.config import PROJECT_ROOT, get_settings
 from mythos.core.database import ensure_sqlite_database_directory
 from mythos.persistence.base import Base
 import mythos.persistence.models  # noqa: F401
@@ -15,6 +16,11 @@ import mythos.persistence.models  # noqa: F401
 config = context.config
 
 if config.config_file_name is not None:
+    config_root = Path(config.config_file_name).resolve().parent
+    if config_root != PROJECT_ROOT:
+        raise RuntimeError(
+            f"Alembic configuration must be located in PROJECT_ROOT ({PROJECT_ROOT}), not {config_root}."
+        )
     fileConfig(config.config_file_name)
 
 settings = get_settings()

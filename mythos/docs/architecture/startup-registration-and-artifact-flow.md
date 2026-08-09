@@ -15,8 +15,9 @@
 
 ```text
 create_app()
-  -> 创建 RegistryBundle
-  -> puzzles.register_all(registries)
+  -> 读取运行根目录 Settings
+  -> 从 Settings.puzzle_root 加载外部 puzzles.register_all(registries, environment)
+  -> 创建 RegistryBundle 并注册插件内容
   -> FastAPI 路由装配
 
 lifespan startup
@@ -36,10 +37,11 @@ lifespan startup
 
 1. 解析 `Settings`。
 2. 如果调用方没有传入 RegistryBundle，则创建 `RegistryBundle(settings.puzzle_root)`。
-3. 调用 `puzzles.register_all()`。
-4. `register_all()` 当前调用 Example 模块的 `register(registries)`。
-5. 再次确认 Registry 使用当前 `puzzle_root`。
-6. 创建 FastAPI、异常处理器和固定 Router。
+3. 将 `Settings.puzzle_root` 的上级目录加入 `sys.path`，通过 `importlib` 加载固定名称 `puzzles`。
+4. 校验外部包位置及 `register_all(registries, *, environment)` 入口。
+5. 调用 `register_all()`，由插件显式注册各谜题模块。
+6. 再次确认 Registry 使用当前 `puzzle_root`。
+7. 创建 FastAPI、异常处理器和固定 Router。
 
 此时只存在内存中的注册声明，不创建数据库 Session，也不生成 `ApplicationRuntime`。模块只能向既有 Registry 注册内容和 callback，不能新增通用 HTTP Router。
 
