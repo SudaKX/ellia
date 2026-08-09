@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from mythos.players.context import CommandContext, PlayerLifecycleContext
+from mythos.players.context import CommandContext, PlayerLifecycleContext, TaskContext
 from mythos.players.interface_selection import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
@@ -17,6 +18,7 @@ from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.files import FileReference, NodeDisplayParams
 from mythos.registry.hints import Hint, HintDisplayParams
+from mythos.registry.lifecycle import LifecyclePriority
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationOutcome
@@ -33,6 +35,11 @@ ADMIN_USERNAME = "administrator"
 ADMIN_PASSWORD = "admin-echo-9"
 ADMIN_ACCESS_ARTIFACT_ID = "example.admin-access"
 ADMIN_ACCESS_NODE_ID = "example.admin-access-file"
+VTB_TASK_ID = "example.vtb-allowance"
+VTB_TASK_INTERVAL = timedelta(seconds=60)
+VTB_TASK_INITIAL_GRANT = 5
+VTB_TASK_CAP = 10
+VTB_TASK_META_SCHEMA_VERSION = 1
 _ANSWER = "echo-7"
 _handler = module_handler(MODULE_ID)
 
@@ -119,6 +126,78 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
         @registries.lifecycle.on_construct
         async def _grant_initial_vtb(context: PlayerLifecycleContext) -> None:
             await context.player.credits.grant_vtb(initial_vtb)
+    @registries.tasks.task(VTB_TASK_ID, dependencies=PlayerInterfaces.CREDITS)
+    async def _grant_vtb_allowance(context: TaskContext) -> None:
+        now = context.now.astimezone(UTC)
+        meta = dict(context.meta)
+        schema_version = meta.get("schema_version")
+        initial_grant_applied = (
+            isinstance(schema_version, int)
+            and not isinstance(schema_version, bool)
+            and schema_version == VTB_TASK_META_SCHEMA_VERSION
+            and meta.get("initial_grant_applied") is True
+        )
+        total_granted = meta.get("total_granted", 0)
+        if isinstance(total_granted, bool) or not isinstance(total_granted, int) or total_granted < 0:
+            total_granted = 0
+        current_vtb = context.player.credits.vtb
+        available = max(0, VTB_TASK_CAP - current_vtb)
+
+        if not initial_grant_applied:
+            if available == 0:
+                context.set_extra_time(now + VTB_TASK_INTERVAL)
+                context.defer()
+                return
+            grant = min(VTB_TASK_INITIAL_GRANT, available)
+            await context.player.credits.grant_vtb(grant)
+            context.set_extra_time(now + VTB_TASK_INTERVAL)
+            context.update_meta(
+                {
+                    "schema_version": VTB_TASK_META_SCHEMA_VERSION,
+                    "initial_grant_applied": True,
+                    "total_granted": total_granted + grant,
+                    "last_granted_at": now.isoformat(),
+                }
+            )
+            return
+
+        due_at = context.time_2
+        if due_at is None:
+            due_at = now
+        elif due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=UTC)
+        else:
+            due_at = due_at.astimezone(UTC)
+        if now < due_at:
+            context.defer()
+            return
+
+        interval_seconds = VTB_TASK_INTERVAL.total_seconds()
+        due_periods = int((now - due_at).total_seconds() // interval_seconds) + 1
+        available = max(0, VTB_TASK_CAP - current_vtb)
+        if available == 0:
+            context.set_extra_time(now + VTB_TASK_INTERVAL)
+            context.defer()
+            return
+
+        grant = min(due_periods, available)
+        await context.player.credits.grant_vtb(grant)
+        next_due_at = due_at + VTB_TASK_INTERVAL * grant
+        if grant < due_periods:
+            next_due_at = now + VTB_TASK_INTERVAL
+        context.set_extra_time(next_due_at)
+        context.update_meta(
+            {
+                "schema_version": VTB_TASK_META_SCHEMA_VERSION,
+                "initial_grant_applied": True,
+                "total_granted": total_granted + grant,
+                "last_granted_at": now.isoformat(),
+            }
+        )
+
+    @registries.lifecycle.on_construct(priority=LifecyclePriority.LATE)
+    async def _activate_vtb_allowance(context: PlayerLifecycleContext) -> None:
+        await context.player.tasks.add_task(VTB_TASK_ID)
     registries.artifacts.register_template(
         ArtifactTemplate(
             artifact_id=ADMIN_ACCESS_ARTIFACT_ID,

@@ -84,7 +84,26 @@
             </section>
 
             <section class="section hints-section">
-              <div class="panel-header"><h2 class="panel-title">提示</h2><span id="credits-balance" class="credit-balance">VTB --</span></div>
+              <div class="panel-header"><h2 class="panel-title">提示与 VTB</h2><span id="credits-balance" class="credit-balance">VTB --</span></div>
+              <div class="vtb-recovery" aria-labelledby="vtb-recovery-title">
+                <div class="vtb-recovery-header">
+                  <div>
+                    <h3 id="vtb-recovery-title" class="recovery-title">自动恢复</h3>
+                    <p id="task-status" class="task-status" aria-live="polite">未加载</p>
+                  </div>
+                  <button id="process-task-button" class="primary" type="button" disabled>立即处理</button>
+                </div>
+                <dl class="recovery-grid">
+                  <div><dt>下次到期</dt><dd id="task-next-due">--</dd></div>
+                  <div><dt>倒计时</dt><dd id="task-countdown">--</dd></div>
+                  <div><dt>首次奖励</dt><dd id="task-initial-grant">--</dd></div>
+                  <div><dt>累计发放</dt><dd id="task-total-granted">--</dd></div>
+                  <div><dt>最近发放</dt><dd id="task-last-granted">--</dd></div>
+                  <div><dt>异常次数</dt><dd id="task-exception">--</dd></div>
+                </dl>
+                <p id="task-message" class="notice" aria-live="polite"></p>
+                <p id="task-report" class="task-report" aria-live="polite"></p>
+              </div>
               <div id="hint-list" class="hint-list"><p class="notice">认证后加载提示。</p></div>
               <p id="hint-message" class="notice" aria-live="polite"></p>
               <div class="hint-preview">

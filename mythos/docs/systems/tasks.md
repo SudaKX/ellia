@@ -36,4 +36,23 @@ Task transaction 保留现有 pre-commit hook。成功 Handler 的 checkpoint、
 
 新增任务身份默认只使 `add_task()` 可用，不会自动为所有历史玩家创建任务行。
 
+## Example VTB allowance
+
+Example 在 Construct 的晚优先级 Handler 中通过 `Player.tasks.add_task()` 激活 `example.vtb-allowance`。重复 Construct 或重复激活不会重置已有任务状态。该任务声明 `PlayerInterfaces.CREDITS` 依赖，不创建后台调度器，只在现有任务触发点运行。
+
+任务首次有效处理时读取当前 `player.credits.vtb`，发放 `min(5, 10 - current_vtb)`，并把下一次到期时间写入 `time_2`。首次奖励完成后，Handler 在当前时间早于 `time_2` 时调用 `defer()`，保持 `time_1`、VTB 和 `meta` 不变；到期时按已过去的 60 秒周期每周期发放 1 VTB，一次请求可以补算多个周期。任务发放后的余额不超过 10；达到上限时任务安排下一次检查，不累积无限欠账。
+
+Example `meta` 是严格 JSON 对象，当前 schema 形状如下：
+
+```json
+{
+  "schema_version": 1,
+  "initial_grant_applied": true,
+  "total_granted": 5,
+  "last_granted_at": "2026-08-09T12:00:00+00:00"
+}
+```
+
+`total_granted` 是任务累计发放量，`last_granted_at` 是最近一次实际发放时间。VTB 上限判断始终读取当前 Credits Interface，不信任 `meta` 中的累计值。`GET /api/v1/tasks` 只读任务状态；`POST /api/v1/tasks/process` 才会显式处理当前玩家任务。
+
 相关实现：`registry/tasks/`、`players/interfaces/tasks.py`、`services/tasks/`、`persistence/models/tasks.py`。

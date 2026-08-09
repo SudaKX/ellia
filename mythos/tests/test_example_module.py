@@ -71,7 +71,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
                 assert repeated_purchase.status_code == 200
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 3
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 8
 
                 hint_content_url = await client.get(
                     f"/api/v1/hints/{purchased_hint['hint_id']}/{purchased_content_token}/content-url",
@@ -143,12 +143,12 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 gated_hint = next(
                     hint for hint in completed_hints.json()["hints"] if hint["vtb_cost"] == 5
                 )
-                insufficient = await client.post(
+                gated_purchase = await client.post(
                     f"/api/v1/hints/{gated_hint['hint_id']}/disclose",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert insufficient.status_code == 409
-                assert insufficient.json()["type"].endswith("/insufficient-credits")
+                assert gated_purchase.status_code == 200
+                assert gated_purchase.json()["content"]["hint"]["disclosed"] is True
                 assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 3
 
                 admin_file_id = app.state.runtime.catalogs.files.file_id_for_stable_id("example.admin-control")

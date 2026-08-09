@@ -1,4 +1,6 @@
 const API_BASE = "/api/v1";
+const VTB_TASK_ID = "example.vtb-allowance";
+const VTB_TASK_CAP = 10;
 const state = {
   authMode: "register",
   username: "",
@@ -11,6 +13,12 @@ const state = {
   scripts: [],
   selectedFile: null,
   credits: null,
+  tasks: [],
+  taskProcessing: false,
+  taskMessage: "",
+  taskMessageTone: "",
+  taskReport: null,
+  taskCountdownTimer: null,
   hints: [],
   selectedHint: null,
   hintPreview: null,
@@ -47,6 +55,7 @@ const elements = {
   logoutButton: document.querySelector("#logout-button"),
   openFileButton: document.querySelector("#open-file-button"),
   password: document.querySelector("#password"),
+  processTaskButton: document.querySelector("#process-task-button"),
   previewContent: document.querySelector("#preview-content"),
   previewName: document.querySelector("#preview-name"),
   progressList: document.querySelector("#progress-list"),
@@ -56,6 +65,15 @@ const elements = {
   scriptList: document.querySelector("#script-list"),
   sessionStatus: document.querySelector("#session-status"),
   statusDot: document.querySelector("#status-dot"),
+  taskCountdown: document.querySelector("#task-countdown"),
+  taskException: document.querySelector("#task-exception"),
+  taskInitialGrant: document.querySelector("#task-initial-grant"),
+  taskLastGranted: document.querySelector("#task-last-granted"),
+  taskMessage: document.querySelector("#task-message"),
+  taskNextDue: document.querySelector("#task-next-due"),
+  taskReport: document.querySelector("#task-report"),
+  taskStatus: document.querySelector("#task-status"),
+  taskTotalGranted: document.querySelector("#task-total-granted"),
   treeVersion: document.querySelector("#tree-version"),
   username: document.querySelector("#username"),
 };
@@ -66,6 +84,7 @@ function setNotice(element, message, tone = "") {
 }
 
 function clearWorkspaceData() {
+  stopTaskCountdown();
   state.progress = null;
   state.tree = null;
   state.treeEtag = null;
@@ -73,6 +92,11 @@ function clearWorkspaceData() {
   state.scripts = [];
   state.selectedFile = null;
   state.credits = null;
+  state.tasks = [];
+  state.taskProcessing = false;
+  state.taskMessage = "";
+  state.taskMessageTone = "";
+  state.taskReport = null;
   state.hints = [];
   state.selectedHint = null;
   state.hintPreview = null;
@@ -240,12 +264,13 @@ async function loadWorkspace({ forceTree = false } = {}) {
   }
   elements.refreshButton.disabled = true;
   try {
-    const [progress, version, scripts, credits, hints] = await Promise.all([
+    const [progress, version, scripts, credits, hints, tasks] = await Promise.all([
       callApi("/progress").then(readJson),
       fetchTreeVersion(forceTree),
       callApi("/scripts").then(readJson),
       callApi("/credits").then(readJson),
       callApi("/hints").then(readJson),
+      callApi("/tasks").then(readJson),
     ]);
 
     const shouldLoadTree = forceTree || !version.unchanged || !state.tree;
@@ -265,6 +290,7 @@ async function loadWorkspace({ forceTree = false } = {}) {
     state.scripts = scripts.items;
     state.credits = credits;
     state.hints = hints.hints;
+    state.tasks = Array.isArray(tasks.tasks) ? tasks.tasks : [];
     if (state.selectedHint) {
       state.selectedHint = state.hints.find((hint) => hint.hint_id === state.selectedHint.hint_id) || null;
       if (!state.selectedHint) {
@@ -285,6 +311,7 @@ async function loadWorkspace({ forceTree = false } = {}) {
 function renderWorkspace() {
   elements.treeVersion.textContent = state.treeVersion || "--";
   renderCredits();
+  renderTaskRecovery();
   renderProgress();
   renderScripts();
   renderHints();
@@ -296,6 +323,175 @@ function renderWorkspace() {
 
 function renderCredits() {
   elements.creditsBalance.textContent = state.credits ? `VTB ${state.credits.vtb}` : "VTB --";
+}
+
+function getAllowanceTask() {
+  return state.tasks.find((task) => task.task_id === VTB_TASK_ID) || null;
+}
+
+function setTaskMessage(message, tone = "") {
+  state.taskMessage = message;
+  state.taskMessageTone = tone;
+}
+
+function stopTaskCountdown() {
+  if (state.taskCountdownTimer !== null) {
+    window.clearInterval(state.taskCountdownTimer);
+    state.taskCountdownTimer = null;
+  }
+}
+
+function parseTaskDate(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatTaskDate(value, empty = "--") {
+  const date = parseTaskDate(value);
+  if (!date) {
+    return value ? "时间无效" : empty;
+  }
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatTaskCountdown(milliseconds) {
+  if (milliseconds <= 0) {
+    return "已到期，可处理";
+  }
+  const totalSeconds = Math.ceil(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `还有 ${hours}小时 ${minutes}分 ${seconds}秒`;
+  }
+  return `还有 ${minutes}分 ${seconds}秒`;
+}
+
+function hasInitializedTaskMeta(meta) {
+  return Boolean(
+    meta
+    && meta.schema_version === 1
+    && meta.initial_grant_applied === true
+    && Number.isInteger(meta.total_granted)
+    && meta.total_granted >= 0
+    && typeof meta.last_granted_at === "string",
+  );
+}
+
+function taskPresentation(task) {
+  if (!task) {
+    return { status: "未激活", tone: "muted", dueAt: null };
+  }
+
+  const meta = task.meta && typeof task.meta === "object" ? task.meta : {};
+  const dueAt = parseTaskDate(task.time_2);
+  const currentVtb = state.credits && Number.isInteger(state.credits.vtb) ? state.credits.vtb : null;
+  const atCap = currentVtb !== null && currentVtb >= VTB_TASK_CAP;
+  const initialized = hasInitializedTaskMeta(meta);
+  let status = "等待首次处理";
+  let tone = "muted";
+
+  if (atCap) {
+    status = initialized ? "已达上限，等待余额下降" : "未初始化，当前已达上限";
+  } else if (!initialized) {
+    status = dueAt && dueAt.getTime() <= Date.now() ? "首次奖励可处理" : "等待首次处理";
+    tone = dueAt && dueAt.getTime() <= Date.now() ? "ready" : "muted";
+  } else if (!dueAt) {
+    status = "状态不完整，等待处理";
+    tone = "error";
+  } else if (dueAt.getTime() <= Date.now()) {
+    status = "已到期，可处理";
+    tone = "ready";
+  } else {
+    status = "等待下一个周期";
+  }
+
+  if (task.exception > 0) {
+    status += ` · ${task.exception} 次异常`;
+    tone = "error";
+  }
+  return { status, tone, dueAt };
+}
+
+function updateTaskClock() {
+  const task = getAllowanceTask();
+  const presentation = taskPresentation(task);
+  elements.taskStatus.className = `task-status ${presentation.tone}`;
+  elements.taskStatus.textContent = presentation.status;
+  elements.taskCountdown.textContent = presentation.dueAt
+    ? formatTaskCountdown(presentation.dueAt.getTime() - Date.now())
+    : task
+      ? "等待任务时间"
+      : "--";
+  if (presentation.dueAt && presentation.dueAt.getTime() <= Date.now()) {
+    stopTaskCountdown();
+  }
+}
+
+function renderTaskRecovery() {
+  const task = getAllowanceTask();
+  const meta = task && task.meta && typeof task.meta === "object" ? task.meta : {};
+  const presentation = taskPresentation(task);
+  elements.processTaskButton.disabled = !state.token || !task || state.taskProcessing;
+  elements.processTaskButton.textContent = state.taskProcessing ? "处理中..." : "立即处理";
+
+  if (!state.token) {
+    elements.taskStatus.className = "task-status muted";
+    elements.taskStatus.textContent = "未认证";
+    elements.taskNextDue.textContent = "--";
+    elements.taskInitialGrant.textContent = "--";
+    elements.taskTotalGranted.textContent = "--";
+    elements.taskLastGranted.textContent = "--";
+    elements.taskException.textContent = "--";
+    elements.taskCountdown.textContent = "--";
+    stopTaskCountdown();
+  } else if (!task) {
+    elements.taskStatus.className = "task-status error";
+    elements.taskStatus.textContent = "任务未激活";
+    elements.taskNextDue.textContent = "--";
+    elements.taskInitialGrant.textContent = "未初始化";
+    elements.taskTotalGranted.textContent = "--";
+    elements.taskLastGranted.textContent = "--";
+    elements.taskException.textContent = "--";
+    elements.taskCountdown.textContent = "无法处理";
+    stopTaskCountdown();
+  } else {
+    elements.taskNextDue.textContent = formatTaskDate(task.time_2, "待首次处理");
+    elements.taskInitialGrant.textContent = meta.initial_grant_applied === true ? "已完成" : "未完成";
+    elements.taskTotalGranted.textContent = Number.isInteger(meta.total_granted)
+      ? `${meta.total_granted} VTB`
+      : "未初始化";
+    elements.taskLastGranted.textContent = formatTaskDate(meta.last_granted_at, "尚未发放");
+    elements.taskException.textContent = String(task.exception ?? 0);
+    updateTaskClock();
+    stopTaskCountdown();
+    if (presentation.dueAt && presentation.dueAt.getTime() > Date.now()) {
+      state.taskCountdownTimer = window.setInterval(updateTaskClock, 1000);
+    }
+  }
+
+  setNotice(elements.taskMessage, state.taskMessage, state.taskMessageTone);
+  if (state.taskReport) {
+    const reportTone = state.taskReport.status === "success" ? "success" : "error";
+    const reportStatus = state.taskReport.status === "success" ? "成功" : "失败";
+    elements.taskReport.className = `task-report ${reportTone}`;
+    elements.taskReport.textContent = `本轮任务：${reportStatus} · 异常 ${state.taskReport.exception ?? 0}`;
+  } else {
+    elements.taskReport.className = "task-report";
+    elements.taskReport.textContent = "";
+  }
 }
 
 function renderProgress() {
@@ -566,6 +762,40 @@ async function submitAnswer(attempt) {
   }
 }
 
+async function processAllowanceTask() {
+  if (!state.token || state.taskProcessing || !getAllowanceTask()) {
+    return;
+  }
+  state.taskProcessing = true;
+  state.taskReport = null;
+  setTaskMessage("正在处理 VTB 自动恢复...", "");
+  renderTaskRecovery();
+  try {
+    const payload = await callApi("/tasks/process", {
+      method: "POST",
+      headers: { "Request-ID": crypto.randomUUID() },
+    }).then(readJson);
+    const reports = payload && payload.content && Array.isArray(payload.content.tasks)
+      ? payload.content.tasks
+      : [];
+    state.taskReport = reports.find((report) => report.task_id === VTB_TASK_ID) || reports[0] || null;
+    const refreshed = await loadWorkspace();
+    if (!refreshed) {
+      throw new Error("任务结果已返回，但状态刷新失败。");
+    }
+    if (state.taskReport && state.taskReport.status === "success") {
+      setTaskMessage("任务已处理，状态已刷新。", "success");
+    } else {
+      setTaskMessage("任务处理未成功，请查看异常次数后重试。", "error");
+    }
+  } catch (error) {
+    setTaskMessage(displayErrorMessage(error), "error");
+  } finally {
+    state.taskProcessing = false;
+    renderTaskRecovery();
+  }
+}
+
 function hintErrorMessage(error) {
   if (error.problemType && error.problemType.endsWith("/insufficient-credits")) {
     return "VTB 余额不足，提示未购买。";
@@ -671,6 +901,7 @@ function setAuthMode(mode) {
 elements.registerMode.addEventListener("click", () => setAuthMode("register"));
 elements.loginMode.addEventListener("click", () => setAuthMode("login"));
 elements.refreshButton.addEventListener("click", () => loadWorkspace());
+elements.processTaskButton.addEventListener("click", processAllowanceTask);
 elements.openFileButton.addEventListener("click", () => {
   if (state.selectedFile && state.selectedFile.url) {
     window.open(state.selectedFile.url, "_blank", "noopener");

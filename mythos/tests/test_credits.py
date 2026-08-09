@@ -56,7 +56,7 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                     assert purchase.status_code == 200
 
                 exhausted = await client.get("/api/v1/credits", headers=headers)
-                assert exhausted.json() == {"vtb": 0, "version": 3}
+                assert exhausted.json() == {"vtb": 5, "version": 4}
 
                 await client.post(
                     "/api/v1/vac/login",
@@ -75,15 +75,14 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                     for hint in (await client.get("/api/v1/hints", headers=headers)).json()["hints"]
                     if hint["vtb_cost"] == 5
                 )
-                failed = await client.post(
+                gated_purchase = await client.post(
                     f"/api/v1/hints/{gated['hint_id']}/disclose",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert failed.status_code == 409
-                assert failed.json()["type"].endswith("/insufficient-credits")
+                assert gated_purchase.status_code == 200
                 assert (await client.get("/api/v1/credits", headers=headers)).json() == {
                     "vtb": 0,
-                    "version": 3,
+                    "version": 5,
                 }
 
     asyncio.run(scenario())
