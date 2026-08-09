@@ -5,13 +5,14 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
+from typing import TypeAlias, cast 
 
 
 class PuzzlePluginError(RuntimeError):
     """Raised when the configured external puzzle package cannot be loaded."""
 
 
-PuzzleRegisterAll = Callable[..., None]
+PuzzleRegisterAll: TypeAlias = Callable[..., None]
 
 
 def load_puzzle_register_all(puzzle_root: Path) -> PuzzleRegisterAll:
@@ -45,7 +46,7 @@ def load_puzzle_register_all(puzzle_root: Path) -> PuzzleRegisterAll:
         raise PuzzlePluginError(
             f"Puzzle plugin {root} must expose a callable register_all(registries, *, environment)."
         )
-    return register_all
+    return cast(PuzzleRegisterAll, register_all)
 
 
 def _module_root(module: ModuleType) -> Path:
