@@ -90,6 +90,25 @@ class TaskInterface:
         self._writable = writable
         self._on_mutation = on_mutation or (lambda: None)
         self._records_by_task_id = {record.task_id: record for record in records}
+        self._initial_task_ids = frozenset(self._records_by_task_id)
+        self._added_task_ids: set[str] = set()
+        self._removed_task_ids: set[str] = set()
+
+    @property
+    def initial_task_ids(self) -> frozenset[str]:
+        return self._initial_task_ids
+
+    @property
+    def added_task_ids(self) -> frozenset[str]:
+        return frozenset(self._added_task_ids)
+
+    @property
+    def removed_task_ids(self) -> frozenset[str]:
+        return frozenset(self._removed_task_ids)
+
+    def execution_snapshot(self) -> tuple[str, ...]:
+        """Return the task identities eligible for this execution round."""
+        return tuple(sorted(self._initial_task_ids - self._removed_task_ids))
 
     @property
     def task_ids(self) -> tuple[str, ...]:
@@ -125,6 +144,7 @@ class TaskInterface:
         )
         self._session.add(record)
         self._records_by_task_id[task_id] = record
+        self._added_task_ids.add(task_id)
         self._on_mutation()
         return True
 
@@ -138,6 +158,7 @@ class TaskInterface:
         else:
             await self._session.delete(record)
         self._records_by_task_id.pop(task_id, None)
+        self._removed_task_ids.add(task_id)
         self._on_mutation()
         return True
 

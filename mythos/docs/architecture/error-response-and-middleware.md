@@ -26,7 +26,7 @@ HTTP request
   -> ExceptionMiddleware
   -> AsyncExitStackMiddleware
   -> APIRouter / FastAPI dependency resolution
-  -> endpoint, Service, CommandTransactionExecutor
+  -> endpoint, Service, EndpointCommandExecutor / TaskCommandExecutor
   -> success JSON response or Problem Details response
 ```
 
@@ -94,21 +94,21 @@ Authorization Header
 
 `POST /auth/refresh` 是例外：Router 必须在 refresh 凭据无效时删除 HttpOnly cookie，因此直接调用 `problem_response()` 创建 `refresh-credential-invalid` 响应，再附加 cookie 删除 Header。
 
-`POST /vac/login` 的用户名或密码错误会从 `AccountService` 穿过 `CommandTransactionExecutor` 到 Account Router。Executor 的 `BaseException` 路径先释放该 Request-ID 的缓存保留，再由 Router 转为 `virtual-account-invalid-credentials`。错误登录不会被缓存为命令响应，使用同一 Request-ID 的后续请求可重新校验。
+`POST /vac/login` 的用户名或密码错误会从 `AccountService` 穿过 `EndpointCommandExecutor` 到 Account Endpoint。Executor 的 `BaseException` 路径先由 Request-ID lease 释放缓存保留，再由 Endpoint 转为 `virtual-account-invalid-credentials`。错误登录不会被缓存为命令响应，使用同一 Request-ID 的后续请求可重新校验。
 
 ## 命令与缓存
 
 命令 Router 正常完成时仍返回缓存的成功 body：
 
 ```text
-CommandTransactionExecutor.execute()
-  -> RequestCache.reserve(Request-ID)
-  -> transaction + Player row lock + operation + pre-commit hooks
+EndpointCommandExecutor.execute()
+  -> RequestCache.lease(Request-ID)
+  -> session.begin() + PlayerLoader row lock/load + operation + pre-commit hooks
   -> RequestCache.complete()
   -> {content, followups}
 ```
 
-若 operation、hook 或 Player 加载抛出异常，Executor 回滚事务并调用 `RequestCache.release()`，然后重新抛出。后续全局或 Router 级异常处理器生成 Problem Details。只有操作返回成功 `ResponseSpec` 时才完成并缓存 Request-ID。
+若 Task、operation、hook 或 Player 加载抛出异常，`session.begin()` 回滚当前物理事务，lease 在未完成响应时自动 release，然后重新抛出。后续全局或 Endpoint 级异常处理器生成 Problem Details。只有操作返回成功 `ResponseSpec` 时才完成并缓存 Request-ID。
 
 ## 前端恢复路径
 
@@ -129,4 +129,4 @@ Example 的 `callApi()` 在收到错误响应时用 `response.clone()` 读取 Pr
 
 RFC 9457 允许顶层扩展成员。当前仅 `invalid-request` 使用 `errors`：每项包含 `pointer` 和 `reason`。新增扩展不得覆盖 `type`、`title`、`status`、`detail` 或 `instance`，并且不应包含密码、Token、堆栈或内部基础设施信息。
 
-相关实现：`core/problems.py`、`main.py`、`auth/dependencies.py`、`auth/router.py`、`services/accounts/router.py`、`core/commands/executor.py`。
+相关实现：`core/problems.py`、`main.py`、`auth/dependencies.py`、`endpoints/`、`commands/`。

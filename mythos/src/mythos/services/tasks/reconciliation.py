@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.persistence.models import PlayerTaskState
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.tasks import TaskCatalog
 from mythos.services.tasks.snapshot import TaskSnapshotStore
 
@@ -22,14 +22,14 @@ class TaskReconciliationRunner:
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
-        command_executor: CommandTransactionExecutor,
+        player_loader: PlayerLoader,
         catalog: TaskCatalog,
         snapshot_store: TaskSnapshotStore,
         *,
         allow_missing_tables: bool = False,
     ) -> None:
         self._session_factory = session_factory
-        self._command_executor = command_executor
+        self._player_loader = player_loader
         self._catalog = catalog
         self._snapshot_store = snapshot_store
         self._allow_missing_tables = allow_missing_tables
@@ -47,13 +47,7 @@ class TaskReconciliationRunner:
             async with self._session_factory() as session:
                 async with session.begin():
                     for player_id in await self._player_ids_for_tasks(session, stale_ids):
-                        await self._command_executor.execute_nocache_itx(
-                            session,
-                            player_id,
-                            lambda player: player.tasks.remove_tasks(stale_ids),
-                            interfaces=PlayerInterfaces.TASKS,
-                            run_pre_commit_hooks=False,
-                        )
+                        await self._remove_stale_tasks(session, player_id, stale_ids)
 
         if previous is None or previous.registry_version != current.registry_version:
             await self._snapshot_store.write(current)
@@ -90,3 +84,16 @@ class TaskReconciliationRunner:
                 )
             ).all()
         )
+
+    async def _remove_stale_tasks(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        task_ids: Iterable[str],
+    ) -> None:
+        player = await self._player_loader.load_writable(
+            session,
+            player_id,
+            interfaces=PlayerInterfaces.TASKS,
+        )
+        await player.tasks.remove_tasks(task_ids)

@@ -70,7 +70,7 @@ def _registries(generator, node_generator=_node_generator) -> RegistryBundle:
 async def _create_artifact(app, player_id: UUID) -> tuple[str, int]:
     async with app.state.database.session_factory() as session:
         async with session.begin():
-            player = await app.state.runtime.player_factory.load(session, player_id, writable=True)
+            player = await app.state.runtime.player_loader.load(session, player_id, writable=True)
             artifact = await player.artifacts.generate_artifact("reconciliation.report", player)
             await player.artifacts.generate_node("reconciliation.report-file", player)
             return artifact.version, player.artifacts.version

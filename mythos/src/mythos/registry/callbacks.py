@@ -5,7 +5,7 @@ from collections.abc import Callable
 import inspect
 from typing import TypeVar
 
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 
 _CALLBACK_NAMESPACE = uuid.UUID("4f5b2b0b-34d7-5d8b-87f1-61ba2f1a2959")
 _CALLBACK_NAMESPACE_V2 = uuid.UUID("0ad3b6be-0af2-5b6e-9a3d-127f2a65ad84")

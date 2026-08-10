@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import CommandRejected, ResponseFormatError, ResponseSpec
+from mythos.commands import CommandRejected, ResponseFormatError, ResponseSpec
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import FollowupFormatError
 from mythos.players.context import CommandContext, PlayerContext, RequestContext

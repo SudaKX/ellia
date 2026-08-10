@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Response
 
 from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_context
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 
 
 router = APIRouter(prefix="/credits", tags=["credits"])

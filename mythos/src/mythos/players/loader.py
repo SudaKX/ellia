@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,6 +14,7 @@ from mythos.persistence.models import (
     PlayerHintDisclosure,
     PlayerProgress,
     PlayerProgressCheckpoint,
+    PlayerRecord,
     PlayerTaskState,
     PlayerVirtualAccount,
     PlayerVirtualAccountState,
@@ -24,7 +25,7 @@ from mythos.players.interfaces.credits import CreditInterface
 from mythos.players.interfaces.hints import HintInterface
 from mythos.players.interfaces.progress import ProgressInterface
 from mythos.players.interfaces.tasks import TaskInterface
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.bundle import RuntimeCatalogs
 from mythos.services.object_store.service import ObjectStore
@@ -34,7 +35,7 @@ class PlayerNotFoundError(Exception):
     pass
 
 
-class PlayerFactory:
+class PlayerLoader:
     def __init__(
         self,
         catalogs: RuntimeCatalogs,
@@ -183,6 +184,65 @@ class PlayerFactory:
             on_mutation=on_mutation,
         )
 
+    async def lock_player(self, session: AsyncSession, player_id: UUID) -> None:
+        result = await session.execute(
+            update(PlayerRecord)
+            .where(PlayerRecord.id == player_id)
+            .values(last_accessed_at=PlayerRecord.last_accessed_at)
+        )
+        if result.rowcount != 1:
+            raise PlayerNotFoundError
+
+    async def load_writable(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+    ) -> Player:
+        await self.lock_player(session, player_id)
+        return await self.load_locked(session, player_id, interfaces=interfaces)
+
+    async def load_readonly(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+    ) -> Player:
+        await self._ensure_exists(session, player_id)
+        return await self._create_and_load(
+            session,
+            player_id,
+            interfaces=interfaces,
+            writable=False,
+        )
+
+    async def load_locked(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+    ) -> Player:
+        await self._ensure_exists(session, player_id)
+        return await self._create_and_load(
+            session,
+            player_id,
+            interfaces=interfaces,
+            writable=True,
+        )
+
+    async def reload(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+    ) -> Player:
+        """Load a fresh writable aggregate while the caller retains the row lock."""
+        return await self.load_locked(session, player_id, interfaces=interfaces)
+
     async def load(
         self,
         session: AsyncSession,
@@ -191,7 +251,26 @@ class PlayerFactory:
         writable: bool,
         interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
     ) -> Player:
-        """Load a player with the requested interfaces."""
+        """Load a player, locking the row before loading writable state."""
+        if writable:
+            return await self.load_writable(session, player_id, interfaces=interfaces)
+        return await self.load_readonly(session, player_id, interfaces=interfaces)
+
+    async def _create_and_load(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        interfaces: PlayerInterfaces,
+        writable: bool,
+    ) -> Player:
         player = await self.create(session, player_id, writable=writable)
         await player.load_interfaces(interfaces)
         return player
+
+    async def _ensure_exists(self, session: AsyncSession, player_id: UUID) -> None:
+        record_id = await session.scalar(
+            select(PlayerRecord.id).where(PlayerRecord.id == player_id)
+        )
+        if record_id != player_id:
+            raise PlayerNotFoundError

@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import inspect
 
-from mythos.core.commands.models import ResponseSpec
-from mythos.players.context import CommandContext
 from mythos.players.player import Player
 from mythos.registry.errors import RegistryError
 from mythos.registry.hints import Hint, HintCatalog
@@ -78,13 +76,13 @@ class HintService:
             if self._is_available(player, hint)
         )
 
-    async def disclose(self, context: CommandContext, hint_id: str) -> ResponseSpec:
+    async def disclose(self, player: Player, hint_id: str) -> HintSummary:
         hint = self._hint(hint_id)
-        self._ensure_available(context.player, hint)
-        claim = await context.player.hints.claim(hint.stable_id)
+        self._ensure_available(player, hint)
+        claim = await player.hints.claim(hint.stable_id)
         if claim.created:
-            await context.player.credits.try_spend_vtb(hint.vtb_cost)
-        return ResponseSpec(status_code=200, body={"hint": self._summary(context.player, hint).body()}, headers={})
+            await player.credits.try_spend_vtb(hint.vtb_cost)
+        return self._summary(player, hint)
 
     async def issue_content_url(
         self,

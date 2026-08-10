@@ -22,4 +22,4 @@ Example 注册 validation ID `example-answer`。其 handler 仅在当前账号�
 
 Request-ID 缓存仅进程内、短 TTL；对象存储副作用不能随 SQL 回滚。前端协议见 [验证契约](../api/validations.md) 和 [命令契约](../api/commands.md)。
 
-相关实现：`registry/validations/`、`services/validations/`、`core/commands/`。
+相关实现：`registry/validations/`、`services/validations/`、`endpoints/validations.py`、`commands/`。

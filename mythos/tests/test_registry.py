@@ -4,7 +4,7 @@ import json
 import pytest
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.callbacks import callback_dependencies, callback_id
 from mythos.registry.artifacts import (
     ArtifactNodeTemplate,

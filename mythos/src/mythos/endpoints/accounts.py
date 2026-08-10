@@ -12,12 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
+from mythos.commands import RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.problems import ApiProblem, ProblemType, validation_errors
 from mythos.players.context import CommandContext
-from mythos.players.factory import PlayerNotFoundError
+from mythos.players.loader import PlayerNotFoundError
 from mythos.services.accounts.schemas import AccountLoginRequest
 from mythos.services.accounts.service import AccountService, InvalidAccountCredentialsError
 
@@ -84,7 +84,7 @@ async def _execute(
     operation: _AccountOperation,
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute_with_task(session, identity, request_id, operation)
+        result = await runtime.endpoint_executor.execute(session, identity, request_id, operation)
     except RequestInProgressError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -110,10 +110,10 @@ async def _login_response(
     context: CommandContext,
     payload: AccountLoginRequest,
 ) -> ResponseSpec:
-    snapshot = await service.login(context, payload.username, payload.password)
+    snapshot = await service.login(context.player, payload.username, payload.password)
     return ResponseSpec(status_code=status.HTTP_200_OK, body=snapshot.body(), headers={})
 
 
 async def _logout_response(service: AccountService, context: CommandContext) -> ResponseSpec:
-    snapshot = await service.logout(context)
+    snapshot = await service.logout(context.player)
     return ResponseSpec(status_code=status.HTTP_200_OK, body=snapshot.body(), headers={})

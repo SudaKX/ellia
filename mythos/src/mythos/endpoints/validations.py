@@ -9,17 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import (
+from mythos.commands import (
     CachedResponse,
     CommandRejected,
     RequestInProgressError,
     RequestReplayForbiddenError,
     ResponseFormatError,
+    ResponseSpec,
 )
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.followups import FollowupFormatError
 from mythos.core.runtime import ApplicationRuntime
-from mythos.players.factory import PlayerNotFoundError
+from mythos.players.loader import PlayerNotFoundError
 from mythos.players.interfaces import ProgressTransitionError
 from mythos.registry.validations import ValidationAttemptNotFoundError
 
@@ -48,11 +49,11 @@ async def submit_attempt(
     except ValidationAttemptNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Validation not found.") from error
     try:
-        result = await runtime.command_executor.execute_with_task(
+        result = await runtime.endpoint_executor.execute(
             session,
             identity,
             request_id,
-            lambda context: runtime.services.validations.submit(context, attempt, payload),
+             lambda context: _submit_response(runtime, context, attempt, payload),
         )
     except RequestInProgressError as error:
         raise HTTPException(
@@ -71,3 +72,8 @@ async def submit_attempt(
     except (FollowupFormatError, ResponseFormatError) as error:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Validation handler failed.") from error
     return _command_response(result)
+
+
+async def _submit_response(runtime, context, attempt, payload) -> ResponseSpec:
+    outcome = await runtime.services.validations.submit(context, attempt, payload)
+    return ResponseSpec(status_code=200, body={"accepted": outcome.accepted}, headers={})

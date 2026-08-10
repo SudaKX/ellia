@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from mythos.core.commands import CachedResponse, RequestCache, RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
+from mythos.commands import CachedResponse, RequestCache, RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 
 
 def _result(player_id):
@@ -47,3 +47,30 @@ def test_request_cache_releases_failed_reservations() -> None:
     assert cache.reserve(request_id, owner) is None
     cache.release(request_id)
     assert cache.reserve(request_id, owner) is None
+
+
+def test_request_cache_lease_completes_and_replays() -> None:
+    cache = RequestCache(maxsize=4, ttl_seconds=10)
+    request_id = uuid4()
+    owner = uuid4()
+    result = _result(owner)
+
+    with cache.lease(request_id, owner) as lease:
+        assert lease.replay is None
+        lease.complete(result)
+
+    with cache.lease(request_id, owner) as replay:
+        assert replay.replay is result
+
+
+def test_request_cache_lease_releases_when_scope_fails() -> None:
+    cache = RequestCache(maxsize=4, ttl_seconds=10)
+    request_id = uuid4()
+    owner = uuid4()
+
+    with pytest.raises(RuntimeError, match="lease failed"):
+        with cache.lease(request_id, owner):
+            raise RuntimeError("lease failed")
+
+    with cache.lease(request_id, owner) as lease:
+        assert lease.replay is None

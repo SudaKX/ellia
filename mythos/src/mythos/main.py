@@ -8,35 +8,27 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from mythos.auth.router import router as auth_router
-from mythos.services.accounts.router import router as accounts_router
 from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
-from mythos.core.commands import CommandTransactionExecutor, RequestCache
+from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, TaskCommandExecutor
 from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
-from mythos.players.factory import PlayerFactory
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.services.container import ServiceContainer
 from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
-from mythos.services.files.router import router as files_router
-from mythos.services.hints.router import router as hints_router
-from mythos.services.credits.router import router as credits_router
-from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
-from mythos.services.progress.router import router as progress_router
-from mythos.services.validations.router import router as validations_router
 from mythos.services.files.static_assets import StaticAssetPublisher
 from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunner
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
 from mythos.services.lifecycle import PlayerLifecycleDispatcher
-from mythos.services.tasks import TaskExecutor, TaskReconciliationRunner, TaskService, TaskSnapshotStore
-from mythos.services.tasks.router import router as tasks_router
+from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
+from mythos.endpoints import router as endpoint_router
 from mythos.core.problems import (
     ApiProblem,
     PROBLEM_MEDIA_TYPE,
@@ -82,35 +74,38 @@ def create_app(
             )
         )
         catalogs = registered_content.freeze(file_ids)
-        player_factory = PlayerFactory(catalogs, resolved_object_store, file_ids)
+        player_loader = PlayerLoader(catalogs, resolved_object_store, file_ids)
         checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
-        task_executor = TaskExecutor(
-            player_factory,
+        pipelined_transaction = PipelinedTransaction(pre_commit_hooks=(checkpoint_hook,))
+        task_service = TaskService(
+            player_loader,
             catalogs.tasks,
             (checkpoint_hook,),
             pre_commit_interfaces=PlayerInterfaces.PROGRESS,
         )
-        command_executor = CommandTransactionExecutor(
-            player_factory,
-            RequestCache(
-                maxsize=resolved_settings.request_cache_maxsize,
-                ttl_seconds=resolved_settings.request_cache_ttl_seconds,
-            ),
-            (checkpoint_hook,),
-            task_executor=task_executor,
+        request_cache = RequestCache(
+            maxsize=resolved_settings.request_cache_maxsize,
+            ttl_seconds=resolved_settings.request_cache_ttl_seconds,
         )
+        endpoint_executor = EndpointCommandExecutor(
+            player_loader,
+            request_cache,
+            pipelined_transaction,
+            task_service=task_service,
+        )
+        task_command_executor = TaskCommandExecutor(task_service, request_cache)
         lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
         await ArtifactReconciliationRunner(
             database.session_factory,
-            command_executor,
+            player_loader,
             catalogs.artifacts,
             ArtifactTemplateSnapshotStore(resolved_settings.artifact_snapshot_path),
             allow_missing_tables=resolved_settings.environment == "test",
         ).run()
         await AccountReconciliationRunner(
             database.session_factory,
-            command_executor,
+            player_loader,
             catalogs.accounts,
             VirtualAccountTemplateSnapshotStore(resolved_settings.virtual_account_snapshot_path),
             allow_empty_catalog=resolved_settings.allow_empty_virtual_account_catalog_reconciliation,
@@ -118,7 +113,7 @@ def create_app(
         ).run()
         await TaskReconciliationRunner(
             database.session_factory,
-            command_executor,
+            player_loader,
             catalogs.tasks,
             TaskSnapshotStore(resolved_settings.task_snapshot_path),
             allow_missing_tables=resolved_settings.environment == "test",
@@ -127,7 +122,7 @@ def create_app(
         application.state.database = database
         application.state.runtime = ApplicationRuntime(
             catalogs=catalogs,
-            player_factory=player_factory,
+            player_loader=player_loader,
             services=ServiceContainer.create(
                 catalogs.files,
                 catalogs.merged_files,
@@ -141,10 +136,12 @@ def create_app(
                 resolved_settings.file_download_url_ttl_seconds,
                 checkpoint_store,
                 file_ids,
-                TaskService(catalogs.tasks, task_executor),
+                task_service,
             ),
             object_store=resolved_object_store,
-            command_executor=command_executor,
+            endpoint_executor=endpoint_executor,
+            task_command_executor=task_command_executor,
+            pipelined_transaction=pipelined_transaction,
             lifecycle_dispatcher=lifecycle_dispatcher,
         )
         try:
@@ -169,15 +166,7 @@ def create_app(
             StaticFiles(directory=PROJECT_ROOT / "example", html=True),
             name="example",
         )
-    application.include_router(auth_router, prefix="/api/v1")
-    application.include_router(accounts_router, prefix="/api/v1")
-    application.include_router(files_router, prefix="/api/v1")
-    application.include_router(hints_router, prefix="/api/v1")
-    application.include_router(credits_router, prefix="/api/v1")
-    application.include_router(progress_router, prefix="/api/v1")
-    application.include_router(scripts_router, prefix="/api/v1")
-    application.include_router(validations_router, prefix="/api/v1")
-    application.include_router(tasks_router, prefix="/api/v1")
+    application.include_router(endpoint_router, prefix="/api/v1")
 
     @application.get("/health", tags=["system"])
     async def healthcheck() -> dict[str, str]:

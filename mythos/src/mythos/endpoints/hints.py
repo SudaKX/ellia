@@ -9,14 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import RequestInProgressError, RequestReplayForbiddenError
+from mythos.commands import RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.problems import ApiProblem, ProblemType
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_context
-from mythos.players.factory import PlayerNotFoundError
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerNotFoundError
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.interfaces.credits import InsufficientCreditsError
 from mythos.services.hints.service import (
     HintContentVersionMismatchError,
@@ -49,11 +49,11 @@ async def disclose_hint(
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute_with_task(
+        result = await runtime.endpoint_executor.execute(
             session,
             identity,
             request_id,
-            lambda context: runtime.services.hints.disclose(context, hint_id),
+             lambda context: _disclose_response(runtime.services.hints, context.player, hint_id),
         )
     except RequestInProgressError as error:
         raise HTTPException(
@@ -72,6 +72,11 @@ async def disclose_hint(
     except InsufficientCreditsError as error:
         raise _problem(ProblemType.INSUFFICIENT_CREDITS, 409, "Insufficient credits", "There are not enough VTB to disclose this hint.") from error
     return JSONResponse(status_code=result.response.status_code, content=result.response.body)
+
+
+async def _disclose_response(service, player, hint_id: str) -> ResponseSpec:
+    summary = await service.disclose(player, hint_id)
+    return ResponseSpec(status_code=200, body={"hint": summary.body()}, headers={})
 
 
 @router.get("/{hint_id}/{content_token}/content-url")

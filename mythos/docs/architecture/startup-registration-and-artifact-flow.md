@@ -24,7 +24,7 @@ lifespan startup
   -> FileIdCodec、ObjectStore、Database
   -> StaticAssetPublisher 物化 Files/Hints 静态源
   -> RegistryBundle.freeze(file_ids)
-  -> PlayerFactory、checkpoint hook、CommandTransactionExecutor、LifecycleDispatcher
+  -> PlayerLoader、checkpoint hook、EndpointCommandExecutor、TaskCommandExecutor、LifecycleDispatcher
   -> ArtifactReconciliationRunner
   -> AccountReconciliationRunner
   -> ApplicationRuntime 挂载到 app.state.runtime
@@ -107,9 +107,9 @@ lifecycle   -> LifecycleCatalog
 
 Registry freeze 后继续创建：
 
-1. `PlayerFactory`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
+1. `PlayerLoader`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
 2. `LocalCheckpointStore` 和 `ProgressCheckpointHook`。
-3. `CommandTransactionExecutor` 和 Request-ID cache。
+3. `EndpointCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
 4. `PlayerLifecycleDispatcher`。
 
 然后按顺序执行：
@@ -121,7 +121,7 @@ Registry freeze 后继续创建：
 
 最后创建 `ServiceContainer`，把静态 FileTree、启动期共享的 MergedFileTree、HintCatalog、ProgressGraph、ScriptCatalog、ValidationCatalog 和对象存储等注入全局 Service，并将完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
 
-应用退出时，lifespan 的 `finally` 释放 Database。Catalog、Service 和 PlayerFactory 的生命周期属于当前应用进程。
+应用退出时，lifespan 的 `finally` 释放 Database。Catalog、Service 和 PlayerLoader 的生命周期属于当前应用进程。
 
 ## 二、Registry 数据模型初始化顺序
 
@@ -427,7 +427,7 @@ Artifact 没有独立的全局 HTTP Service。生成入口是可写 `Player.arti
 3. 检查是否存在 Artifact 但缺少 `PlayerArtifactState` 的迁移期记录。
 4. 如果 snapshot 未变且不需要 baseline reconciliation，直接返回。
 5. 根据 changed keys 找到受影响的玩家：Artifact 变更、node 变更、node 所属 Artifact 变更都会参与查询。
-6. 每个玩家启动一个 `CommandTransactionExecutor.execute_nocache()` 事务。
+6. 每个玩家在 `async with session.begin()` 内通过 `PlayerLoader` 加载 writable Player 并执行 reconciliation Service。
 7. 事务内加载 Player 的全部 interface，然后执行 `player.artifacts.refresh_stale(player)`。
 8. 所有玩家完成后，写入新的 Artifact Catalog snapshot。
 
@@ -572,7 +572,7 @@ Artifact node 完成新增或刷新后，调用 `_bump_player_version()` 更新 
 Router 找到 ValidationAttempt
   -> Request-ID reserve
   -> session.begin()
-  -> PlayerFactory.load(..., writable=True)
+  -> PlayerLoader.load(..., writable=True)
      -> load progress
      -> load artifacts
      -> load accounts
@@ -671,7 +671,7 @@ node_record.download_name or artifact_template.download_name
 - `ArtifactTemplate.version` 描述 Artifact generator/声明；`ArtifactCatalog.node_version()` 额外绑定关联 Artifact version。
 - `act3_` 不直接包含 `meta`；meta 通过 Artifact generator 版本变化触发 Artifact refresh，再通过 `antv2_` 触发 node generator。
 - Artifact 对象上传发生在 SQL commit 前；事务回滚可能留下对象存储孤儿。
-- Service 是全局只读装配对象；玩家状态写入必须通过 CommandTransactionExecutor 的事务。
+- Service 是全局只读装配对象；玩家状态写入必须参与调用方显式拥有的 transaction。普通 HTTP 写命令使用 Endpoint Executor，内部 Workflow 和 reconciliation 直接组合 `async with session.begin()`、PlayerLoader 与事务内 Service。
 - `PlayerArtifactNode.version`、path、display、hidden 和 download name 是数据库中的当前运行结果，不是每次读取时重新运行 generator 得到的临时值。
 - 静态 object key、Artifact object key 和 provider VersionId 都不直接构成当前 Content-token。
 

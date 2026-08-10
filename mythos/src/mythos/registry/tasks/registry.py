@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
 from mythos.registry.tasks.catalog import TaskCatalog
 from mythos.registry.tasks.definitions import TaskDefinition, TaskHandler

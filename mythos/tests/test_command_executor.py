@@ -5,10 +5,11 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import CommandTransactionExecutor, RequestCache, ResponseSpec
+from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, ResponseSpec
+from mythos.persistence.models import PlayerRecord
 from mythos.persistence.base import Base
-from mythos.players.factory import PlayerFactory
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 
 
@@ -28,12 +29,18 @@ async def session():
 
 async def test_executor_loads_default_interfaces_runs_hooks_and_replays(session) -> None:
     player_id = uuid4()
+    session.add(PlayerRecord(id=player_id, username="command-player", username_normalized="command-player"))
+    await session.commit()
     player = Mock(spec=Player)
     player.load_interfaces = AsyncMock()
-    factory = Mock(spec=PlayerFactory)
-    factory.create = AsyncMock(return_value=player)
+    loader = Mock(spec=PlayerLoader)
+    loader.load_writable = AsyncMock(return_value=player)
     hook = AsyncMock()
-    executor = CommandTransactionExecutor(factory, RequestCache(maxsize=4, ttl_seconds=60), (hook,))
+    executor = EndpointCommandExecutor(
+        loader,
+        RequestCache(maxsize=4, ttl_seconds=60),
+        PipelinedTransaction(pre_commit_hooks=(hook,)),
+    )
 
     async def command(context) -> ResponseSpec:
         assert context.player is player
@@ -45,54 +52,43 @@ async def test_executor_loads_default_interfaces_runs_hooks_and_replays(session)
         PlayerIdentity(player_id=player_id),
         request_id,
         command,
+        run_task_phase=False,
     )
     replayed = await executor.execute(
         session,
         PlayerIdentity(player_id=player_id),
         request_id,
         command,
+        run_task_phase=False,
     )
 
     assert result.response.body == {"content": {"ok": True}, "followups": []}
     assert replayed is result
-    factory.create.assert_awaited_once_with(session, player_id, writable=True)
-    player.load_interfaces.assert_awaited_once_with(PlayerInterfaces.ALL)
+    loader.load_writable.assert_awaited_once_with(session, player_id, interfaces=PlayerInterfaces.ALL)
     hook.assert_awaited_once_with(session, player)
 
 
-async def test_executor_nocache_uses_existing_transaction_and_can_skip_hooks(session) -> None:
+async def test_endpoint_loader_is_reusable_across_transactions(session) -> None:
     player_id = uuid4()
+    session.add(PlayerRecord(id=player_id, username="nocache-player", username_normalized="nocache-player"))
+    await session.commit()
     player = Mock(spec=Player)
     player.load_interfaces = AsyncMock()
-    factory = Mock(spec=PlayerFactory)
-    factory.create = AsyncMock(return_value=player)
-    hook = AsyncMock()
-    executor = CommandTransactionExecutor(factory, RequestCache(maxsize=4, ttl_seconds=60), (hook,))
+    loader = Mock(spec=PlayerLoader)
+    loader.load_writable = AsyncMock(side_effect=(player, player))
     seen: list[Player] = []
 
     async def operation(loaded_player: Player) -> None:
         seen.append(loaded_player)
 
-    await executor.execute_nocache(
-        session,
-        player_id,
-        operation,
-        interfaces=PlayerInterfaces.ARTIFACTS,
-    )
-    player.load_interfaces.assert_awaited_once_with(PlayerInterfaces.ARTIFACTS)
-    hook.assert_awaited_once_with(session, player)
-
-    player.load_interfaces.reset_mock()
-    hook.reset_mock()
     async with session.begin():
-        await executor.execute_nocache_itx(
-            session,
-            player_id,
-            operation,
-            interfaces=PlayerInterfaces.ACCOUNTS,
-            run_pre_commit_hooks=False,
-        )
+        player = await loader.load_writable(session, player_id, interfaces=PlayerInterfaces.ARTIFACTS)
+        await operation(player)
 
-    assert seen == [player, player]
-    player.load_interfaces.assert_awaited_once_with(PlayerInterfaces.ACCOUNTS)
-    hook.assert_not_awaited()
+    async with session.begin():
+        player = await loader.load_writable(session, player_id, interfaces=PlayerInterfaces.ACCOUNTS)
+        await operation(player)
+
+    assert len(seen) == 2
+    assert loader.load_writable.await_args_list[0].kwargs == {"interfaces": PlayerInterfaces.ARTIFACTS}
+    assert loader.load_writable.await_args_list[1].kwargs == {"interfaces": PlayerInterfaces.ACCOUNTS}

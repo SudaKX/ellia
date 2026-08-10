@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import CommandRejected, RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
+from mythos.commands import CommandRejected, RequestInProgressError, RequestReplayForbiddenError, ResponseSpec
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_context
-from mythos.players.factory import PlayerNotFoundError
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerNotFoundError
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.services.progress.service import CheckpointIncompatibleError, CheckpointNotFoundError
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -37,7 +37,7 @@ async def restore_checkpoint(
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute_with_task(
+        result = await runtime.endpoint_executor.execute(
             session,
             identity,
             request_id,
@@ -59,5 +59,5 @@ async def restore_checkpoint(
 
 
 async def _restore_response(runtime: ApplicationRuntime, context) -> ResponseSpec:
-    snapshot = await runtime.services.progress.restore(context)
+    snapshot = await runtime.services.progress.restore(context.player)
     return ResponseSpec(status_code=200, body={"progress": snapshot.body()}, headers={})

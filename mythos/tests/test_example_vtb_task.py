@@ -17,15 +17,15 @@ from _helpers.object_store import FakeObjectStore
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerCredits, PlayerRecord, PlayerTaskState
-from mythos.players.factory import PlayerFactory
+from mythos.players.loader import PlayerLoader
 from puzzles.example import VTB_TASK_ID, register
 from mythos.registry.bundle import RegistryBundle
-from mythos.services.tasks import TaskExecutor
-from mythos.services.tasks import executor as task_executor_module
+from mythos.services.tasks import TaskService
+from mythos.services.tasks import service as task_service_module
 
 
 _FILE_IDS = FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes")
@@ -73,8 +73,8 @@ async def _task_harness(
         dependencies=definition.dependencies,
     )
     catalogs = registries.freeze(_FILE_IDS)
-    factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-    executor = TaskExecutor(factory, catalogs.tasks)
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    executor = TaskService(loader, catalogs.tasks)
     session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     player_id = uuid4()
 
@@ -102,7 +102,7 @@ async def _task_harness(
     await engine.dispose()
 
 
-async def _run_task(session, executor: TaskExecutor, player_id: UUID):
+async def _run_task(session, executor: TaskService, player_id: UUID):
     async with session.begin():
         return await executor.run_itx(session, player_id)
 
@@ -110,7 +110,7 @@ async def _run_task(session, executor: TaskExecutor, player_id: UUID):
 def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monkeypatch) -> None:
     async def scenario() -> None:
         clock = {"now": datetime(2026, 8, 9, 12, 0, tzinfo=UTC)}
-        monkeypatch.setattr(task_executor_module, "_utcnow", lambda: clock["now"])
+        monkeypatch.setattr(task_service_module, "_utcnow", lambda: clock["now"])
         settings = Settings(
             environment="test",
             database_url=f"sqlite+aiosqlite:///{(tmp_path / 'example-vtb.sqlite3').as_posix()}",
@@ -147,7 +147,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                     task = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
                     assert task is not None and task.meta == "{}" and task.exception == 0
                     state_before = (task.time_1, task.time_2, task.exception, task.meta)
-                    player = await app.state.runtime.player_factory.load(
+                    player = await app.state.runtime.player_loader.load(
                         session,
                         player_id,
                         writable=True,
@@ -187,7 +187,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                 assert stored_due == clock["now"] + timedelta(seconds=60)
 
                 async with app.state.database.session_factory() as session:
-                    player = await app.state.runtime.player_factory.load(
+                    player = await app.state.runtime.player_loader.load(
                         session,
                         player_id,
                         writable=True,
@@ -227,7 +227,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                 assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 10
 
                 async with app.state.database.session_factory() as session:
-                    player = await app.state.runtime.player_factory.load(
+                    player = await app.state.runtime.player_loader.load(
                         session,
                         player_id,
                         writable=True,
@@ -256,7 +256,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
 def test_example_vtb_task_defers_before_due_time(tmp_path: Path, monkeypatch) -> None:
     async def scenario() -> None:
         clock = _TaskClock(datetime(2026, 8, 9, 12, 0, tzinfo=UTC))
-        monkeypatch.setattr(task_executor_module, "_utcnow", clock)
+        monkeypatch.setattr(task_service_module, "_utcnow", clock)
         async with _task_harness(tmp_path) as (session, executor, player_id):
             await _run_task(session, executor, player_id)
             first = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
@@ -282,7 +282,7 @@ def test_example_vtb_task_grants_one_period_and_catches_up_missed_periods(
 ) -> None:
     async def scenario() -> None:
         clock = _TaskClock(datetime(2026, 8, 9, 12, 0, tzinfo=UTC))
-        monkeypatch.setattr(task_executor_module, "_utcnow", clock)
+        monkeypatch.setattr(task_service_module, "_utcnow", clock)
         async with _task_harness(tmp_path) as (session, executor, player_id):
             await _run_task(session, executor, player_id)
 
@@ -316,7 +316,7 @@ def test_example_vtb_task_respects_cap_for_initial_execution(
     async def scenario() -> None:
         now = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
         clock = _TaskClock(now)
-        monkeypatch.setattr(task_executor_module, "_utcnow", clock)
+        monkeypatch.setattr(task_service_module, "_utcnow", clock)
         async with _task_harness(tmp_path, vtb=vtb) as (session, executor, player_id):
             await _run_task(session, executor, player_id)
             credits = await session.get(PlayerCredits, player_id)
@@ -344,7 +344,7 @@ def test_example_vtb_task_reinitializes_old_meta_without_using_meta_for_cap(
     async def scenario() -> None:
         now = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
         clock = _TaskClock(now)
-        monkeypatch.setattr(task_executor_module, "_utcnow", clock)
+        monkeypatch.setattr(task_service_module, "_utcnow", clock)
         async with _task_harness(
             tmp_path,
             vtb=8,

@@ -13,7 +13,7 @@ from mythos.auth.tokens import decode_access_token
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.artifacts import (
     ArtifactNodeTemplate,
     ArtifactRegistry,

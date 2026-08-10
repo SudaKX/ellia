@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from mythos.core.commands.models import ResponseSpec
 from mythos.players.context import CommandContext
-from mythos.registry.validations import ValidationAttempt, ValidationCatalog
+from mythos.registry.validations import ValidationAttempt, ValidationCatalog, ValidationOutcome
 
 
 class ValidationService:
@@ -20,10 +19,5 @@ class ValidationService:
         context: CommandContext,
         attempt: ValidationAttempt,
         payload: Mapping[str, Any],
-    ) -> ResponseSpec:
-        outcome = await attempt.handler(context, payload)
-        return ResponseSpec(
-            status_code=200,
-            body={"accepted": outcome.accepted},
-            headers={},
-        )
+    ) -> ValidationOutcome:
+        return await attempt.handler(context, payload)

@@ -6,7 +6,7 @@ from pydantic import SecretStr
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.artifacts import module_handler

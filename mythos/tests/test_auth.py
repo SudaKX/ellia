@@ -96,6 +96,11 @@ def test_authentication_lifecycle(tmp_path) -> None:
             async with app.state.database.engine.begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
 
+            runtime = app.state.runtime
+            assert not hasattr(runtime, "task_service")
+            assert runtime.services.tasks is runtime.endpoint_executor._task_service
+            assert runtime.services.tasks is runtime.task_command_executor._task_service
+
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
                 payload = {"username": "SudaKX", "password": "correct-horse-battery"}

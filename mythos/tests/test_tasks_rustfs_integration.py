@@ -12,16 +12,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerArtifact, PlayerRecord, PlayerTaskState
-from mythos.players.factory import PlayerFactory
+from mythos.players.loader import PlayerLoader
 from mythos.registry.artifacts import ArtifactTemplate, RawArtifact
 from mythos.registry.artifacts import module_handler
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
 from mythos.services.object_store.service import Boto3ObjectStore
-from mythos.services.tasks import TaskExecutor
+from mythos.services.tasks import TaskService
 
 pytestmark = pytest.mark.skipif(
     os.getenv("MYTHOS_RUSTFS_INTEGRATION") != "1",
@@ -93,8 +93,8 @@ def test_task_handler_generates_artifact_in_rustfs(tmp_path: Path) -> None:
                     ]
                 )
                 await session.commit()
-                executor = TaskExecutor(
-                    PlayerFactory(catalogs, object_store, file_ids),
+                executor = TaskService(
+                    PlayerLoader(catalogs, object_store, file_ids),
                     catalogs.tasks,
                 )
                 async with session.begin():

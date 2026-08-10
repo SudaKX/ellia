@@ -64,8 +64,10 @@ def _auth_service(session: AsyncSession, settings: Settings, runtime: Applicatio
         session,
         settings,
         runtime.catalogs.progress,
-        runtime.command_executor,
+        runtime.player_loader,
+        runtime.services.tasks,
         runtime.lifecycle_dispatcher,
+        runtime.pipelined_transaction,
     )
 
 

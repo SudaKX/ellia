@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mythos.players.context import CommandContext
 from mythos.players.interfaces.accounts import Account, InvalidAccountCredentialsError
 from mythos.players.player import Player
 
@@ -26,13 +25,13 @@ class AccountService:
             version=player.accounts.version,
         )
 
-    async def login(self, context: CommandContext, username: str, password: str) -> AccountSnapshot:
-        await context.player.accounts.login(username, password)
-        return self.snapshot(context.player)
+    async def login(self, player: Player, username: str, password: str) -> AccountSnapshot:
+        await player.accounts.login(username, password)
+        return self.snapshot(player)
 
-    async def logout(self, context: CommandContext) -> AccountSnapshot:
-        await context.player.accounts.logout()
-        return self.snapshot(context.player)
+    async def logout(self, player: Player) -> AccountSnapshot:
+        await player.accounts.logout()
+        return self.snapshot(player)
 
 
 __all__ = ["AccountService", "AccountSnapshot", "InvalidAccountCredentialsError"]

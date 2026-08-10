@@ -46,7 +46,7 @@ def _settings(tmp_path, *, allow_empty: bool = False) -> Settings:
 async def _issue(app, player_id, account_id: str, username: str, password: str, *, login: bool = False) -> None:
     async with app.state.database.session_factory() as session:
         async with session.begin():
-            player = await app.state.runtime.player_factory.load(session, player_id, writable=True)
+            player = await app.state.runtime.player_loader.load(session, player_id, writable=True)
             await player.accounts.issue(account_id, username, password)
             if login:
                 await player.accounts.login(username, password)

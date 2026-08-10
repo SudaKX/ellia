@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from mythos.players.context import CommandContext, PlayerLifecycleContext, TaskContext
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
     ArtifactNode,

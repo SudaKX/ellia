@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from mythos.players.player import Player
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.files import (
     FileTree,
     FileTreeDirectoryNotFoundError,

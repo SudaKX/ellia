@@ -1,4 +1,4 @@
-import mythos.core.commands  # noqa: F401  # ensure command models load before validation definitions
+import mythos.commands  # noqa: F401  # ensure command models load before validation definitions
 
 import pytest
 

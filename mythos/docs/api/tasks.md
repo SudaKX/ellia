@@ -56,4 +56,4 @@ Request-ID: <UUID>
 
 Request-ID 遵循现有命令契约：同一玩家重放已完成 ID 返回完全相同的缓存响应，执行中的 ID 返回 `409`，其他玩家使用该 ID 也返回 `409`。系统不提供通过任务身份直接调用 Handler 的通用接口。
 
-Example 的 `example.vtb-allowance` 使用 `time_2` 保存下一次 60 秒周期的到期时间，`time_1` 仍由 TaskExecutor 在未 defer 的成功处理后写入。任务 `meta` 保存 `schema_version`、`initial_grant_applied`、`total_granted` 和 `last_granted_at`；这些字段只用于任务状态和诊断，VTB 上限始终以当前 Credits Interface 为准。玩家没有请求时不会实时获得奖励，下一次任务触发会按已过去的周期惰性补算。
+Example 的 `example.vtb-allowance` 使用 `time_2` 保存下一次 60 秒周期的到期时间，`time_1` 仍由 `TaskService` 在未 defer 的成功处理后写入。任务 `meta` 保存 `schema_version`、`initial_grant_applied`、`total_granted` 和 `last_granted_at`；这些字段只用于任务状态和诊断，VTB 上限始终以当前 Credits Interface 为准。玩家没有请求时不会实时获得奖励，下一次任务触发会按已过去的周期惰性补算。

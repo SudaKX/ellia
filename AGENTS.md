@@ -5,7 +5,7 @@
 - `mythos/` 是 Python 3.13+ 的 FastAPI 后端；入口为 `mythos/src/mythos/main.py:create_app()`，固定 Router 全部挂在 `/api/v1`。
 - `desktop/` 是独立的 Vue 3/Vite 应用；入口为 `desktop/src/main.ts`，桌面状态由 Pinia 的 `src/stores/desktop.ts` 管理。
 - 后端启动期会物化静态文件并冻结 `RegistryBundle` 为只读 Catalog。谜题内容应在冻结前注册；模块不能新增通用 callback HTTP 路由。
-- Service 是全局对象，只接收请求级 `Player` 和冻结 Catalog；写入路径必须通过 `CommandTransactionExecutor`，不要在 Service 或模块中自行提交 Session。
+- Service 是全局对象，只接收请求级 `Player` 和冻结 Catalog；领域写入参与调用方显式拥有的 transaction。HTTP 普通写命令必须通过 `EndpointCommandExecutor`，Task-only HTTP 命令通过 `TaskCommandExecutor`；Auth Workflow 和 reconciliation 直接组合 `async with session.begin()`、`PlayerLoader` 与事务内 Service，不得在 Service 或模块中自行提交 Session。
 
 ## Mythos 后端
 

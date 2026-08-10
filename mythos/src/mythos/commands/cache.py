@@ -5,7 +5,7 @@ from uuid import UUID
 
 from cachetools import TTLCache
 
-from mythos.core.commands.models import CachedResponse
+from mythos.commands.models import CachedResponse
 
 _MISSING = object()
 
@@ -16,6 +16,29 @@ class RequestInProgressError(Exception):
 
 class RequestReplayForbiddenError(Exception):
     pass
+
+
+class RequestLease:
+    def __init__(self, cache: RequestCache, request_id: UUID, player_id: UUID) -> None:
+        self._cache = cache
+        self._request_id = request_id
+        self.replay = cache.reserve(request_id, player_id)
+        self._completed = self.replay is not None
+
+    def complete(self, response: CachedResponse) -> None:
+        if self.replay is not None:
+            raise RuntimeError("A replayed request cannot be completed again.")
+        if self._completed:
+            raise RuntimeError("Request lease has already been completed.")
+        self._cache.complete(self._request_id, response)
+        self._completed = True
+
+    def __enter__(self) -> RequestLease:
+        return self
+
+    def __exit__(self, _exception_type, _exception, _traceback) -> None:
+        if self.replay is None and not self._completed:
+            self._cache.release(self._request_id)
 
 
 class RequestCache:
@@ -31,6 +54,9 @@ class RequestCache:
         else:
             self._entries = TTLCache(maxsize=maxsize, ttl=ttl_seconds, timer=timer)
         self._in_progress: set[UUID] = set()
+
+    def lease(self, request_id: UUID, player_id: UUID) -> RequestLease:
+        return RequestLease(self, request_id, player_id)
 
     def reserve(self, request_id: UUID, player_id: UUID) -> CachedResponse | None:
         entry = self._entries.get(request_id, _MISSING)

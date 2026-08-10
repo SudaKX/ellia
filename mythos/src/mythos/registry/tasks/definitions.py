@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeAlias
 
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 
 if TYPE_CHECKING:
     from mythos.players.context import TaskContext

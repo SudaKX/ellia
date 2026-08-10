@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import RequestInProgressError, RequestReplayForbiddenError
+from mythos.commands import RequestInProgressError, RequestReplayForbiddenError
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
 from mythos.players.dependencies import get_context
-from mythos.players.factory import PlayerNotFoundError
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerNotFoundError
+from mythos.players.interfaces import PlayerInterfaces
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -39,7 +39,7 @@ async def process_tasks(
     runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
 ) -> JSONResponse:
     try:
-        result = await runtime.command_executor.execute_tasks(session, identity, request_id)
+        result = await runtime.task_command_executor.execute(session, identity, request_id)
     except RequestInProgressError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

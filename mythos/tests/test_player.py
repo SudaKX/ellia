@@ -1,4 +1,4 @@
-import mythos.core.commands  # noqa: F401  # ensure commands are loaded before factory to avoid circular import
+import mythos.commands  # noqa: F401  # ensure commands are loaded before loader to avoid circular import
 from uuid import uuid4
 
 import pytest
@@ -9,9 +9,9 @@ pytestmark = pytest.mark.anyio
 from _helpers.object_store import FakeObjectStore
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerProgress
-from mythos.players.factory import PlayerFactory, PlayerNotFoundError
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.persistence.models import PlayerProgress, PlayerRecord
+from mythos.players.loader import PlayerLoader, PlayerNotFoundError
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import PlayerInterfaceNotLoadedError, PlayerInterfaceVersionError
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
@@ -37,24 +37,28 @@ async def session():
 
 
 async def _seed_player(session, player_id):
-    session.add(
-        PlayerProgress(
-            player_id=player_id,
-            version=1,
+    session.add_all(
+        (
+            PlayerRecord(
+                id=player_id,
+                username=str(player_id),
+                username_normalized=str(player_id),
+            ),
+            PlayerProgress(player_id=player_id, version=1),
         )
     )
 
 
-def _factory():
-    return PlayerFactory(_CATALOGS, FakeObjectStore(), _FILE_IDS)
+def _loader():
+    return PlayerLoader(_CATALOGS, FakeObjectStore(), _FILE_IDS)
 
 
-async def test_player_factory_create_does_not_load_interfaces(session) -> None:
+async def test_player_loader_create_does_not_load_interfaces(session) -> None:
     player_id = uuid4()
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     assert player._progress is None
     assert player._artifacts is None
     assert player._accounts is None
@@ -67,7 +71,7 @@ async def test_player_accessing_uninitialized_progress_raises(session) -> None:
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="progress interface not loaded"):
         _ = player.progress
 
@@ -77,7 +81,7 @@ async def test_player_accessing_uninitialized_artifacts_raises(session) -> None:
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="artifacts interface not loaded"):
         _ = player.artifacts
 
@@ -87,7 +91,7 @@ async def test_player_accessing_uninitialized_accounts_raises(session) -> None:
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="accounts interface not loaded"):
         _ = player.accounts
 
@@ -97,7 +101,7 @@ async def test_player_accessing_uninitialized_credits_and_hints_raises(session) 
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     with pytest.raises(PlayerInterfaceNotLoadedError, match="credits interface not loaded"):
         _ = player.credits
     with pytest.raises(PlayerInterfaceNotLoadedError, match="hints interface not loaded"):
@@ -109,7 +113,7 @@ async def test_player_load_progress_caches_and_returns_interface(session) -> Non
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     progress = await player.load_progress()
     assert player._progress is progress
     assert player.progress is progress
@@ -120,7 +124,7 @@ async def test_player_load_artifacts_creates_empty_interface(session) -> None:
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     artifacts = await player.load_artifacts()
     assert player._artifacts is artifacts
     assert player.artifacts is artifacts
@@ -132,7 +136,7 @@ async def test_player_load_accounts_creates_empty_interface(session) -> None:
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     accounts = await player.load_accounts()
     assert player._accounts is accounts
     assert accounts.accounts == ()
@@ -143,7 +147,7 @@ async def test_player_load_credits_and_hints_creates_empty_interfaces(session) -
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     credits = await player.load_credits()
     hints = await player.load_hints()
     assert player.credits is credits
@@ -157,7 +161,7 @@ async def test_player_load_interfaces_loads_only_selected_interfaces(session) ->
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     await player.load_interfaces(PlayerInterfaces.PROGRESS | PlayerInterfaces.ARTIFACTS)
 
     assert player._progress is not None
@@ -167,12 +171,12 @@ async def test_player_load_interfaces_loads_only_selected_interfaces(session) ->
     assert player._hints is None
 
 
-async def test_player_factory_load_initializes_both_interfaces(session) -> None:
+async def test_player_loader_load_initializes_both_interfaces(session) -> None:
     player_id = uuid4()
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().load(session, player_id, writable=False)
+    player = await _loader().load(session, player_id, writable=False)
     assert player._progress is not None
     assert player._artifacts is not None
     assert player._accounts is not None
@@ -190,7 +194,7 @@ async def test_player_state_versions_require_versioned_loaded_interfaces(session
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=False)
+    player = await _loader().create(session, player_id, writable=False)
     versioned_interfaces = (
         PlayerInterfaces.PROGRESS
         | PlayerInterfaces.ARTIFACTS
@@ -216,7 +220,7 @@ async def test_player_owns_file_tree_cache_and_mutations_invalidate_it(session) 
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=True)
+    player = await _loader().create(session, player_id, writable=True)
     await player.load_artifacts()
     await player.load_credits()
     first = player.get_file_tree(_CATALOGS.merged_files, "pft4_first")
@@ -235,7 +239,7 @@ async def test_unrelated_credits_do_not_change_file_tree_version(session) -> Non
     await _seed_player(session, player_id)
     await session.commit()
 
-    player = await _factory().create(session, player_id, writable=True)
+    player = await _loader().create(session, player_id, writable=True)
     await player.load_artifacts()
     await player.load_credits()
     version_before = _FILE_IDS.encode_player_tree_version(
@@ -252,6 +256,6 @@ async def test_unrelated_credits_do_not_change_file_tree_version(session) -> Non
     assert version_after == version_before
 
 
-async def test_player_factory_load_unknown_player_raises(session) -> None:
+async def test_player_loader_load_unknown_player_raises(session) -> None:
     with pytest.raises(PlayerNotFoundError):
-        await _factory().load(session, uuid4(), writable=False)
+        await _loader().load(session, uuid4(), writable=False)

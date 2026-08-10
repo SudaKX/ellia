@@ -65,7 +65,7 @@ After initialization, the Example Handler SHALL defer without changing `time_1` 
 
 ### Requirement: Example VTB task remains request-triggered
 
-The Example VTB allowance SHALL execute only through existing TaskExecutor activity points and SHALL NOT create a background scheduler, new HTTP route, or direct Session commit path.
+The Example VTB allowance SHALL execute only through existing TaskService activity points and SHALL NOT create a background scheduler, new HTTP route, or direct Session commit path.
 
 #### Scenario: Explicit task processing executes the allowance
 

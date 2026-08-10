@@ -8,7 +8,7 @@
 
 | 回调 | 注册位置 | 合同 | 要求 | 调用边界 |
 | --- | --- | --- | --- | --- |
-| Validation attempt handler | `ValidationAttempt.handler` | `(CommandContext, Mapping[str, Any]) -> Awaitable[ValidationOutcome]` | 必须异步 | `CommandTransactionExecutor` 的写入事务内；异常会回滚并释放 Request-ID 占位 |
+| Validation attempt handler | `ValidationAttempt.handler` | `(CommandContext, Mapping[str, Any]) -> Awaitable[ValidationOutcome]` | 必须异步 | `EndpointCommandExecutor` 的 Operation transaction 内；异常会回滚并释放 Request-ID lease |
 | Player lifecycle handler | `LifecycleRegistry.register_lifecycle()`、`on_construct`、`on_deconstruct` | `(PlayerLifecycleContext) -> Awaitable[None]` | 必须异步 | Construct/Deconstruct 分发事务内；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续回调 |
 | Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步、恰好一个位置参数 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
 | Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, Mapping[str, Any], ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步、恰好三个位置参数 | 由 Artifact Interface 调用；meta 来自 Artifact generator |
@@ -43,7 +43,7 @@ access rule 与 branch selector 必须是快速、确定、无副作用的普通
 | 回调 | 注册或定义位置 | 要求 |
 | --- | --- | --- |
 | Puzzle module 注册函数 | `puzzles.register_all()` 直接调用各模块 `register(registries)` | 必须同步；仅在启动期物化 Registry 内容 |
-| Command pre-commit hook | `CommandTransactionExecutor(pre_commit_hooks=...)` | 必须异步，合同为 `(AsyncSession, Player) -> Awaitable[None]`；在事务提交前按配置顺序执行，异常回滚事务 |
+| Command pre-commit hook | `PipelinedTransaction(pre_commit_hooks=...)` 或 TaskService 配置 | 必须异步，合同为 `(AsyncSession, Player) -> Awaitable[None]`；在事务提交前按配置顺序执行，异常回滚当前 transaction |
 | FastAPI lifespan | `FastAPI(lifespan=...)` | 必须为异步 context manager；负责静态文件物化、Catalog 冻结、reconciliation 和数据库释放 |
 | FastAPI exception handler | `application.add_exception_handler()` | Starlette 兼容同步或异步 handler；当前 Mythos 实现使用异步函数 |
 | SQLAlchemy SQLite connect listener | `event.listen(..., "connect", ...)` | 必须同步 DBAPI 回调；用于连接建立期设置 SQLite PRAGMA |

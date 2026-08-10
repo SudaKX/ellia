@@ -1,6 +1,6 @@
 # 命令 API 协议
 
-下列写入操作使用命令事务和 Request-ID：validation 提交、checkpoint restore、Hint disclosure、VirtualAccount 登录和登出。请求必须包含：
+下列写入操作通过 `EndpointCommandExecutor` 使用命令事务和 Request-ID：validation 提交、checkpoint restore、Hint disclosure、VirtualAccount 登录和登出。普通写命令默认先执行惰性 Task transaction，再执行 Operation transaction。请求必须包含：
 
 ```http
 Authorization: Bearer <access token>
@@ -30,4 +30,4 @@ Request-ID: <UUID>
 | 其他玩家使用同 ID | `409` | 生成新操作，不重用该 ID |
 | handler 拒绝或进度冲突 | `409` 或 handler 指定状态 | 刷新相关状态后提示失败 |
 
-幂等缓存仅在当前进程 TTL 内有效，客户端不能将其视为永久去重机制。内部事务、checkpoint 和对象存储限制见 [命令事务](../architecture/command-transactions.md)。
+幂等缓存仅在当前进程 TTL 内有效，客户端不能将其视为永久去重机制。Task-only 的 `/api/v1/tasks/process` 使用独立 `TaskCommandExecutor`，不经过普通 Player Operation Pipeline。内部事务、checkpoint 和对象存储限制见 [命令事务](../architecture/command-transactions.md)。

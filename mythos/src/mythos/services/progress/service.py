@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mythos.players.context import CommandContext
 from mythos.players.player import Player
 from mythos.registry.progress import ProgressGraph
 from mythos.services.progress.checkpoint_store import CheckpointStoreError, LocalCheckpointStore
@@ -45,26 +44,26 @@ class ProgressService:
             version=player.progress.version,
         )
 
-    async def restore(self, context: CommandContext) -> ProgressSnapshot:
-        metadata = context.player.progress._current_checkpoint_metadata()
+    async def restore(self, player: Player) -> ProgressSnapshot:
+        metadata = player.progress._current_checkpoint_metadata()
         if metadata is None:
             raise CheckpointNotFoundError
         try:
             checkpoint = await self._checkpoint_store.read(metadata.storage_key)
         except CheckpointStoreError as error:
             raise CheckpointIncompatibleError("Checkpoint file is unavailable.") from error
-        if checkpoint.player_id != context.player.id or checkpoint.sequence != metadata.sequence:
+        if checkpoint.player_id != player.id or checkpoint.sequence != metadata.sequence:
             raise CheckpointIncompatibleError("Checkpoint file does not belong to the current player.")
         if checkpoint.graph_hash != self._graph.structure_hash:
             raise CheckpointIncompatibleError("Checkpoint graph does not match the current runtime.")
         try:
-            context.player.progress._restore_state(
+            player.progress._restore_state(
                 checkpoint.unlocked_node_ids,
                 checkpoint.frontier_node_ids,
             )
         except Exception as error:
             raise CheckpointIncompatibleError("Checkpoint state is invalid.") from error
-        return self.snapshot(context.player)
+        return self.snapshot(player)
 
     def _string_ids(self, node_ids: frozenset[int]) -> tuple[str, ...]:
         try:

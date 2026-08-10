@@ -20,7 +20,7 @@ from mythos.auth.tokens import (
     parse_refresh_credential,
 )
 from mythos.auth.passwords import password_hasher
-from mythos.core.commands.executor import CommandTransactionExecutor
+from mythos.commands.pipeline import PipelinedTransaction
 from mythos.core.config import Settings
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
@@ -35,7 +35,10 @@ from mythos.persistence.models import (
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.lifecycle import PlayerConstructEvent
 from mythos.services.lifecycle import PlayerLifecycleDispatcher
+from mythos.services.tasks.service import TaskService
+from mythos.players.loader import PlayerLoader
 from mythos.players.context import PlayerLifecycleContext
+from mythos.players.interfaces import PlayerInterfaces
 
 class UsernameAlreadyExistsError(Exception):
     pass
@@ -74,14 +77,18 @@ class AuthService:
         session: AsyncSession,
         settings: Settings,
         progress_graph: ProgressGraph,
-        command_executor: CommandTransactionExecutor,
+        player_loader: PlayerLoader,
+        task_service: TaskService,
         lifecycle_dispatcher: PlayerLifecycleDispatcher,
+        pipelined_transaction: PipelinedTransaction,
     ) -> None:
         self.session = session
         self.settings = settings
         self.progress_graph = progress_graph
-        self.command_executor = command_executor
+        self.player_loader = player_loader
+        self.task_service = task_service
         self.lifecycle_dispatcher = lifecycle_dispatcher
+        self.pipelined_transaction = pipelined_transaction
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
         password_hash = await asyncio.to_thread(password_hasher.hash, password)
@@ -114,8 +121,8 @@ class AuthService:
                 await self.session.flush()
                 self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
                 await self.session.flush()
+                await self.task_service.run_itx(self.session, player.id)
                 await self._construct(player, "registration")
-                await self.command_executor.execute_tasks_nocache_itx(self.session, player.id)
         except IntegrityError as error:
             if "players.username_normalized" in str(error).lower():
                 raise UsernameAlreadyExistsError from error
@@ -129,30 +136,31 @@ class AuthService:
     async def login(self, username: str, password: str) -> AuthenticationResult:
         normalized_username = normalize_username(username)
         async with self.session.begin():
-            result = await self.session.execute(
-                select(PlayerRecord, PlayerAuth)
-                .join(PlayerAuth, PlayerAuth.player_id == PlayerRecord.id)
+            player = await self.session.scalar(
+                select(PlayerRecord)
                 .where(PlayerRecord.username_normalized == normalized_username)
+                .with_for_update()
             )
-            row = result.one_or_none()
-            if row is None:
+            if player is None:
                 raise InvalidCredentialsError
 
-            player, auth = row
+            auth = await self.session.get(PlayerAuth, player.id, with_for_update=True)
+            if auth is None:
+                raise InvalidCredentialsError
             is_valid = await asyncio.to_thread(password_hasher.verify, password, auth.password_hash)
             if not is_valid:
                 raise InvalidCredentialsError
 
+            await self.task_service.run_itx(self.session, player.id)
             await self._construct(player, "first_login")
 
             credential = create_refresh_credential()
             now = utcnow()
-            player.last_accessed_at = now
             auth.refresh_selector = credential.selector
             auth.refresh_secret_hash = hash_refresh_secret(credential.secret, self.settings)
             auth.refresh_expires_at = now + timedelta(seconds=self.settings.refresh_token_ttl_seconds)
             auth.refresh_rotated_at = now
-            await self.command_executor.execute_tasks_nocache_itx(self.session, player.id)
+            player.last_accessed_at = now
 
         return AuthenticationResult(
             access_token=issue_access_token(player.id, self.settings),
@@ -166,8 +174,20 @@ class AuthService:
 
         expected_hash = hash_refresh_secret(credential.secret, self.settings)
         async with self.session.begin():
+            player_id = await self.session.scalar(
+                select(PlayerAuth.player_id).where(PlayerAuth.refresh_selector == credential.selector)
+            )
+            if player_id is None:
+                raise InvalidRefreshCredentialError
+
+            await self.player_loader.lock_player(self.session, player_id)
             auth = await self.session.scalar(
-                select(PlayerAuth).where(PlayerAuth.refresh_selector == credential.selector)
+                select(PlayerAuth)
+                .where(
+                    PlayerAuth.player_id == player_id,
+                    PlayerAuth.refresh_selector == credential.selector,
+                )
+                .with_for_update()
             )
             if (
                 auth is None
@@ -197,18 +217,18 @@ class AuthService:
                 raise InvalidRefreshCredentialError
             await self.session.execute(
                 update(PlayerRecord)
-                .where(PlayerRecord.id == auth.player_id)
+                .where(PlayerRecord.id == player_id)
                 .values(last_accessed_at=now)
             )
 
         return AuthenticationResult(
-            access_token=issue_access_token(auth.player_id, self.settings),
+            access_token=issue_access_token(player_id, self.settings),
             refresh_credential=next_credential,
         )
 
     async def logout(self, player_id: UUID) -> None:
         async with self.session.begin():
-            await self.command_executor.execute_tasks_nocache_itx(self.session, player_id)
+            await self.task_service.run_itx(self.session, player_id)
             await self.session.execute(
                 update(PlayerAuth)
                 .where(PlayerAuth.player_id == player_id)
@@ -245,10 +265,14 @@ class AuthService:
             occurred_at=constructed_at,
             trigger=trigger,
         )
-        await self.command_executor.execute_nocache_itx(
+        aggregate = await self.player_loader.load_writable(
             self.session,
             player.id,
-            lambda aggregate: self.lifecycle_dispatcher.publish(
-                PlayerLifecycleContext(player=aggregate, event=event)
-            ),
+            interfaces=PlayerInterfaces.ALL,
         )
+        async def publish(_session, player) -> None:
+            await self.lifecycle_dispatcher.publish(
+                PlayerLifecycleContext(player=player, event=event)
+            )
+
+        await self.pipelined_transaction.run(self.session, aggregate, publish)

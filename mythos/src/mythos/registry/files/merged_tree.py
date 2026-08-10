@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.callbacks import callback_dependencies
 from mythos.registry.catalog_snapshots import fingerprint
 from mythos.registry.errors import RegistryError

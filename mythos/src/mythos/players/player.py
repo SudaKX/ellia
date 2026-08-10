@@ -10,13 +10,13 @@ from mythos.players.interfaces.hints import HintInterface
 from mythos.players.interfaces.progress import ProgressInterface
 from mythos.players.interfaces.tasks import TaskInterface
 from mythos.players.interfaces.versioning import VersionedPlayerInterface
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.files.merged_tree import MergedFileTree
 from mythos.registry.files.player_tree import PlayerFileTree
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from mythos.players.factory import PlayerFactory
+    from mythos.players.loader import PlayerLoader
 
 
 class PlayerInterfaceNotLoadedError(Exception):
@@ -41,13 +41,13 @@ class Player:
         self,
         player_id: UUID,
         session: AsyncSession,
-        factory: PlayerFactory,
+        loader: PlayerLoader,
         *,
         writable: bool,
     ) -> None:
         self._player_id = player_id
         self._session = session
-        self._factory = factory
+        self._loader = loader
         self._writable = writable
         self._progress: ProgressInterface | None = None
         self._artifacts: ArtifactInterface | None = None
@@ -116,7 +116,7 @@ class Player:
 
     async def load_progress(self) -> ProgressInterface:
         if self._progress is None:
-            self._progress = await self._factory.load_progress(
+            self._progress = await self._loader.load_progress(
                 self._session,
                 self._player_id,
                 writable=self._writable,
@@ -126,7 +126,7 @@ class Player:
 
     async def load_artifacts(self) -> ArtifactInterface:
         if self._artifacts is None:
-            self._artifacts = await self._factory.load_artifacts(
+            self._artifacts = await self._loader.load_artifacts(
                 self._session,
                 self._player_id,
                 writable=self._writable,
@@ -136,7 +136,7 @@ class Player:
 
     async def load_accounts(self) -> AccountInterface:
         if self._accounts is None:
-            self._accounts = await self._factory.load_accounts(
+            self._accounts = await self._loader.load_accounts(
                 self._session,
                 self._player_id,
                 writable=self._writable,
@@ -146,7 +146,7 @@ class Player:
 
     async def load_credits(self) -> CreditInterface:
         if self._credits is None:
-            self._credits = await self._factory.load_credits(
+            self._credits = await self._loader.load_credits(
                 self._session,
                 self._player_id,
                 writable=self._writable,
@@ -156,7 +156,7 @@ class Player:
 
     async def load_hints(self) -> HintInterface:
         if self._hints is None:
-            self._hints = await self._factory.load_hints(
+            self._hints = await self._loader.load_hints(
                 self._session,
                 self._player_id,
                 writable=self._writable,
@@ -166,7 +166,7 @@ class Player:
 
     async def load_tasks(self) -> TaskInterface:
         if self._tasks is None:
-            self._tasks = await self._factory.load_tasks(
+            self._tasks = await self._loader.load_tasks(
                 self._session,
                 self._player_id,
                 writable=self._writable,

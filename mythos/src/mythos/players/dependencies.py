@@ -11,8 +11,8 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.context import RequestContext
-from mythos.players.factory import PlayerNotFoundError
-from mythos.players.interface_selection import PlayerInterfaces
+from mythos.players.loader import PlayerNotFoundError
+from mythos.players.interfaces import PlayerInterfaces
 
 
 def get_context(
@@ -24,16 +24,16 @@ def get_context(
         runtime: Annotated[ApplicationRuntime, Depends(get_runtime)],
     ) -> RequestContext:
         try:
-            player = await runtime.player_factory.create(
-                session, identity.player_id, writable=False
+            player = await runtime.player_loader.load_readonly(
+                session,
+                identity.player_id,
+                interfaces=interfaces,
             )
         except PlayerNotFoundError as error:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Player progress not found.",
             ) from error
-
-        await player.load_interfaces(interfaces)
 
         return RequestContext(identity=identity, player=player)
 

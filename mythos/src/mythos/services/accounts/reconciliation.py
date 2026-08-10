@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from mythos.core.commands.executor import CommandTransactionExecutor
 from mythos.persistence.models.accounts import PlayerVirtualAccount
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.accounts.catalog import VirtualAccountCatalog
 from mythos.registry.catalog_snapshots import template_snapshot_changed_keys
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
@@ -21,7 +22,7 @@ class AccountReconciliationRunner:
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
-        command_executor: CommandTransactionExecutor,
+        player_loader: PlayerLoader,
         catalog: VirtualAccountCatalog,
         snapshot_store: VirtualAccountTemplateSnapshotStore,
         *,
@@ -29,7 +30,7 @@ class AccountReconciliationRunner:
         allow_missing_tables: bool = False,
     ) -> None:
         self._session_factory = session_factory
-        self._command_executor = command_executor
+        self._player_loader = player_loader
         self._catalog = catalog
         self._snapshot_store = snapshot_store
         self._allow_empty_catalog = allow_empty_catalog
@@ -47,12 +48,13 @@ class AccountReconciliationRunner:
         if stale_ids:
             for player_id in await self._player_ids_for_accounts(stale_ids):
                 async with self._session_factory() as session:
-                    await self._command_executor.execute_nocache(
-                        session,
-                        player_id,
-                        lambda player: player.accounts.remove_unregistered(stale_ids),
-                        run_pre_commit_hooks=False,
-                    )
+                    async with session.begin():
+                        player = await self._player_loader.load_writable(
+                            session,
+                            player_id,
+                            interfaces=PlayerInterfaces.ALL,
+                        )
+                        await player.accounts.remove_unregistered(stale_ids)
         if changed:
             await self._snapshot_store.write(current)
 

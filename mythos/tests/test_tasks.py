@@ -11,10 +11,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from _helpers.object_store import FakeObjectStore
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.commands import CommandTransactionExecutor, RequestCache, ResponseSpec
+from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, ResponseSpec
 from mythos.core.config import Settings
 from mythos.core.file_ids import FileIdCodec
-from mythos.core.player_interfaces import PlayerInterfaces
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.persistence.models import (
     PlayerCredits,
@@ -26,7 +26,7 @@ from mythos.persistence.models import (
     PlayerRecord,
     PlayerTaskState,
 )
-from mythos.players.factory import PlayerFactory
+from mythos.players.loader import PlayerLoader
 from mythos.players.interfaces import ReadOnlyTaskError, TaskMetaError
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.bundle import RegistryBundle
@@ -37,7 +37,7 @@ from mythos.registry.errors import RegistryError
 from mythos.main import create_app
 from mythos.services.tasks import (
     TaskCatalogEmptyError,
-    TaskExecutor,
+    TaskService,
     TaskReconciliationRunner,
     TaskSnapshotError,
     TaskSnapshotStore,
@@ -84,10 +84,10 @@ async def _seed_player(session, *, task_ids: tuple[str, ...]) -> tuple[object, o
     return player_id, progress
 
 
-def _executor(registries: RegistryBundle) -> TaskExecutor:
+def _executor(registries: RegistryBundle) -> TaskService:
     catalogs = registries.freeze(_FILE_IDS)
-    factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-    return TaskExecutor(factory, catalogs.tasks)
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    return TaskService(loader, catalogs.tasks)
 
 
 def test_task_registry_freezes_handler_identity_and_snapshot() -> None:
@@ -113,7 +113,7 @@ async def test_read_only_task_interface_rejects_mutation(session) -> None:
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=())
     catalogs = registries.freeze(_FILE_IDS)
-    player = await PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS).load(
+    player = await PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS).load(
         session,
         player_id,
         writable=False,
@@ -131,7 +131,7 @@ async def test_task_add_then_remove_is_idempotent_in_one_transaction(session) ->
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=())
     catalogs = registries.freeze(_FILE_IDS)
-    player = await PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS).load(
+    player = await PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS).load(
         session,
         player_id,
         writable=True,
@@ -146,6 +146,67 @@ async def test_task_add_then_remove_is_idempotent_in_one_transaction(session) ->
         assert await player.tasks.add_task("test.task")
 
     assert await session.get(PlayerTaskState, (player_id, "test.task")) is not None
+
+
+async def test_task_interface_tracks_execution_snapshot_changes(session) -> None:
+    async def handler(_context) -> None:
+        return None
+
+    registries = _registries(("test.initial", handler), ("test.added", handler))
+    player_id, _ = await _seed_player(session, task_ids=("test.initial",))
+    catalogs = registries.freeze(_FILE_IDS)
+    player = await PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS).load(
+        session,
+        player_id,
+        writable=True,
+        interfaces=PlayerInterfaces.TASKS,
+    )
+
+    assert player.tasks.initial_task_ids == frozenset({"test.initial"})
+    assert player.tasks.execution_snapshot() == ("test.initial",)
+    assert await player.tasks.add_task("test.added")
+    assert await player.tasks.remove_task("test.initial")
+    assert player.tasks.added_task_ids == frozenset({"test.added"})
+    assert player.tasks.removed_task_ids == frozenset({"test.initial"})
+    assert player.tasks.execution_snapshot() == ()
+
+
+async def test_task_removed_by_handler_is_not_executed_later_in_the_round(session) -> None:
+    calls = 0
+
+    async def first(context) -> None:
+        await context.player.tasks.remove_task("test.second")
+
+    async def second(_context) -> None:
+        nonlocal calls
+        calls += 1
+
+    registries = _registries(("test.first", first), ("test.second", second))
+    player_id, _ = await _seed_player(session, task_ids=("test.first", "test.second"))
+
+    async with session.begin():
+        report = await _executor(registries).run_itx(session, player_id)
+
+    assert calls == 0
+    assert [run.task_id for run in report.runs] == ["test.first", "test.second"]
+    assert await session.get(PlayerTaskState, (player_id, "test.second")) is None
+
+
+async def test_task_context_update_meta_copies_nested_values(session) -> None:
+    nested = {"value": {"count": 1}}
+
+    async def handler(context) -> None:
+        context.update_meta(nested)
+        nested["value"]["count"] = 2
+
+    registries = _registries(("test.meta-copy", handler))
+    player_id, _ = await _seed_player(session, task_ids=("test.meta-copy",))
+
+    async with session.begin():
+        await _executor(registries).run_itx(session, player_id)
+
+    state = await session.get(PlayerTaskState, (player_id, "test.meta-copy"))
+    assert state is not None and state.meta == '{"value":{"count":1}}'
 
 
 async def test_task_executor_updates_context_state_and_time(session) -> None:
@@ -270,12 +331,13 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.task",))
     catalogs = registries.freeze(_FILE_IDS)
-    factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-    task_executor = TaskExecutor(factory, catalogs.tasks)
-    executor = CommandTransactionExecutor(
-        factory,
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    task_service = TaskService(loader, catalogs.tasks)
+    executor = EndpointCommandExecutor(
+        loader,
         RequestCache(maxsize=4, ttl_seconds=60),
-        task_executor=task_executor,
+        PipelinedTransaction(),
+        task_service=task_service,
     )
     identity = PlayerIdentity(player_id=player_id)
 
@@ -283,7 +345,7 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
         raise RuntimeError("operation failed")
 
     with pytest.raises(RuntimeError, match="operation failed"):
-        await executor.execute_with_task(session, identity, uuid4(), operation)
+        await executor.execute(session, identity, uuid4(), operation)
 
     credits = await session.get(PlayerCredits, player_id)
     state = await session.get(PlayerTaskState, (player_id, "test.task"))
@@ -292,7 +354,7 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
     assert state is not None and state.time_1 is not None
 
 
-async def test_execute_with_task_replay_does_not_rerun_tasks(session) -> None:
+async def test_endpoint_execute_replay_does_not_rerun_tasks(session) -> None:
     calls = 0
 
     async def handler(context) -> None:
@@ -302,11 +364,12 @@ async def test_execute_with_task_replay_does_not_rerun_tasks(session) -> None:
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.task",))
     catalogs = registries.freeze(_FILE_IDS)
-    factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-    executor = CommandTransactionExecutor(
-        factory,
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    executor = EndpointCommandExecutor(
+        loader,
         RequestCache(maxsize=4, ttl_seconds=60),
-        task_executor=TaskExecutor(factory, catalogs.tasks),
+        PipelinedTransaction(),
+        task_service=TaskService(loader, catalogs.tasks),
     )
     identity = PlayerIdentity(player_id=player_id)
     request_id = uuid4()
@@ -314,8 +377,8 @@ async def test_execute_with_task_replay_does_not_rerun_tasks(session) -> None:
     async def operation(_context) -> ResponseSpec:
         return ResponseSpec(status_code=200, body={"ok": True}, headers={})
 
-    first = await executor.execute_with_task(session, identity, request_id, operation)
-    replay = await executor.execute_with_task(session, identity, request_id, operation)
+    first = await executor.execute(session, identity, request_id, operation)
+    replay = await executor.execute(session, identity, request_id, operation)
     assert first is replay
     assert calls == 1
 
@@ -363,7 +426,7 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
                     assert isinstance(player_id, UUID)
                     await session.commit()
                     async with session.begin():
-                        player = await app.state.runtime.player_factory.load(
+                        player = await app.state.runtime.player_loader.load(
                             session,
                             player_id,
                             writable=True,
@@ -534,12 +597,11 @@ def test_task_reconciliation_removes_stale_rows_and_writes_snapshot(tmp_path) ->
                 ]
             )
             await session.commit()
-        factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-        command_executor = CommandTransactionExecutor(factory, RequestCache(maxsize=4, ttl_seconds=60))
+        loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
         snapshot_store = TaskSnapshotStore(tmp_path / "task-registry.json")
         runner = TaskReconciliationRunner(
             session_factory,
-            command_executor,
+            loader,
             catalogs.tasks,
             snapshot_store,
         )
@@ -562,7 +624,7 @@ def test_task_reconciliation_removes_stale_rows_and_writes_snapshot(tmp_path) ->
         with pytest.raises(TaskCatalogEmptyError):
             await TaskReconciliationRunner(
                 session_factory,
-                command_executor,
+                loader,
                 empty_catalogs.tasks,
                 TaskSnapshotStore(tmp_path / "empty-task-registry.json"),
             ).run()
@@ -602,26 +664,26 @@ def test_task_reconciliation_rolls_back_all_players_on_failure(tmp_path) -> None
             )
             await session.commit()
 
-        factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-        command_executor = CommandTransactionExecutor(factory, RequestCache(maxsize=4, ttl_seconds=60))
-        execute_nocache_itx = command_executor.execute_nocache_itx
+        loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
         calls = 0
+        snapshot_path = tmp_path / "reconcile-failure.json"
+        runner = TaskReconciliationRunner(
+            session_factory,
+            loader,
+            catalogs.tasks,
+            TaskSnapshotStore(snapshot_path),
+        )
 
-        async def fail_on_second_player(session, player_id, operation, **kwargs) -> None:
+        original_remove = runner._remove_stale_tasks
+
+        async def fail_on_second_player(session, player_id, stale_ids) -> None:
             nonlocal calls
             calls += 1
             if calls == 2:
                 raise RuntimeError("reconciliation failed")
-            await execute_nocache_itx(session, player_id, operation, **kwargs)
+            await original_remove(session, player_id, stale_ids)
 
-        command_executor.execute_nocache_itx = fail_on_second_player
-        snapshot_path = tmp_path / "reconcile-failure.json"
-        runner = TaskReconciliationRunner(
-            session_factory,
-            command_executor,
-            catalogs.tasks,
-            TaskSnapshotStore(snapshot_path),
-        )
+        runner._remove_stale_tasks = fail_on_second_player
 
         with pytest.raises(RuntimeError, match="reconciliation failed"):
             await runner.run()
@@ -687,10 +749,10 @@ async def test_task_executor_runs_checkpoint_hook_inside_task_transaction(tmp_pa
             ]
         )
         await session.commit()
-        factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
+        loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
         hook = ProgressCheckpointHook(LocalCheckpointStore(tmp_path / "checkpoints"))
-        executor = TaskExecutor(
-            factory,
+        executor = TaskService(
+            loader,
             catalogs.tasks,
             (hook,),
             pre_commit_interfaces=PlayerInterfaces.PROGRESS,
@@ -716,8 +778,8 @@ async def test_task_hook_failure_rolls_back_task_transaction(session) -> None:
     registries = _registries(("test.hook-failure", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.hook-failure",))
     catalogs = registries.freeze(_FILE_IDS)
-    factory = PlayerFactory(catalogs, FakeObjectStore(), _FILE_IDS)
-    executor = TaskExecutor(factory, catalogs.tasks, (failing_hook,))
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    executor = TaskService(loader, catalogs.tasks, (failing_hook,))
 
     with pytest.raises(RuntimeError, match="hook failed"):
         async with session.begin():
