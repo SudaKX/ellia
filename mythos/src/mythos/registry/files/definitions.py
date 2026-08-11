@@ -10,10 +10,11 @@ if TYPE_CHECKING:
     from mythos.players.player import Player
 
 NodeAccessRule: TypeAlias = Callable[["Player"], bool]
+StaticNodeVersion: TypeAlias = str
 
 
 @dataclass(frozen=True)
-class DisplayParams:
+class NodeDisplayParams:
     label: str
     description: str | None = None
     icon: str | None = None
@@ -44,7 +45,6 @@ class ObjectReference:
     content_digest: str
     media_type: str
     size_bytes: int
-    version_id: str
 
     def __post_init__(self) -> None:
         if not self.key or self.key.startswith("/") or "\\" in self.key:
@@ -55,8 +55,6 @@ class ObjectReference:
             raise ValueError("Object media types cannot contain control characters.")
         if self.size_bytes < 0:
             raise ValueError("Object sizes cannot be negative.")
-        if not self.version_id or any(character in "\r\n" for character in self.version_id):
-            raise ValueError("Object version IDs cannot be empty or contain control characters.")
 
 
 @dataclass(frozen=True)
@@ -77,23 +75,90 @@ class FileReference:
         return f"{self.module}:{self.relative_path}"
 
 
-@dataclass(frozen=True)
+def is_canonical_source_module(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and "/" not in value
+        and "\\" not in value
+        and ":" not in value
+        and value not in {".", ".."}
+    )
+
+
+def is_canonical_source_relative_path(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and not value.startswith("/")
+        and "\\" not in value
+        and ":" not in value
+        and all(part and part not in {".", ".."} for part in value.split("/"))
+    )
+
+
 class VirtualNode(ABC):
-    stable_id: str
-    path: str
-    revision: str
-    display: DisplayParams
-    access_rule: NodeAccessRule | None = None
-    hidden: bool = False
-    download_name: str | None = None
+    def __init__(
+        self,
+        stable_id: str,
+        path: str,
+        version: str,
+        display: NodeDisplayParams,
+        access_rule: NodeAccessRule | None = None,
+        hidden: bool = False,
+        download_name: str | None = None,
+    ) -> None:
+        self.stable_id = stable_id
+        self.path = path
+        self.version = version
+        self.display = display
+        self.access_rule = access_rule
+        self.hidden = hidden
+        self.download_name = download_name
 
     @property
     @abstractmethod
     def is_file(self) -> bool: ...
 
 
-@dataclass(frozen=True)
 class StaticNode(VirtualNode):
+    def __init__(
+        self,
+        stable_id: str,
+        path: str,
+        version: str,
+        display: NodeDisplayParams,
+        access_rule: NodeAccessRule | None = None,
+        hidden: bool = False,
+        download_name: str | None = None,
+        source_locator: str | None = None,
+    ) -> None:
+        super().__init__(
+            stable_id,
+            path,
+            version,
+            display,
+            access_rule,
+            hidden,
+            download_name,
+        )
+        self.source_locator = source_locator
+
+    @property
+    def is_file(self) -> bool:
+        return self.source_locator is not None
+
+
+@dataclass(frozen=True)
+class StaticNodeSpec:
+    """Registration-time static node declaration resolved into a StaticNode."""
+
+    stable_id: str
+    path: str
+    display: NodeDisplayParams
+    access_rule: NodeAccessRule | None = None
+    hidden: bool = False
+    download_name: str | None = None
     source_locator: str | None = None
 
     @classmethod
@@ -101,18 +166,16 @@ class StaticNode(VirtualNode):
         cls,
         stable_id: str,
         path: str,
-        revision: str,
         source_locator: str,
         download_name: str,
         access_rule: NodeAccessRule | None = None,
         *,
-        display: DisplayParams,
+        display: NodeDisplayParams,
         hidden: bool = False,
-    ) -> StaticNode:
+    ) -> StaticNodeSpec:
         return cls(
             stable_id=stable_id,
             path=path,
-            revision=revision,
             display=display,
             access_rule=access_rule,
             hidden=hidden,
@@ -125,23 +188,34 @@ class StaticNode(VirtualNode):
         cls,
         stable_id: str,
         path: str,
-        revision: str,
         access_rule: NodeAccessRule | None = None,
         *,
-        display: DisplayParams,
+        display: NodeDisplayParams,
         hidden: bool = False,
-    ) -> StaticNode:
+    ) -> StaticNodeSpec:
         return cls(
             stable_id=stable_id,
             path=path,
-            revision=revision,
             display=display,
             access_rule=access_rule,
             hidden=hidden,
-            download_name=None,
-            source_locator=None,
         )
 
-    @property
-    def is_file(self) -> bool:
-        return self.source_locator is not None
+    def to_runtime_node(self) -> StaticNode:
+        return StaticNode(
+            self.stable_id,
+            self.path,
+            "",
+            self.display,
+            self.access_rule,
+            self.hidden,
+            self.download_name,
+            self.source_locator,
+        )
+
+
+def is_safe_download_name(value: str) -> bool:
+    return isinstance(value, str) and bool(value) and all(
+        32 <= ord(character) <= 126 and character not in '"/\\'
+        for character in value
+    )

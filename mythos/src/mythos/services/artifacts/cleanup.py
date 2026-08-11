@@ -29,18 +29,10 @@ class ArtifactCleanupService:
         """Return counts: listed, referenced, deleted, skipped."""
         from mythos.persistence.models.artifacts import PlayerArtifact
 
-        result = await session.execute(
-            select(
-                PlayerArtifact.object_key,
-                PlayerArtifact.object_version_id,
-            )
-        )
+        result = await session.execute(select(PlayerArtifact.object_key))
         referenced_keys: set[str] = set()
-        referenced_versions: set[tuple[str, str]] = set()
-        for key, version_id in result.all():
+        for (key,) in result.all():
             referenced_keys.add(key)
-            if isinstance(version_id, str):
-                referenced_versions.add((key, version_id))
 
         listed_keys = await self._object_store.list_objects(self._artifact_prefix)
         deleted = 0

@@ -21,7 +21,7 @@
 
 ## 注册副作用与 Example
 
-注册在一个事务中创建 `PlayerRecord`、`PlayerAuth` 和 `PlayerProgress`，并用 `ProgressGraph.entry_node_ids` 初始化 unlocked/frontier。Example 因此在注册后立即显示 `example.entry`；它不注册认证内容。
+注册在一个事务中创建 `PlayerRecord`、`PlayerAuth`、`PlayerProgress`、`PlayerVirtualAccountState` 和 `PlayerCredits`，并用 `ProgressGraph.entry_node_ids` 初始化 unlocked/frontier。随后 Construct lifecycle callback 发放模块账号和其他初始状态。Example 因此在注册后立即显示 `example.entry`；它不注册认证内容。
 
 ## 重要约束
 

@@ -44,9 +44,8 @@ async def test_cleanup_deletes_only_unreferenced_artifacts(session) -> None:
         PlayerArtifact(
             player_id=player_id,
             artifact_id="artifact-a",
-            revision="1",
+            version="av1_artifact-a",
             object_key=referenced_key,
-            object_version_id="version-1",
             content_digest="sha256:" + "a" * 64,
             media_type="text/plain",
             size_bytes=7,
@@ -75,9 +74,8 @@ async def test_cleanup_keeps_no_objects_when_all_referenced(session) -> None:
         PlayerArtifact(
             player_id=player_id,
             artifact_id="artifact-b",
-            revision="1",
+            version="av1_artifact-b",
             object_key=key,
-            object_version_id="version-1",
             content_digest="sha256:" + "b" * 64,
             media_type="text/plain",
             size_bytes=7,
@@ -116,9 +114,8 @@ async def test_cleanup_counts_are_query_driven(session) -> None:
         PlayerArtifact(
             player_id=uuid4(),
             artifact_id="artifact-d",
-            revision="1",
+            version="av1_artifact-d",
             object_key=referenced,
-            object_version_id="version-1",
             content_digest="sha256:" + "d" * 64,
             media_type="text/plain",
             size_bytes=7,

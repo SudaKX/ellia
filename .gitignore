@@ -2,6 +2,7 @@
 openspec.patch
 /.demo/
 /.venv/
+/mythos/.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/

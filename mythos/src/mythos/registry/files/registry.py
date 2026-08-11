@@ -5,14 +5,20 @@ from pathlib import Path
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.errors import DuplicateStableIdError, RegistryError, RegistryFrozenError
+from mythos.registry.callbacks import validate_callback
 from mythos.registry.files.definitions import (
     FileContent,
     FileReference,
     NodeAccessRule,
     ObjectReference,
     StaticNode,
+    StaticNodeSpec,
+    is_canonical_source_module,
+    is_canonical_source_relative_path,
+    is_safe_download_name,
 )
 from mythos.registry.files.tree import FileTree
+from mythos.registry.files.versions import static_node_version
 
 
 class FileRegistry:
@@ -38,16 +44,21 @@ class FileRegistry:
 
     def register_source(self, reference: FileReference) -> str:
         self._ensure_mutable()
-        if not reference.module or not reference.relative_path or not reference.media_type:
-            raise RegistryError("File sources require a module, relative path, and media type.")
+        if (
+            not is_canonical_source_module(reference.module)
+            or not is_canonical_source_relative_path(reference.relative_path)
+            or not reference.media_type
+        ):
+            raise RegistryError("File sources require canonical module and relative path values.")
         source_locator = reference.source_locator
         if source_locator in self._sources_by_locator:
             raise RegistryError("Static file source locators must be unique.")
         self._sources_by_locator[source_locator] = reference
         return source_locator
 
-    def register_node(self, node: StaticNode) -> None:
+    def register_node(self, node: StaticNodeSpec) -> None:
         self._ensure_mutable()
+        node = node.to_runtime_node()
         self._validate_node(node)
         if node.stable_id in self._nodes_by_stable_id:
             raise DuplicateStableIdError(node.stable_id)
@@ -99,7 +110,7 @@ class FileRegistry:
     def _register_manifest(
         self,
         sources: tuple[FileReference, ...],
-        nodes: tuple[StaticNode, ...],
+        nodes: tuple[StaticNodeSpec, ...],
     ) -> None:
         snapshot = (
             dict(self._nodes_by_stable_id),
@@ -178,35 +189,53 @@ class FileRegistry:
         if self._sources_by_locator and self._objects_by_source_locator is None:
             raise RegistryError("Static file sources must be materialized before the file registry is frozen.")
         self._frozen = True
+        resolved_nodes: dict[str, StaticNode] = {}
         contents_by_stable_id: dict[str, FileContent] = {}
         for node in self._nodes_by_stable_id.values():
-            if not node.is_file:
-                continue
-            assert node.source_locator is not None
-            assert node.download_name is not None
-            object_reference = self._objects_by_source_locator[node.source_locator]
-            contents_by_stable_id[node.stable_id] = FileContent(
-                object_ref=object_reference,
-                download_name=node.download_name,
-                content_token=file_ids.encode_content_token(
-                    node.stable_id,
-                    node.revision,
-                    object_reference.key,
-                    object_reference.version_id,
-                    object_reference.media_type,
-                    node.download_name,
-                ),
+            object_reference = (
+                self._objects_by_source_locator[node.source_locator]
+                if node.is_file and node.source_locator is not None
+                else None
             )
-        self._tree = FileTree.build(self._nodes_by_stable_id, contents_by_stable_id, file_ids)
+            resolved = StaticNode(
+                node.stable_id,
+                node.path,
+                static_node_version(node, object_reference),
+                node.display,
+                node.access_rule,
+                node.hidden,
+                node.download_name,
+                node.source_locator,
+            )
+            resolved_nodes[resolved.stable_id] = resolved
+            if object_reference is not None:
+                assert resolved.download_name is not None
+                contents_by_stable_id[resolved.stable_id] = FileContent(
+                    object_ref=object_reference,
+                    download_name=resolved.download_name,
+                    content_token=resolved.version,
+                )
+        self._tree = FileTree.build(resolved_nodes, contents_by_stable_id, file_ids)
         return self._tree
 
     def _validate_node(self, node: StaticNode) -> None:
-        if not node.stable_id or not node.revision or not _is_canonical_virtual_path(node.path):
-            raise RegistryError("Virtual nodes require a stable ID, revision, and canonical absolute path.")
+        if not node.stable_id or not _is_canonical_virtual_path(node.path):
+            raise RegistryError("Virtual nodes require a stable ID and canonical absolute path.")
         if not isinstance(node.hidden, bool):
             raise RegistryError("Virtual node hidden flags must be booleans.")
+        if node.access_rule is not None:
+            try:
+                validate_callback(
+                    node.access_rule,
+                    field_name="Static node access rule",
+                    parameter_count=1,
+                    asynchronous=False,
+                    require_dependencies=True,
+                )
+            except ValueError as error:
+                raise RegistryError(str(error)) from error
         if node.is_file:
-            if not node.download_name or not _is_safe_download_name(node.download_name):
+            if not node.download_name or not is_safe_download_name(node.download_name):
                 raise RegistryError("Virtual files require a safe download name.")
             return
         if node.download_name is not None:
@@ -252,13 +281,6 @@ def _is_canonical_virtual_path(path: str) -> bool:
         return False
     parts = path.split("/")[1:]
     return all(part and part not in {".", ".."} for part in parts)
-
-
-def _is_safe_download_name(value: str) -> bool:
-    return bool(value) and all(
-        32 <= ord(character) <= 126 and character not in '"/\\'
-        for character in value
-    )
 
 
 def _directory_paths_for(path: str, *, include_self: bool) -> tuple[str, ...]:

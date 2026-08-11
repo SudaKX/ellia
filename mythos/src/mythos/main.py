@@ -3,26 +3,42 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from mythos.auth.router import router as auth_router
 from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
-from mythos.core.commands import CommandTransactionExecutor, RequestCache
-from mythos.puzzles import register_all
+from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, TaskCommandExecutor
+from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
-from mythos.players.factory import PlayerFactory
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.services.container import ServiceContainer
 from mythos.services.object_store.service import create_object_store
 from mythos.services.object_store.service import ObjectStore
-from mythos.services.files.router import router as files_router
-from mythos.services.scripts.router import router as scripts_router
 from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
-from mythos.services.progress.router import router as progress_router
-from mythos.services.validations.router import router as validations_router
 from mythos.services.files.static_assets import StaticAssetPublisher
+from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunner
+from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
+from mythos.services.accounts.reconciliation import AccountReconciliationRunner
+from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
+from mythos.services.lifecycle import PlayerLifecycleDispatcher
+from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
+from mythos.endpoints import router as endpoint_router
+from mythos.core.problems import (
+    ApiProblem,
+    PROBLEM_MEDIA_TYPE,
+    PROBLEM_STATUS_CODES,
+    ProblemDetails,
+    api_problem_handler,
+    http_exception_handler,
+    request_validation_exception_handler,
+    unhandled_exception_handler,
+)
 
 
 def create_app(
@@ -32,8 +48,15 @@ def create_app(
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if registries is None:
+        try:
+            register_all = load_puzzle_register_all(resolved_settings.puzzle_root)
+        except PuzzlePluginError as error:
+            raise PuzzlePluginError(
+                "Could not assemble the puzzle plugin "
+                f"(PROJECT_ROOT={PROJECT_ROOT}, puzzle_root={resolved_settings.puzzle_root}): {error}"
+            ) from error
         registered_content = RegistryBundle(resolved_settings.puzzle_root)
-        register_all(registered_content)
+        register_all(registered_content, environment=resolved_settings.environment)
     else:
         registered_content = registries
     registered_content.configure_puzzle_root(resolved_settings.puzzle_root)
@@ -51,24 +74,59 @@ def create_app(
             )
         )
         catalogs = registered_content.freeze(file_ids)
-        player_factory = PlayerFactory(catalogs, resolved_object_store, file_ids)
+        player_loader = PlayerLoader(catalogs, resolved_object_store, file_ids)
         checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
-        command_executor = CommandTransactionExecutor(
-            player_factory,
-            RequestCache(
-                maxsize=resolved_settings.request_cache_maxsize,
-                ttl_seconds=resolved_settings.request_cache_ttl_seconds,
-            ),
+        pipelined_transaction = PipelinedTransaction(pre_commit_hooks=(checkpoint_hook,))
+        task_service = TaskService(
+            player_loader,
+            catalogs.tasks,
             (checkpoint_hook,),
+            pre_commit_interfaces=PlayerInterfaces.PROGRESS,
         )
+        request_cache = RequestCache(
+            maxsize=resolved_settings.request_cache_maxsize,
+            ttl_seconds=resolved_settings.request_cache_ttl_seconds,
+        )
+        endpoint_executor = EndpointCommandExecutor(
+            player_loader,
+            request_cache,
+            pipelined_transaction,
+            task_service=task_service,
+        )
+        task_command_executor = TaskCommandExecutor(task_service, request_cache)
+        lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
+        await ArtifactReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.artifacts,
+            ArtifactTemplateSnapshotStore(resolved_settings.artifact_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await AccountReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.accounts,
+            VirtualAccountTemplateSnapshotStore(resolved_settings.virtual_account_snapshot_path),
+            allow_empty_catalog=resolved_settings.allow_empty_virtual_account_catalog_reconciliation,
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await TaskReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.tasks,
+            TaskSnapshotStore(resolved_settings.task_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
         application.state.settings = resolved_settings
         application.state.database = database
         application.state.runtime = ApplicationRuntime(
             catalogs=catalogs,
-            player_factory=player_factory,
+            player_loader=player_loader,
             services=ServiceContainer.create(
                 catalogs.files,
+                catalogs.merged_files,
+                catalogs.hints,
                 catalogs.progress,
                 catalogs.scripts,
                 catalogs.validations,
@@ -78,9 +136,13 @@ def create_app(
                 resolved_settings.file_download_url_ttl_seconds,
                 checkpoint_store,
                 file_ids,
+                task_service,
             ),
             object_store=resolved_object_store,
-            command_executor=command_executor,
+            endpoint_executor=endpoint_executor,
+            task_command_executor=task_command_executor,
+            pipelined_transaction=pipelined_transaction,
+            lifecycle_dispatcher=lifecycle_dispatcher,
         )
         try:
             yield
@@ -92,17 +154,19 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.state.settings = resolved_settings
+    application.add_exception_handler(ApiProblem, api_problem_handler)
+    application.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    application.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    application.add_exception_handler(Exception, unhandled_exception_handler)
+    application.openapi = lambda: _openapi_with_problem_details(application)
     if resolved_settings.environment == "development":
         application.mount(
             "/example",
             StaticFiles(directory=PROJECT_ROOT / "example", html=True),
             name="example",
         )
-    application.include_router(auth_router, prefix="/api/v1")
-    application.include_router(files_router, prefix="/api/v1")
-    application.include_router(progress_router, prefix="/api/v1")
-    application.include_router(scripts_router, prefix="/api/v1")
-    application.include_router(validations_router, prefix="/api/v1")
+    application.include_router(endpoint_router, prefix="/api/v1")
 
     @application.get("/health", tags=["system"])
     async def healthcheck() -> dict[str, str]:
@@ -111,3 +175,32 @@ def create_app(
     return application
 
 app = create_app()
+
+
+def _openapi_with_problem_details(application: FastAPI) -> dict[str, object]:
+    if application.openapi_schema is not None:
+        return application.openapi_schema
+    schema = get_openapi(
+        title=application.title,
+        version=application.version,
+        routes=application.routes,
+    )
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    components["ProblemDetails"] = ProblemDetails.model_json_schema()
+    problem_response = {
+        "description": "RFC 9457 Problem Details response.",
+        "content": {
+            PROBLEM_MEDIA_TYPE: {
+                "schema": {"$ref": "#/components/schemas/ProblemDetails"},
+            }
+        },
+    }
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            for status_code in PROBLEM_STATUS_CODES:
+                responses[str(status_code)] = problem_response
+    application.openapi_schema = schema
+    return schema

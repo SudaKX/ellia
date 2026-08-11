@@ -11,32 +11,41 @@ Settings + RegistryBundle
   -> puzzles.register_all()
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
-  -> PlayerFactory + checkpoint hook + CommandTransactionExecutor
+  -> PlayerLoader + checkpoint hook + TaskService + EndpointCommandExecutor + TaskCommandExecutor + shared PipelinedTransaction + PlayerLifecycleDispatcher
+  -> ArtifactReconciliationRunner + AccountReconciliationRunner + TaskReconciliationRunner
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts` 五个 Registry；`freeze()` 返回对应的 `RuntimeCatalogs`，并检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突。`ApplicationRuntime` 保存 Catalog、`PlayerFactory`、四个全局 Service、对象存储和命令执行器，挂在 `app.state.runtime`。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle`、`tasks` 九个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 通过 `ServiceContainer.tasks` 暴露唯一的 `TaskService`，同时保存其他全局 Service、Catalog、对象存储、命令执行器、共享 `PipelinedTransaction` 和生命周期 Dispatcher；请求级 `ContextScope` 不进入 Runtime。
 
 ## 服务和 HTTP
 
 | 组件 | 全局 Service | Router |
 | --- | --- | --- |
 | 文件 | `FileService` | `/api/v1/files` |
+| Hint | `HintService` | `/api/v1/hints` |
 | 进度 | `ProgressService` | `/api/v1/progress` |
 | 脚本 | `ScriptService` | `/api/v1/scripts` |
 | 验证 | `ValidationService` | `/api/v1/validations` |
+| VirtualAccount | `AccountService` | `/api/v1/vac` |
+| Credits | 无独立全局 Service；通过请求级 `Player.credits` | `/api/v1/credits` |
+| 惰性任务 | `TaskService` | `/api/v1/tasks` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
-Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。开发环境额外挂载静态交互页面 `/example/`。
+Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
+
+`PlayerLifecycleDispatcher` 同样没有 Router。注册时和既有玩家首次真实登录时，它在认证事务中顺序分发 Construct 回调；Deconstruct 回调预留给未来框架拥有的玩家删除服务。
 
 ## 数据对象与 Example
 
-关键对象是 `Settings`、`RegistryBundle`、`RuntimeCatalogs`、`ApplicationRuntime`、`ServiceContainer` 与 `FileIdCodec`。Example 是唯一已注册模块，`register_all()` 调用其 `register()`，覆盖全部五类 Registry。
+关键对象是 `Settings`、`RegistryBundle`、`RuntimeCatalogs`、`ApplicationRuntime`、`ServiceContainer` 与 `FileIdCodec`。Example 是唯一已注册模块，`register_all()` 调用其 `register()`，覆盖已使用的 Registry。
 
 ## 重要约束
 
-- 静态文件必须在 freeze 前完成对象存储物化；Registry/Catalog 在运行期只读。
+- 静态文件必须在 freeze 前完成对象存储物化；Registry/Catalog 和 `MergedFileTree` 在运行期只读。
 - Service 是启动期单例，只接收请求级 Player 或 Context，不能保存 Session 或自行提交事务。
-- 需要写入的路由必须通过 `CommandTransactionExecutor`；模块只注册内容和 handler，不能添加通用 HTTP 回调。
+- HTTP Executor 为每个逻辑请求创建 collecting `ContextScope`；Auth、reconciliation 和其他非 HTTP Workflow 使用 silent scope；共享 Pipeline 不保存请求级 scope。
+- 普通写入 Endpoint 必须通过 `EndpointCommandExecutor`，Task-only 端点通过 `TaskCommandExecutor`；内部 Workflow 使用 `async with session.begin()`、`PlayerLoader` 和事务内 Service。模块只注册内容和 handler，不能添加通用 HTTP 回调。
+- Task Handler 只能通过冻结 TaskCatalog 调用；任务状态写入必须处于 Task transaction 或 Operation transaction 中，不能由 Service 自行提交 Session。
 
 相关实现：`main.py`、`registry/bundle.py`、`core/runtime.py`、`services/container.py`。

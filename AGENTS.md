@@ -5,23 +5,23 @@
 - `mythos/` 是 Python 3.13+ 的 FastAPI 后端；入口为 `mythos/src/mythos/main.py:create_app()`，固定 Router 全部挂在 `/api/v1`。
 - `desktop/` 是独立的 Vue 3/Vite 应用；入口为 `desktop/src/main.ts`，桌面状态由 Pinia 的 `src/stores/desktop.ts` 管理。
 - 后端启动期会物化静态文件并冻结 `RegistryBundle` 为只读 Catalog。谜题内容应在冻结前注册；模块不能新增通用 callback HTTP 路由。
-- Service 是全局对象，只接收请求级 `Player` 和冻结 Catalog；写入路径必须通过 `CommandTransactionExecutor`，不要在 Service 或模块中自行提交 Session。
+- Service 是全局对象，只接收请求级 `Player` 和冻结 Catalog；领域写入参与调用方显式拥有的 transaction。HTTP 普通写命令必须通过 `EndpointCommandExecutor`，Task-only HTTP 命令通过 `TaskCommandExecutor`；Auth Workflow 和 reconciliation 直接组合 `async with session.begin()`、`PlayerLoader` 与事务内 Service，不得在 Service 或模块中自行提交 Session。
 
 ## Mythos 后端
 
-- 只使用根目录 `.venv`，不要在 `mythos/` 下创建虚拟环境。
+- Mythos 只使用 `mythos/.venv`，不要使用仓库根目录的 Python 虚拟环境。
 - 从 `mythos/` 目录安装、测试与启动：
 
   ```powershell
-  ..\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
-  ..\.venv\Scripts\python.exe -m pytest tests
-  ..\.venv\Scripts\python.exe -m mythos --reload
+  .\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
+  .\.venv\Scripts\python.exe -m pytest tests
+  .\.venv\Scripts\python.exe -m mythos --reload
   ```
 
 - 聚焦测试使用完整测试目录加 `-k`，例如：
 
   ```powershell
-  ..\.venv\Scripts\python.exe -m pytest tests -k test_global_services_read_frozen_registered_content
+  .\.venv\Scripts\python.exe -m pytest tests -k test_global_services_read_frozen_registered_content
   ```
 
   不要直接按 `test_registry.py`、`test_services.py` 的顺序指定文件；当前会触发导入顺序相关的循环导入。
@@ -29,10 +29,10 @@
 - 数据库迁移必须从 `mythos/` 目录显式指定配置：
 
   ```powershell
-  ..\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
+  .\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
   ```
 
-- RustFS 集成测试默认跳过。设置 `MYTHOS_RUSTFS_INTEGRATION=1` 后才会连接本地 S3 端点，并创建、启用版本控制后删除临时 bucket；需要相应权限。
+- RustFS 集成测试默认跳过。设置 `MYTHOS_RUSTFS_INTEGRATION=1` 后才会连接本地 S3 端点，并创建不启用 bucket versioning 的临时 bucket；测试按 object key 清理对象后删除 bucket，需要相应权限。
 
 ## Desktop 前端
 

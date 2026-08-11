@@ -39,7 +39,7 @@ SQLite 是唯一权威数据源。数据库连接启用：
 Alembic 管理迁移，应用启动时不自动迁移：
 
 ```powershell
-.\.venv\Scripts\python.exe -m alembic -c mythos/alembic.ini upgrade head
+mythos\.venv\Scripts\python.exe -m alembic -c mythos/alembic.ini upgrade head
 ```
 
 当前基础模型：

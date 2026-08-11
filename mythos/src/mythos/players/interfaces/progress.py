@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -41,16 +42,14 @@ class ProgressInterface:
         writable: bool,
         catalogs: RuntimeCatalogs,
         checkpoint: PlayerProgressCheckpoint | None = None,
+        on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._progress = progress
         self._writable = writable
         self._catalogs = catalogs
         self._checkpoint = checkpoint
         self._pending_checkpoints: list[PendingCheckpoint] = []
-
-    @property
-    def current_account(self) -> str:
-        return self._progress.current_account
+        self._on_mutation = on_mutation or (lambda: None)
 
     @property
     def unlocked_node_ids(self) -> frozenset[int]:
@@ -104,6 +103,7 @@ class ProgressInterface:
         if any(graph.node(unlocked_id).triggers_checkpoint for unlocked_id in newly_unlocked):
             self._stage_checkpoint()
         self._progress.version += 1
+        self._on_mutation()
 
     def _advance_to(self, node_id: int, newly_unlocked: set[int]) -> None:
         if node_id in self.unlocked_node_ids:
@@ -220,3 +220,4 @@ class ProgressInterface:
             PlayerProgressFrontierNode(node_id=node_id) for node_id in sorted(frontier_ids)
         ]
         self._progress.version += 1
+        self._on_mutation()

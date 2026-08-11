@@ -7,6 +7,9 @@
 - [运行时组装](architecture/runtime-and-composition.md)
 - [Player 与请求上下文](architecture/player-and-request-context.md)
 - [命令事务](architecture/command-transactions.md)
+- [错误响应与中间件](architecture/error-response-and-middleware.md)
+- [Version 与 Content-Token](architecture/versions-and-content-tokens.md)
+- [启动、注册表与 Artifact 流程](architecture/startup-registration-and-artifact-flow.md)
 - [持久化总览](reference/persistence-schema.md)
 
 ## 领域系统
@@ -17,6 +20,9 @@
 - [Artifact 与动态文件](systems/artifacts-and-dynamic-files.md)
 - [脚本](systems/scripts.md)
 - [验证](systems/validations.md)
+- [Credits 与 Hint](systems/credits-and-hints.md)
+- [VirtualAccount](systems/virtual-accounts.md)
+- [惰性任务](systems/tasks.md)
 
 ## API 对接
 
@@ -27,6 +33,9 @@
 - [文件契约](api/files.md)
 - [脚本契约](api/scripts.md)
 - [验证契约](api/validations.md)
+- [Hint 契约](api/hints.md)
+- [VirtualAccount 契约](api/virtual-accounts.md)
+- [任务契约](api/tasks.md)
 - [错误与缓存](api/errors-and-caching.md)
 - [Example 调用流](api/example-flow.md)
 

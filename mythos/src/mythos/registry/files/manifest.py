@@ -6,7 +6,13 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from mythos.registry.errors import RegistryError
-from mythos.registry.files.definitions import DisplayParams, FileReference, NodeAccessRule, StaticNode
+from mythos.registry.files.definitions import (
+    FileReference,
+    NodeAccessRule,
+    NodeDisplayParams,
+    StaticNodeSpec,
+    is_canonical_source_relative_path,
+)
 
 
 class _ManifestModel(BaseModel):
@@ -26,9 +32,9 @@ class DisplayManifest(_ManifestModel):
             raise ValueError("must not contain newlines")
         return value
 
-    def to_display_params(self) -> DisplayParams:
+    def to_display_params(self) -> NodeDisplayParams:
         try:
-            return DisplayParams(self.label, self.description, self.icon, self.sort_order)
+            return NodeDisplayParams(self.label, self.description, self.icon, self.sort_order)
         except ValueError as error:
             raise RegistryError(str(error)) from error
 
@@ -40,9 +46,7 @@ class SourceManifest(_ManifestModel):
     @field_validator("relative_path")
     @classmethod
     def validate_relative_path(cls, value: str) -> str:
-        if value.startswith("/") or "\\" in value:
-            raise ValueError("must be a canonical relative path")
-        if any(not part or part in {".", ".."} for part in value.split("/")):
+        if not is_canonical_source_relative_path(value):
             raise ValueError("must be a canonical relative path")
         return value
 
@@ -50,7 +54,6 @@ class SourceManifest(_ManifestModel):
 class _NodeManifest(_ManifestModel):
     stable_id: Annotated[str, Field(min_length=1)]
     name: Annotated[str, Field(min_length=1)]
-    revision: Annotated[str, Field(min_length=1)]
     display: DisplayManifest
     access_rule: str | None = None
     hidden: bool = False
@@ -100,13 +103,13 @@ def parse_json_file_tree(
     path_prefix: str,
     access_rules: Mapping[str, NodeAccessRule],
     expected_module: str | None = None,
-) -> tuple[tuple[FileReference, ...], tuple[StaticNode, ...]]:
+) -> tuple[tuple[FileReference, ...], tuple[StaticNodeSpec, ...]]:
     manifest = _parse_manifest(document)
     if expected_module is not None and manifest.module != expected_module:
         raise RegistryError("File tree manifest module does not match its asset path.")
     prefix = _canonical_directory_path(path_prefix)
     sources_by_locator: dict[str, FileReference] = {}
-    nodes: list[StaticNode] = []
+    nodes: list[StaticNodeSpec] = []
     stable_ids: set[str] = set()
     paths: set[str] = set()
 
@@ -123,10 +126,9 @@ def parse_json_file_tree(
 
         if isinstance(node, DirectoryManifest):
             nodes.append(
-                StaticNode.directory(
+                StaticNodeSpec.directory(
                     node.stable_id,
                     path,
-                    node.revision,
                     access_rule,
                     display=display,
                     hidden=node.hidden,
@@ -142,10 +144,9 @@ def parse_json_file_tree(
             raise RegistryError("File tree manifest sources must agree on media type.")
         sources_by_locator[reference.source_locator] = reference
         nodes.append(
-            StaticNode.file(
+            StaticNodeSpec.file(
                 node.stable_id,
                 path,
-                node.revision,
                 reference.source_locator,
                 node.download_name,
                 access_rule,

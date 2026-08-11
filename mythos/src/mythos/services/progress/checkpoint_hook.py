@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.persistence.models import PlayerProgressCheckpoint
-from mythos.players.context import CommandContext
+from mythos.players.player import Player
 from mythos.services.progress.checkpoint_store import LocalCheckpointStore
 
 
@@ -11,8 +11,8 @@ class ProgressCheckpointHook:
     def __init__(self, store: LocalCheckpointStore) -> None:
         self._store = store
 
-    async def __call__(self, session: AsyncSession, context: CommandContext) -> None:
-        progress = context.player.progress
+    async def __call__(self, session: AsyncSession, player: Player) -> None:
+        progress = player.progress
         checkpoints = progress._drain_pending_checkpoints()
         records: list[PlayerProgressCheckpoint] = []
         for checkpoint in checkpoints:

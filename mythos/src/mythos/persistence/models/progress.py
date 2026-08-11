@@ -32,7 +32,6 @@ class PlayerProgress(Base):
         ForeignKey("players.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    current_account: Mapped[str] = mapped_column(String(32), default="PLAYER", nullable=False)
     current_checkpoint_sequence: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)
     next_checkpoint_sequence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

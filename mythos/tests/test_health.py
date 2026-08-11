@@ -23,7 +23,7 @@ def test_development_serves_example_page() -> None:
     async def request_example_page() -> httpx.Response:
         settings = Settings(
             environment="development",
-            puzzle_root=PROJECT_ROOT / "src" / "mythos" / "puzzles",
+            puzzle_root=PROJECT_ROOT / "puzzles",
         )
         app = create_app(settings)
         transport = httpx.ASGITransport(app=app)
@@ -34,14 +34,15 @@ def test_development_serves_example_page() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "Example Runtime" in response.text
+    assert "示例运行时" in response.text
+    assert "hints-section" in response.text
 
 
 def test_development_serves_example_assets() -> None:
     async def request_example_assets() -> tuple[httpx.Response, httpx.Response]:
         settings = Settings(
             environment="development",
-            puzzle_root=PROJECT_ROOT / "src" / "mythos" / "puzzles",
+            puzzle_root=PROJECT_ROOT / "puzzles",
         )
         app = create_app(settings)
         transport = httpx.ASGITransport(app=app)

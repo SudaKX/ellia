@@ -49,10 +49,8 @@ class ArtifactRegistry:
 
     @staticmethod
     def _validate_node_template(node_template: ArtifactNodeTemplate) -> None:
-        if not node_template.stable_id or not node_template.revision or not _is_canonical_virtual_path(
-            node_template.path
-        ):
-            raise RegistryError("Artifact nodes require a stable ID, revision, and canonical absolute path.")
+        if not node_template.stable_id or not _is_canonical_virtual_path(node_template.path):
+            raise RegistryError("Artifact nodes require a stable ID and canonical absolute path.")
         if not isinstance(node_template.hidden, bool):
             raise RegistryError("Artifact node hidden flags must be booleans.")
         if not node_template.artifact_locator:

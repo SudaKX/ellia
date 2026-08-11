@@ -3,6 +3,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from mythos.registry.artifacts.definitions import ArtifactNodeTemplate, ArtifactTemplate
+from mythos.registry.catalog_snapshots import (
+    TemplateSnapshot,
+    template_snapshot,
+)
 from mythos.registry.errors import RegistryError
 
 
@@ -14,6 +18,13 @@ class ArtifactCatalog:
     ) -> None:
         self._templates = dict(templates)
         self._node_templates = dict(node_templates)
+        self._node_versions = {
+            template.stable_id: template.version_for(
+                self._templates[template.artifact_locator].version
+            )
+            for template in self._node_templates.values()
+        }
+        self._snapshot = self._build_snapshot()
 
     def template(self, artifact_id: str) -> ArtifactTemplate:
         try:
@@ -29,9 +40,45 @@ class ArtifactCatalog:
 
     def node_templates_for_artifact(self, artifact_id: str) -> tuple[ArtifactNodeTemplate, ...]:
         return tuple(
-            template
-            for template in self._node_templates.values()
-            if template.artifact_locator == artifact_id
+            sorted(
+                (
+                    template
+                    for template in self._node_templates.values()
+                    if template.artifact_locator == artifact_id
+                ),
+                key=lambda template: template.stable_id,
+            )
+        )
+
+    def template_or_none(self, artifact_id: str) -> ArtifactTemplate | None:
+        return self._templates.get(artifact_id)
+
+    def node_template_or_none(self, stable_id: str) -> ArtifactNodeTemplate | None:
+        return self._node_templates.get(stable_id)
+
+    def node_version(self, stable_id: str) -> str:
+        try:
+            return self._node_versions[stable_id]
+        except KeyError as error:
+            raise RegistryError(f"Artifact node template not found: {stable_id!r}") from error
+
+    @property
+    def version(self) -> str:
+        return self._snapshot.template_version
+
+    def snapshot(self) -> TemplateSnapshot:
+        return self._snapshot
+
+    def _build_snapshot(self) -> TemplateSnapshot:
+        return template_snapshot(
+            (
+                *(template.snapshot_entry() for template in self._templates.values()),
+                *(
+                    template.snapshot_entry(self._node_versions[template.stable_id])
+                    for template in self._node_templates.values()
+                ),
+            ),
+            prefix="acv1_",
         )
 
     @property

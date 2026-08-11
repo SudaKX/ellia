@@ -1,22 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Example Runtime</title>
+    <title>示例运行时</title>
     <link rel="stylesheet" href="/example/example.css">
   </head>
   <body>
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <h1>Example Runtime</h1>
-          <span>MYTHOS / DEVELOPMENT</span>
+            <h1>示例运行时</h1>
+            <span>MYTHOS / 开发环境</span>
         </div>
         <div class="top-actions">
-          <div class="status"><i id="status-dot" class="status-dot"></i><span id="session-status">Not authenticated</span></div>
-          <button id="refresh-button" class="text" type="button" disabled>Refresh</button>
-          <button id="logout-button" class="text" type="button" disabled>Log out</button>
+          <div class="status"><i id="status-dot" class="status-dot"></i><span id="session-status">未认证</span></div>
+          <button id="refresh-button" class="text" type="button" disabled>刷新</button>
+          <button id="logout-button" class="text" type="button" disabled>退出</button>
         </div>
       </header>
 
@@ -24,22 +24,32 @@
         <aside class="panel">
           <div class="panel-inner">
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Session</h2></div>
-              <div class="segmented" aria-label="Authentication mode">
-                <button id="register-mode" class="active" type="button">Register</button>
-                <button id="login-mode" type="button">Log in</button>
+              <div class="panel-header"><h2 class="panel-title">会话</h2></div>
+              <div class="segmented" aria-label="认证模式">
+                <button id="register-mode" class="active" type="button">注册</button>
+                <button id="login-mode" type="button">登录</button>
               </div>
               <form id="auth-form" class="stack auth-form">
-                <label><span class="section-label">Username</span><input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
-                <label><span class="section-label">Password</span><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>
-                <button id="auth-submit" class="primary" type="submit">Create session</button>
+                <label><span class="section-label">用户名</span><input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
+                <label><span class="section-label">密码</span><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>
+                <button id="auth-submit" class="primary" type="submit">创建会话</button>
               </form>
               <p id="auth-message" class="notice" aria-live="polite"></p>
+
+              <div id="account-section" class="section" hidden>
+                <div class="panel-header"><h2 class="panel-title">虚拟账号</h2><span id="account-status" class="muted">未选择</span></div>
+                <form id="account-form" class="stack">
+                  <label><span class="section-label">用户名</span><input id="account-username" autocomplete="username" required></label>
+                  <label><span class="section-label">密码</span><input id="account-password" type="password" autocomplete="current-password" required></label>
+                  <button id="account-submit" type="submit">切换账号</button>
+                </form>
+                <p id="account-message" class="notice" aria-live="polite"></p>
+              </div>
             </section>
 
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Requests</h2></div>
-              <ol id="event-list" class="event-list"><li><span class="muted">---</span><span class="path">No requests</span><span></span></li></ol>
+              <div class="panel-header"><h2 class="panel-title">请求记录</h2></div>
+              <ol id="event-list" class="event-list"><li><span class="muted">---</span><span class="path">暂无请求</span><span></span></li></ol>
             </section>
           </div>
         </aside>
@@ -47,15 +57,15 @@
         <section class="panel">
           <div class="panel-inner">
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">File System</h2><span id="tree-version" class="muted">--</span></div>
-              <div id="file-tree" class="file-tree"><p class="notice">Authenticate to load files.</p></div>
+              <div class="panel-header"><h2 class="panel-title">文件系统</h2><span id="tree-version" class="muted">--</span></div>
+              <div id="file-tree" class="file-tree"><p class="notice">请先认证以加载文件。</p></div>
             </section>
 
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Preview</h2></div>
+              <div class="panel-header"><h2 class="panel-title">预览</h2></div>
               <div class="preview">
-                <div class="preview-bar"><span id="preview-name" class="preview-name">No file selected</span><button id="open-file-button" class="text" type="button" disabled>Open</button></div>
-                <pre id="preview-content" class="preview-content">Select a file from the tree.</pre>
+                <div class="preview-bar"><span id="preview-name" class="preview-name">未选择文件</span><button id="open-file-button" class="text" type="button" disabled>打开</button></div>
+                <pre id="preview-content" class="preview-content">请从文件树中选择文件。</pre>
               </div>
             </section>
           </div>
@@ -64,23 +74,52 @@
         <aside class="panel runtime-panel">
           <div class="panel-inner">
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Progress</h2></div>
-              <ul id="progress-list" class="kv-list"><li><strong>Status</strong><span>Not loaded</span></li></ul>
+              <div class="panel-header"><h2 class="panel-title">进度</h2></div>
+              <ul id="progress-list" class="kv-list"><li><strong>状态</strong><span>未加载</span></li></ul>
             </section>
 
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Scripts</h2></div>
-              <ul id="script-list" class="script-list"><li><span class="muted">No scripts loaded</span></li></ul>
+              <div class="panel-header"><h2 class="panel-title">脚本</h2></div>
+              <ul id="script-list" class="script-list"><li><span class="muted">暂无脚本</span></li></ul>
+            </section>
+
+            <section class="section hints-section">
+              <div class="panel-header"><h2 class="panel-title">提示与 VTB</h2><span id="credits-balance" class="credit-balance">VTB --</span></div>
+              <div class="vtb-recovery" aria-labelledby="vtb-recovery-title">
+                <div class="vtb-recovery-header">
+                  <div>
+                    <h3 id="vtb-recovery-title" class="recovery-title">自动恢复</h3>
+                    <p id="task-status" class="task-status" aria-live="polite">未加载</p>
+                  </div>
+                  <button id="process-task-button" class="primary" type="button" disabled>立即处理</button>
+                </div>
+                <dl class="recovery-grid">
+                  <div><dt>下次到期</dt><dd id="task-next-due">--</dd></div>
+                  <div><dt>倒计时</dt><dd id="task-countdown">--</dd></div>
+                  <div><dt>首次奖励</dt><dd id="task-initial-grant">--</dd></div>
+                  <div><dt>累计发放</dt><dd id="task-total-granted">--</dd></div>
+                  <div><dt>最近发放</dt><dd id="task-last-granted">--</dd></div>
+                  <div><dt>异常次数</dt><dd id="task-exception">--</dd></div>
+                </dl>
+                <p id="task-message" class="notice" aria-live="polite"></p>
+                <p id="task-report" class="task-report" aria-live="polite"></p>
+              </div>
+              <div id="hint-list" class="hint-list"><p class="notice">认证后加载提示。</p></div>
+              <p id="hint-message" class="notice" aria-live="polite"></p>
+              <div class="hint-preview">
+                <div class="hint-preview-bar"><span id="hint-preview-name" class="preview-name">未选择提示</span></div>
+                <pre id="hint-preview-content" class="preview-content">购买并揭示提示后，内容会显示在这里。</pre>
+              </div>
             </section>
 
             <section class="section">
-              <div class="panel-header"><h2 class="panel-title">Recovery Console</h2></div>
+              <div class="panel-header"><h2 class="panel-title">恢复控制台</h2></div>
               <form id="answer-form" class="answer-form" hidden>
-                <label><span id="answer-label" class="section-label">Answer</span><input id="answer-input" autocomplete="off" required></label>
+                <label><span id="answer-label" class="section-label">答案</span><input id="answer-input" autocomplete="off" required></label>
                 <span id="answer-meta" class="answer-meta"></span>
-                <div class="actions"><button id="answer-submit" class="primary" type="submit">Submit</button><button id="retry-answer" type="button" hidden>Retry request</button></div>
+                <div class="actions"><button id="answer-submit" class="primary" type="submit">提交</button><button id="retry-answer" type="button" hidden>重试请求</button></div>
               </form>
-              <p id="answer-message" class="notice" aria-live="polite">No answer validator available.</p>
+              <p id="answer-message" class="notice" aria-live="polite">暂无答案验证器。</p>
             </section>
           </div>
         </aside>
