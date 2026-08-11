@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mythos.persistence.models import PlayerTaskState
 from mythos.players.context import TaskContext
+from mythos.core.followups import ContextScope
 from mythos.players.loader import PlayerLoader
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
@@ -56,7 +57,13 @@ class TaskService:
     def report(self, report: TaskRunReport) -> dict[str, object]:
         return report.body()
 
-    async def run_itx(self, session: AsyncSession, player_id: UUID) -> TaskRunReport:
+    async def run_itx(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        scope: ContextScope | None = None,
+    ) -> TaskRunReport:
+        execution_scope = scope or ContextScope.silent()
         await self.player_loader.lock_player(session, player_id)
         player = await self.player_loader.load_locked(
             session,
@@ -84,12 +91,15 @@ class TaskService:
                 exception=record.exception,
                 meta=_decode_record_meta(record),
                 now=_utcnow(),
+                scope=execution_scope,
             )
+            context.followup_checkpoint()
             savepoint = await session.begin_nested()
             try:
                 await definition.handler(context)
             except TaskHandlerError:
                 await savepoint.rollback()
+                context.followup_rollback()
                 exception = await self._increment_exception(session, player_id, task_id)
                 runs.append(TaskRun(task_id, TaskRunStatus.FAILURE, exception))
                 player = await self.player_loader.reload(
@@ -100,6 +110,7 @@ class TaskService:
                 continue
             except BaseException:
                 await savepoint.rollback()
+                context.followup_rollback()
                 raise
 
             try:
@@ -111,6 +122,7 @@ class TaskService:
                 await savepoint.commit()
             except BaseException:
                 await savepoint.rollback()
+                context.followup_rollback()
                 raise
             current = player.tasks._record(task_id)
             runs.append(

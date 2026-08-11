@@ -10,6 +10,7 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.commands.cache import RequestCache
 from mythos.commands.models import CachedResponse, ResponseSpec
 from mythos.commands.pipeline import PipelinedTransaction
+from mythos.core.followups import ContextScope
 from mythos.players.context import CommandContext
 from mythos.players.loader import PlayerLoader
 from mythos.players.interfaces import PlayerInterfaces
@@ -45,24 +46,31 @@ class EndpointCommandExecutor:
         with self._request_cache.lease(request_id, identity.player_id) as lease:
             if lease.replay is not None:
                 return lease.replay
+            scope = ContextScope.http()
             if run_task_phase:
                 async with session.begin():
-                    await self._run_tasks_itx(session, identity.player_id)
+                    await self._run_tasks_itx(session, identity.player_id, scope)
             async with session.begin():
                 completed = await self._execute_operation_itx(
                     session,
                     identity,
                     request_id,
                     operation,
+                    scope=scope,
                     interfaces=interfaces,
                 )
             lease.complete(completed)
             return completed
 
-    async def _run_tasks_itx(self, session: AsyncSession, player_id: UUID) -> TaskRunReport:
+    async def _run_tasks_itx(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        scope: ContextScope,
+    ) -> TaskRunReport:
         if self._task_service is None:
             raise RuntimeError("Task execution is not configured.")
-        return await self._task_service.run_itx(session, player_id)
+        return await self._task_service.run_itx(session, player_id, scope)
 
     async def _execute_operation_itx(
         self,
@@ -71,6 +79,7 @@ class EndpointCommandExecutor:
         request_id: UUID,
         operation: Callable[[CommandContext], Awaitable[ResponseSpec]],
         *,
+        scope: ContextScope,
         interfaces: PlayerInterfaces,
     ) -> CachedResponse:
         player = await self._load_player(
@@ -83,6 +92,7 @@ class EndpointCommandExecutor:
             identity=identity,
             player=player,
             request_id=request_id,
+            scope=scope,
         )
         async def command_operation(_session: AsyncSession, _player: Player) -> ResponseSpec:
             return await operation(context)
@@ -94,7 +104,7 @@ class EndpointCommandExecutor:
                 status_code=response.status_code,
                 body={
                     "content": response.body,
-                    "followups": context._freeze_followups(),
+                    "followups": scope.to_json(),
                 },
                 headers=response.headers,
             ),
@@ -129,19 +139,27 @@ class TaskCommandExecutor:
         with self._request_cache.lease(request_id, identity.player_id) as lease:
             if lease.replay is not None:
                 return lease.replay
+            scope = ContextScope.http()
             async with session.begin():
-                report = await self._task_service.run_itx(session, identity.player_id)
-                response = self._response(identity.player_id, report)
+                report = await self._task_service.run_itx(session, identity.player_id, scope)
+                response = self._response(identity.player_id, report, scope)
             lease.complete(response)
             return response
 
     @staticmethod
-    def _response(player_id: UUID, report: TaskRunReport) -> CachedResponse:
+    def _response(
+        player_id: UUID,
+        report: TaskRunReport,
+        scope: ContextScope,
+    ) -> CachedResponse:
         return CachedResponse(
             owner_player_id=player_id,
             response=ResponseSpec(
                 status_code=200,
-                body={"content": report.body(), "followups": []},
+                body={
+                    "content": report.body(),
+                    "followups": scope.to_json(),
+                },
                 headers={},
             ),
         )

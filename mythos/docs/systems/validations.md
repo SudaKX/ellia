@@ -2,11 +2,11 @@
 
 ## 数据、Interface 与 Registry
 
-验证没有 SQL 表、ORM Model 或独立 Player Interface。`ValidationRegistry` 以唯一 stable ID 和小写 slug validation ID 注册 `ValidationAttempt(stable_id, validation_id, handler)`，冻结为 `ValidationCatalog`。handler 接收可写 `CommandContext` 与 JSON 映射，返回 `ValidationOutcome(accepted)`，可修改 `player.progress`、生成 Artifact 或添加 followup。
+验证没有 SQL 表、ORM Model 或独立 Player Interface。`ValidationRegistry` 以唯一 stable ID 和小写 slug validation ID 注册 `ValidationAttempt(stable_id, validation_id, handler)`，冻结为 `ValidationCatalog`。handler 接收领域中立的 `ValidationContext` 与 JSON 映射，返回 `ValidationResult(accepted)`，可修改 `player.progress`、生成 Artifact 或添加结构化 Followup。
 
 ## Service 与端点
 
-`ValidationService` 将 handler 的 accepted 布尔值映射为 `ResponseSpec`。唯一端点为：
+`ValidationService.submit(player, attempt, payload, scope=...)` 只创建 `ValidationContext` 并返回 `ValidationResult`，不依赖 Request-ID、ResponseSpec 或 FastAPI。唯一端点为：
 
 ```text
 POST /api/v1/validations/{validation_id}/attempts
@@ -14,7 +14,7 @@ Authorization: Bearer <access token>
 Request-ID: <UUID>
 ```
 
-Router 先从 Catalog 查找 attempt，再交给命令执行器。未知 validation 是 `404`；Request-ID 冲突和进度转移失败为 `409`；handler 可用 `context.reject()` 指定错误状态。成功响应统一为 `{content: {accepted: boolean}, followups: []}`。
+Router 先从 Catalog 查找 attempt，再交给命令执行器。未知 validation 是 `404`；Request-ID 冲突和进度转移失败为 `409`；handler 可调用不带 HTTP status 的 `context.reject(reason, details)` 或 `context.follow(Followup(action, data))`，Endpoint 将 `ValidationRejected` 固定转换为 `409 validation-rejected` Problem Details。成功响应统一为 `{content: {accepted: boolean}, followups: [...]}`，Followup 由 HTTP scope 收集并在响应边界调用 `to_json()`；非 HTTP 调用使用 silent scope。
 
 ## Example 与约束
 

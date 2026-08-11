@@ -28,11 +28,11 @@ from mythos.registry.files import (
 )
 from mythos.registry.hints import Hint, HintDisplayParams, HintRegistry
 from mythos.registry.scripts import Script
-from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationOutcome, ValidationRegistry
+from mythos.registry.validations import ValidationAttempt, ValidationAttemptNotFoundError, ValidationRegistry, ValidationResult
 
 
 async def _attempt_handler(_context, _payload):
-    return ValidationOutcome(accepted=True)
+    return ValidationResult(accepted=True)
 
 
 def _display(label: str, icon: str = "document") -> NodeDisplayParams:

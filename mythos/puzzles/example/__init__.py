@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from mythos.players.context import CommandContext, PlayerLifecycleContext, TaskContext
+from mythos.players.context import PlayerLifecycleContext, TaskContext, ValidationContext
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
@@ -21,7 +21,7 @@ from mythos.registry.hints import Hint, HintDisplayParams
 from mythos.registry.lifecycle import LifecyclePriority
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
-from mythos.registry.validations import ValidationAttempt, ValidationOutcome
+from mythos.registry.validations import ValidationAttempt, ValidationResult
 
 MODULE_ID = "example"
 ENTRY_NODE_ID = "example.entry"
@@ -308,18 +308,18 @@ async def _generate_admin_access_node(
 
 
 async def _submit_answer(
-    context: CommandContext,
+    context: ValidationContext,
     payload: Mapping[str, Any],
-) -> ValidationOutcome:
+) -> ValidationResult:
     if not _is_guest(context.player):
-        return ValidationOutcome(accepted=False)
+        return ValidationResult(accepted=False)
     answer = payload.get("answer")
     if not isinstance(answer, str) or answer.strip().casefold() != _ANSWER:
-        return ValidationOutcome(accepted=False)
+        return ValidationResult(accepted=False)
     if context.player.progress.is_unlocked(COMPLETED_NODE_ID):
-        return ValidationOutcome(accepted=True)
+        return ValidationResult(accepted=True)
     if not context.player.progress.is_frontier(ENTRY_NODE_ID):
-        return ValidationOutcome(accepted=False)
+        return ValidationResult(accepted=False)
     await context.player.accounts.issue(
         ADMIN_ACCOUNT_ID,
         ADMIN_USERNAME,
@@ -328,4 +328,4 @@ async def _submit_answer(
     context.player.progress.push(COMPLETED_NODE_ID)
     await context.player.artifacts.generate_artifact(ADMIN_ACCESS_ARTIFACT_ID, context.player)
     await context.player.artifacts.generate_node(ADMIN_ACCESS_NODE_ID, context.player)
-    return ValidationOutcome(accepted=True)
+    return ValidationResult(accepted=True)

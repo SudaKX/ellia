@@ -12,7 +12,7 @@ from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerProgress, PlayerProgressCheckpoint
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
-from mythos.registry.validations import ValidationAttempt, ValidationOutcome
+from mythos.registry.validations import ValidationAttempt, ValidationResult
 
 
 def test_checkpoint_hook_persists_stable_progress_snapshot(tmp_path) -> None:
@@ -23,7 +23,7 @@ def test_checkpoint_hook_persists_stable_progress_snapshot(tmp_path) -> None:
 
         async def handler(context, _payload):
             context.player.progress.push("saved")
-            return ValidationOutcome(accepted=True)
+            return ValidationResult(accepted=True)
 
         registries.validations.register_attempt(ValidationAttempt("test.save", "save", handler))
         settings = Settings(

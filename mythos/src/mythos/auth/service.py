@@ -22,6 +22,7 @@ from mythos.auth.tokens import (
 from mythos.auth.passwords import password_hasher
 from mythos.commands.pipeline import PipelinedTransaction
 from mythos.core.config import Settings
+from mythos.core.followups import ContextScope
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
     PlayerCredits,
@@ -117,12 +118,13 @@ class AuthService:
 
         try:
             async with self.session.begin():
+                scope = ContextScope.silent()
                 self.session.add_all((player, auth, progress))
                 await self.session.flush()
                 self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
                 await self.session.flush()
-                await self.task_service.run_itx(self.session, player.id)
-                await self._construct(player, "registration")
+                await self.task_service.run_itx(self.session, player.id, scope)
+                await self._construct(player, "registration", scope=scope)
         except IntegrityError as error:
             if "players.username_normalized" in str(error).lower():
                 raise UsernameAlreadyExistsError from error
@@ -136,6 +138,7 @@ class AuthService:
     async def login(self, username: str, password: str) -> AuthenticationResult:
         normalized_username = normalize_username(username)
         async with self.session.begin():
+            scope = ContextScope.silent()
             player = await self.session.scalar(
                 select(PlayerRecord)
                 .where(PlayerRecord.username_normalized == normalized_username)
@@ -151,8 +154,8 @@ class AuthService:
             if not is_valid:
                 raise InvalidCredentialsError
 
-            await self.task_service.run_itx(self.session, player.id)
-            await self._construct(player, "first_login")
+            await self.task_service.run_itx(self.session, player.id, scope)
+            await self._construct(player, "first_login", scope=scope)
 
             credential = create_refresh_credential()
             now = utcnow()
@@ -228,7 +231,7 @@ class AuthService:
 
     async def logout(self, player_id: UUID) -> None:
         async with self.session.begin():
-            await self.task_service.run_itx(self.session, player_id)
+            await self.task_service.run_itx(self.session, player_id, ContextScope.silent())
             await self.session.execute(
                 update(PlayerAuth)
                 .where(PlayerAuth.player_id == player_id)
@@ -244,6 +247,8 @@ class AuthService:
         self,
         player: PlayerRecord,
         trigger: Literal["registration", "first_login"],
+        *,
+        scope: ContextScope | None = None,
     ) -> None:
         if player.constructed_at is not None:
             return
@@ -272,7 +277,11 @@ class AuthService:
         )
         async def publish(_session, player) -> None:
             await self.lifecycle_dispatcher.publish(
-                PlayerLifecycleContext(player=player, event=event)
+                PlayerLifecycleContext(
+                    player=player,
+                    event=event,
+                    scope=scope or ContextScope.silent(),
+                )
             )
 
         await self.pipelined_transaction.run(self.session, aggregate, publish)

@@ -26,6 +26,16 @@ def test_commands_do_not_depend_on_http_endpoints() -> None:
     assert not any(module == "mythos.endpoints" or module.startswith("mythos.endpoints.") for module in imports)
 
 
+def test_core_followups_and_validation_service_are_transport_neutral() -> None:
+    followup_imports = _imported_modules(SRC_ROOT / "core" / "followups.py")
+    validation_imports = _imported_modules(SRC_ROOT / "services" / "validations" / "service.py")
+
+    assert not any(module == "fastapi" or module.startswith("fastapi.") for module in followup_imports)
+    assert not any(module == "fastapi" or module.startswith("fastapi.") for module in validation_imports)
+    assert "mythos.commands.executor" not in validation_imports
+    assert "mythos.commands.models" not in validation_imports
+
+
 def test_services_and_auth_workflow_do_not_depend_on_endpoint_concerns() -> None:
     imports = _imported_modules(SRC_ROOT / "services")
     imports |= _imported_modules(SRC_ROOT / "auth" / "service.py")

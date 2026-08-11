@@ -10,7 +10,7 @@ TaskRegistry freeze 后拒绝新注册。当前实现没有任务 revision；同
 
 `player_task_states` 保存 `(player_id, task_id)`、`time_1`、`time_2`、`exception`、JSON 字符串 `meta` 和审计时间。任务行存在即表示任务已激活；`Player.tasks.add_task()` 和 `remove_task()` 是可写 Player 上的幂等操作。玩家删除时任务行级联删除。
 
-`TaskContext` 向 Handler 提供任务状态、玩家、任务身份和统一 UTC 当前时间。Handler 可以调用 `set_extra_time()`、更新 meta 或 `defer()`；正常返回且未 defer 时，`TaskService` 自动更新 `time_1`。错误次数由 Service 维护，Handler 不直接修改 `exception`。
+`TaskContext` 是统一 `Context` 的可变子类，向 Handler 提供任务状态、玩家、任务身份、统一 UTC 当前时间和 per-call `ContextScope`。Handler 可以调用 `set_extra_time()`、更新 meta、`defer()` 或 `follow(Followup)`；正常返回且未 defer 时，`TaskService` 自动更新 `time_1`。错误次数由 Service 维护，Handler 不直接修改 `exception`。
 
 ## 惰性触发与事务
 
@@ -22,13 +22,13 @@ TaskRegistry freeze 后拒绝新注册。当前实现没有任务 revision；同
 - 已认证写命令的 `EndpointCommandExecutor.execute()` 默认 Task 前置阶段；
 - `POST /api/v1/tasks/process`。
 
-普通 GET 不隐式写入任务。`TaskService.run_itx()` 在 Task transaction 开始时读取当前任务键集合，求当前 Handler 依赖并集，加载并复用一个可写 Player。每个 Handler 使用 `session.begin_nested()` 保存点；`TaskHandlerError` 回滚当前 Handler、增加 `exception`、记录失败并重载 Player 后继续后续任务。
+普通 GET 不隐式写入任务。HTTP Executor 为一次逻辑请求创建 collecting scope，`TaskService.run_itx(..., scope)` 在 Task transaction 开始时读取当前任务键集合，求当前 Handler 依赖并集，加载并复用一个可写 Player。每个 Handler 使用 `session.begin_nested()` 保存点；`TaskHandlerError` 回滚当前 Handler、增加 `exception`、记录失败并重载 Player 后继续后续任务。Auth、reconciliation 等非 HTTP Workflow 使用 silent scope。
 
 Task transaction 保留现有 pre-commit hook。成功 Handler 的 checkpoint、Artifact 或其他 PlayerInterface 变更可以触发 Hook；Hook 失败、数据库错误、JSON 错误、保存点控制错误和提交错误直接回滚并终止任务阶段。
 
 普通写命令的 `EndpointCommandExecutor.execute()` 只保留一次 Request-ID lease，但依次提交 Task transaction 和 Operation transaction。Operation transaction 重新加载 Player；Operation 失败不会回滚已提交的任务状态。成功的任务报告包含每个任务的 `success` 或 `failure` 状态。`POST /api/v1/tasks/process` 使用独立的 `TaskCommandExecutor`，只运行一次 Task phase。
 
-注册、登录和登出由 `AuthService` 在各自的认证事务中直接调用无缓存 `TaskService`。这样任务基础设施失败时，注册玩家、refresh credential 和 logout 状态会与认证事务一起回滚；这些认证流程不使用命令 Request-ID 包装。
+注册、登录和登出由 `AuthService` 在各自的认证事务中直接调用无缓存 `TaskService`，并向 Task/Lifecycle Context 传递 silent scope。这样任务基础设施失败时，注册玩家、refresh credential 和 logout 状态会与认证事务一起回滚；这些认证流程不使用命令 Request-ID 包装。
 
 ## Snapshot 清理
 

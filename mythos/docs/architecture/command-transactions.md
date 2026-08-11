@@ -12,12 +12,13 @@
 Endpoint -> JWT identity + AsyncSession
   -> RequestCache lease(Request-ID, player)
   -> Task transaction (普通写命令默认开启)
-       -> TaskService.run_itx()
+       -> ContextScope.http()
+       -> TaskService.run_itx(..., scope)
        -> TaskContext -> Task Handler -> nested savepoint / hooks
        -> commit
   -> Operation transaction
        -> PlayerLoader.lock/load writable Player
-       -> CommandContext -> Domain Service / module handler
+        -> CommandContext(scope) -> Domain Service / module handler
        -> optional post-operation phases
        -> ordered pre-commit hooks -> commit
   -> lease.complete(CachedResponse)
@@ -25,7 +26,7 @@ Endpoint -> JWT identity + AsyncSession
 
 一个 Request-ID lease 可以覆盖多个物理 transaction。Task transaction 已提交而 Operation 失败时，Operation 回滚、Task 状态保留，lease 释放以便后续请求重试；已完成的 Request-ID 在 Task transaction 开始前直接返回原始响应。
 
-`ResponseSpec` 定义状态码、JSON `body` 和响应头；Endpoint Executor 成功完成时统一包装 `{ "content": <body>, "followups": [...] }`。`FollowupCollector` 只接受可 JSON 序列化的对象。lease 上下文在异常或未完成响应时自动 release。
+`ResponseSpec` 定义状态码、JSON `body` 和响应头；Endpoint/Response adapter 在成功完成时统一包装 `{ "content": <body>, "followups": [...] }`。Core `FollowupCollector` 只收集可变 `Followup(action, data)` 并维护 checkpoint rollback，不导入 FastAPI；响应边界调用 `Followup.to_json()`，再由 `ResponseSpec` 执行 JSON object 校验，silent sink 丢弃 best-effort Followup。lease 上下文在异常或未完成响应时自动 release。
 
 ## HTTP 契约
 
@@ -45,4 +46,4 @@ Endpoint -> JWT identity + AsyncSession
 
 当前唯一 hook 是 `ProgressCheckpointHook`：它把已暂存 checkpoint 写入本地 JSON，并增加 `PlayerProgressCheckpoint` ORM 记录。普通 Operation 和 Task Handler 都可以触发该 Hook；TaskService 在成功 Handler 的保存点内刷新 Hook。Example 的 validation handler 在 Operation transaction 内推进 `example.completed` 并生成 Artifact；对象上传先于 SQL 提交，因此回滚可能留下对象存储孤儿。
 
-HTTP Router 位于 `mythos.endpoints`，由 `endpoints.router` 聚合后挂载。Service 和内部 Workflow 不依赖 FastAPI Router、RequestCache 或 Endpoint Executor。相关对象：`CommandContext`、`ResponseSpec`、`CachedResponse`、`RequestCache`、`PlayerLoader`、`PipelinedTransaction`、`PendingCheckpoint`。相关实现：`commands/`、`endpoints/`、`core/followups.py`、`services/progress/checkpoint_hook.py`。
+HTTP Router 位于 `mythos.endpoints`，由 `endpoints.router` 聚合后挂载。Service 和内部 Workflow 不依赖 FastAPI Router、RequestCache 或 Endpoint Executor；共享 `PipelinedTransaction` 不保存 request-specific scope。相关对象：`ContextScope`、`CommandContext`、`TaskContext`、`ResponseSpec`、`CachedResponse`、`RequestCache`、`PlayerLoader`、`PipelinedTransaction`、`PendingCheckpoint`。相关实现：`commands/`、`endpoints/`、`core/followups.py`、`services/progress/checkpoint_hook.py`。

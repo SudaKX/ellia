@@ -34,7 +34,7 @@ Validation Handler 目前接收 `CommandContext`，因此可以访问 Request-ID
 
 ### 2. Followup 使用 Core Sink 和 Null Object
 
-Core 提供 `Followup`、`FollowupSink`、`FollowupCollector`、`NullFollowupSink` 和 `ContextScope`。Collector 只负责顺序收集和 freeze，不导入 FastAPI；Endpoint/Response adapter 负责 JSON encoder、JSON object 校验和响应包装。
+Core 提供可变的 `Followup(action, data)`、`FollowupSink`、`FollowupCollector`、`NullFollowupSink` 和 `ContextScope`。Context 只有 `follow(Followup)` 入口；Collector 只负责顺序收集和 checkpoint rollback，不导入 FastAPI。Endpoint/Response adapter 在收集时调用 `Followup.to_json()`，再由 `ResponseSpec` 负责 JSON 校验和响应包装。
 
 HTTP 请求创建 collecting scope，Task、Validation、Lifecycle 和 Command Context 共享该 scope。Auth、reconciliation 和测试使用 silent scope；NullFollowupSink 丢弃非持久化 Followup，避免 Domain Service 依赖 HTTP。
 
@@ -50,11 +50,11 @@ Validation Handler 的结构化 Followup 先进入 ContextScope，Endpoint 在 R
 
 ### 4. TaskService 使用 per-call ContextScope
 
-TaskService 不保存 ContextScope，也不保存 FollowupCollector。`run_itx()` 在 HTTP 调用中接收当前 scope，在非 HTTP 调用中使用 silent scope；每个 TaskContext 复用该 scope。TaskService 仍然只参与调用方已有 transaction，不创建 HTTP Context，也不负责 JSON 序列化。
+TaskService 不保存 ContextScope，也不保存 FollowupCollector。`run_itx()` 在 HTTP 调用中接收当前 scope，在非 HTTP 调用中使用 silent scope；每个 TaskContext 复用该 scope。每个 Handler 前压入当前 Followup 数量检查点；Handler 或保存点失败时弹出栈顶并截断其后的 Followup，避免回滚状态产生通知。TaskService 仍然只参与调用方已有 transaction，不创建 HTTP Context，也不负责 JSON 序列化。
 
 ### 5. Endpoint 负责最终响应转换
 
-EndpointCommandExecutor 和 TaskCommandExecutor 在每个逻辑请求边界创建 collecting scope，并在 Task phase、Operation 和 Context Handler 完成后统一 freeze Followup。事务或 Pipeline 失败时不完成 Request-ID，也不发送 Followup。
+EndpointCommandExecutor 和 TaskCommandExecutor 在每个逻辑请求边界创建 collecting scope，并在 Task phase、Operation 和 Context Handler 完成后统一调用 scope 的 `to_json()`。事务或 Pipeline 失败时不完成 Request-ID，也不发送 Followup。
 
 ## Risks / Trade-offs
 
@@ -62,7 +62,7 @@ EndpointCommandExecutor 和 TaskCommandExecutor 在每个逻辑请求边界创�
 - [Risk] NullFollowupSink 可能隐藏调用方期望的通知。→ 只有非持久化 UI/application Followup 可以静默丢弃；必须处理的事件不得使用 Followup。
 - [Risk] Context dataclass 继承和可变 TaskContext 的字段初始化复杂。→ 使用 ContextScope 组合对象和显式 TaskContext 构造函数，增加 scope identity 测试。
 - [Risk] Validation Handler 签名是 breaking change。→ 同步 Registry definition、Example Handler、Endpoint adapter 和全部 Validation 测试，禁止保留 HTTP status 参数兼容路径。
-- [Risk] Followup JSON 验证从 Core 移到 Endpoint 后，内部 Workflow 可能产生不可序列化值。→ HTTP collecting sink 在 Endpoint freeze/encode 阶段严格验证；silent sink 不承担 HTTP 格式责任。
+- [Risk] Followup JSON 验证从 Core 移到 ResponseSpec 后，内部 Workflow 可能产生不可序列化值。→ HTTP 响应边界由 ResponseSpec 严格验证；silent sink 不承担 HTTP 格式责任。
 
 ## Migration Plan
 

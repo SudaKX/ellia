@@ -8,38 +8,59 @@ from typing import Any, Mapping, NoReturn
 from uuid import UUID
 
 from mythos.auth.tokens import PlayerIdentity
-from mythos.core.exceptions import CommandRejected
-from mythos.core.followups import FollowupBody, FollowupCollector
+from mythos.core.exceptions import CommandRejected, ValidationRejected
+from mythos.core.followups import ContextScope, Followup
 from mythos.players.player import Player
 from mythos.registry.lifecycle.definitions import PlayerLifecycleEvent
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class PlayerContext:
+class Context:
     player: Player
+    scope: ContextScope = field(default_factory=ContextScope.silent, kw_only=True)
+
+    def follow(self, followup: Followup) -> None:
+        self.scope.follow(followup)
+
+    def followup_checkpoint(self) -> None:
+        self.scope.followup_checkpoint()
+
+    def followup_rollback(self) -> None:
+        self.scope.followup_rollback()
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class RequestContext(PlayerContext):
+class RequestContext(Context):
     identity: PlayerIdentity
-    _followups: FollowupCollector = field(default_factory=FollowupCollector, init=False, repr=False, compare=False)
 
-    def follow(self, body: FollowupBody) -> None:
-        self._followups.add(body)
-
-    def _freeze_followups(self) -> tuple[dict[str, Any], ...]:
-        return self._followups.freeze()
+    @classmethod
+    def from_context(cls, context: Context, *, identity: PlayerIdentity) -> RequestContext:
+        return cls(player=context.player, identity=identity, scope=context.scope)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class CommandContext(RequestContext):
     request_id: UUID
 
+    @classmethod
+    def from_context(
+        cls,
+        context: RequestContext,
+        *,
+        request_id: UUID,
+    ) -> CommandContext:
+        return cls(
+            player=context.player,
+            identity=context.identity,
+            request_id=request_id,
+            scope=context.scope,
+        )
+
     def reject(self, status_code: int, detail: str) -> NoReturn:
         raise CommandRejected(status_code, detail)
 
 
-class TaskContext:
+class TaskContext(Context):
     """Mutable, request-local task state passed to an asynchronous Handler."""
 
     def __init__(
@@ -52,8 +73,9 @@ class TaskContext:
         exception: int,
         meta: Mapping[str, object],
         now: datetime,
+        scope: ContextScope | None = None,
     ) -> None:
-        self.player = player
+        super().__init__(player=player, scope=scope or ContextScope.silent())
         self.task_id = task_id
         self._time_1 = time_1
         self._extra_time = time_2
@@ -61,6 +83,29 @@ class TaskContext:
         self._meta = deepcopy(dict(meta))
         self.now = now
         self._deferred = False
+
+    @classmethod
+    def from_context(
+        cls,
+        context: Context,
+        *,
+        task_id: str,
+        time_1: datetime | None,
+        time_2: datetime | None,
+        exception: int,
+        meta: Mapping[str, object],
+        now: datetime,
+    ) -> TaskContext:
+        return cls(
+            player=context.player,
+            task_id=task_id,
+            time_1=time_1,
+            time_2=time_2,
+            exception=exception,
+            meta=meta,
+            now=now,
+            scope=context.scope,
+        )
 
     @property
     def time_1(self) -> datetime | None:
@@ -106,5 +151,28 @@ class TaskContext:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class PlayerLifecycleContext(PlayerContext):
+class PlayerLifecycleContext(Context):
     event: PlayerLifecycleEvent
+
+    @classmethod
+    def from_context(
+        cls,
+        context: Context,
+        *,
+        event: PlayerLifecycleEvent,
+    ) -> PlayerLifecycleContext:
+        return cls(player=context.player, event=event, scope=context.scope)
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class ValidationContext(Context):
+    @classmethod
+    def from_context(cls, context: Context) -> ValidationContext:
+        return cls(player=context.player, scope=context.scope)
+
+    def reject(
+        self,
+        reason: str,
+        details: Mapping[str, Any] | None = None,
+    ) -> NoReturn:
+        raise ValidationRejected(reason, details)

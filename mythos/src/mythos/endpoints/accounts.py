@@ -102,7 +102,11 @@ async def _execute(
             title="Invalid virtual account credentials",
             detail="The supplied virtual account credentials are invalid.",
         ) from error
-    return JSONResponse(status_code=result.response.status_code, content=result.response.body)
+    return JSONResponse(
+        status_code=result.response.status_code,
+        content=result.response.body,
+        headers=result.response.headers,
+    )
 
 
 async def _login_response(

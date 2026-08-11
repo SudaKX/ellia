@@ -14,6 +14,7 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, ResponseSpec
 from mythos.core.config import Settings
 from mythos.core.file_ids import FileIdCodec
+from mythos.core.followups import ContextScope, Followup
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.persistence.models import (
@@ -37,6 +38,7 @@ from mythos.registry.errors import RegistryError
 from mythos.main import create_app
 from mythos.services.tasks import (
     TaskCatalogEmptyError,
+    TaskRunStatus,
     TaskService,
     TaskReconciliationRunner,
     TaskSnapshotError,
@@ -209,6 +211,36 @@ async def test_task_context_update_meta_copies_nested_values(session) -> None:
     assert state is not None and state.meta == '{"value":{"count":1}}'
 
 
+async def test_task_service_silent_scope_discards_best_effort_followups(session) -> None:
+    async def handler(context) -> None:
+        context.follow(Followup(action="ignored", data={}))
+
+    registries = _registries(("test.silent", handler))
+    player_id, _ = await _seed_player(session, task_ids=("test.silent",))
+    scope = ContextScope.silent()
+
+    async with session.begin():
+        await _executor(registries).run_itx(session, player_id, scope)
+
+    assert scope.to_json() == []
+
+
+async def test_task_handler_error_rolls_back_followups(session) -> None:
+    async def handler(context) -> None:
+        context.follow(Followup(action="rolled-back", data={}))
+        raise TaskHandlerError("expected failure")
+
+    registries = _registries(("test.followup-failure", handler))
+    player_id, _ = await _seed_player(session, task_ids=("test.followup-failure",))
+    scope = ContextScope.http()
+
+    async with session.begin():
+        report = await _executor(registries).run_itx(session, player_id, scope)
+
+    assert report.runs[0].status is TaskRunStatus.FAILURE
+    assert scope.to_json() == []
+
+
 async def test_task_executor_updates_context_state_and_time(session) -> None:
     async def handler(context) -> None:
         await context.player.credits.grant_vtb(3)
@@ -326,6 +358,7 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
     async def handler(context) -> None:
         nonlocal calls
         calls += 1
+        context.follow(Followup(action="task", data={}))
         await context.player.credits.grant_vtb(1)
 
     registries = _registries(("test.task", handler))
@@ -360,6 +393,7 @@ async def test_endpoint_execute_replay_does_not_rerun_tasks(session) -> None:
     async def handler(context) -> None:
         nonlocal calls
         calls += 1
+        context.follow(Followup(action="task", data={}))
 
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.task",))
@@ -375,12 +409,17 @@ async def test_endpoint_execute_replay_does_not_rerun_tasks(session) -> None:
     request_id = uuid4()
 
     async def operation(_context) -> ResponseSpec:
+        _context.follow(Followup(action="operation", data={}))
         return ResponseSpec(status_code=200, body={"ok": True}, headers={})
 
     first = await executor.execute(session, identity, request_id, operation)
     replay = await executor.execute(session, identity, request_id, operation)
     assert first is replay
     assert calls == 1
+    assert first.response.body["followups"] == [
+        {"action": "task", "data": {}},
+        {"action": "operation", "data": {}},
+    ]
 
 
 def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
@@ -393,6 +432,7 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
         async def handler(_context) -> None:
             nonlocal calls
             calls += 1
+            _context.follow(Followup(action="task-processed", data={}))
             await _context.player.credits.grant_vtb(4)
 
         settings = Settings(
@@ -446,6 +486,9 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
                 assert processed.status_code == 200
                 assert processed.json()["content"]["tasks"] == [
                     {"task_id": "test.http-task", "status": "success", "exception": 0}
+                ]
+                assert processed.json()["followups"] == [
+                    {"action": "task-processed", "data": {}},
                 ]
                 replay = await client.post(
                     "/api/v1/tasks/process",

@@ -34,6 +34,7 @@ class ProblemType(StrEnum):
     INSUFFICIENT_CREDITS = "insufficient-credits"
     HINT_CONTENT_VERSION_MISMATCH = "hint-content-version-mismatch"
     INVALID_REQUEST = "invalid-request"
+    VALIDATION_REJECTED = "validation-rejected"
     INTERNAL_ERROR = "internal-error"
 
 

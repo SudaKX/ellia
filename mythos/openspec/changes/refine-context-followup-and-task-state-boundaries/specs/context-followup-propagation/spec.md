@@ -30,11 +30,11 @@
 
 ### Requirement: Context followups are transport-neutral
 
-统一 Context SHALL 提供 `followup()` 能力，但 Core Followup 类型 SHALL NOT 依赖 FastAPI、HTTP Response 或 ResponseSpec。Followup SHALL 以结构化值在 Core/Domain 层传播。
+统一 Context SHALL 提供 `follow(Followup)` 能力，但 Core Followup 类型 SHALL NOT 依赖 FastAPI、HTTP Response 或 ResponseSpec。Followup SHALL 使用可变的 `{action: str, data: dict}` 结构在 Core/Domain 层传播。
 
 #### Scenario: Domain context emits a structured followup
 
-- **WHEN** Task、Validation 或 Lifecycle Handler 调用 Context.followup()
+- **WHEN** Task、Validation 或 Lifecycle Handler 调用 Context.follow()
 - **THEN** Followup SHALL 被加入当前 ContextScope，且 Handler 不需要构造 HTTP Response JSON
 
 #### Scenario: HTTP endpoint serializes followups
@@ -48,7 +48,7 @@
 
 #### Scenario: Silent workflow emits a followup
 
-- **WHEN** 非 HTTP Workflow 中的 Context 调用 followup()
+- **WHEN** 非 HTTP Workflow 中的 Context 调用 follow()
 - **THEN** Followup SHALL 被 NullFollowupSink 忽略，Workflow SHALL 不因缺少 HTTP 响应而失败
 
 #### Scenario: Shared pipeline does not retain request state

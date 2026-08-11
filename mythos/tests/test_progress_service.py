@@ -9,7 +9,7 @@ from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
-from mythos.registry.validations import ValidationAttempt, ValidationOutcome
+from mythos.registry.validations import ValidationAttempt, ValidationResult
 
 
 def test_progress_api_reads_and_restores_current_checkpoint(tmp_path) -> None:
@@ -21,11 +21,11 @@ def test_progress_api_reads_and_restores_current_checkpoint(tmp_path) -> None:
 
         async def save_handler(context, _payload):
             context.player.progress.push("saved")
-            return ValidationOutcome(accepted=True)
+            return ValidationResult(accepted=True)
 
         async def advance_handler(context, _payload):
             context.player.progress.push("after")
-            return ValidationOutcome(accepted=True)
+            return ValidationResult(accepted=True)
 
         registries.validations.register_attempt(ValidationAttempt("test.save", "save", save_handler))
         registries.validations.register_attempt(ValidationAttempt("test.advance", "advance", advance_handler))

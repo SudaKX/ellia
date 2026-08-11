@@ -55,7 +55,11 @@ async def restore_checkpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except CommandRejected as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
-    return JSONResponse(status_code=result.response.status_code, content=result.response.body)
+    return JSONResponse(
+        status_code=result.response.status_code,
+        content=result.response.body,
+        headers=result.response.headers,
+    )
 
 
 async def _restore_response(runtime: ApplicationRuntime, context) -> ResponseSpec:

@@ -8,7 +8,7 @@
 
 | 回调 | 注册位置 | 合同 | 要求 | 调用边界 |
 | --- | --- | --- | --- | --- |
-| Validation attempt handler | `ValidationAttempt.handler` | `(CommandContext, Mapping[str, Any]) -> Awaitable[ValidationOutcome]` | 必须异步 | `EndpointCommandExecutor` 的 Operation transaction 内；异常会回滚并释放 Request-ID lease |
+| Validation attempt handler | `ValidationAttempt.handler` | `(ValidationContext, Mapping[str, Any]) -> Awaitable[ValidationResult]` | 必须异步；可调用领域 `reject(reason, details)` 和 `follow(Followup)` | `ValidationService` 在调用方 transaction 内执行；HTTP Endpoint 将 `ValidationRejected` 固定映射为 `409` |
 | Player lifecycle handler | `LifecycleRegistry.register_lifecycle()`、`on_construct`、`on_deconstruct` | `(PlayerLifecycleContext) -> Awaitable[None]` | 必须异步 | Construct/Deconstruct 分发事务内；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续回调 |
 | Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步、恰好一个位置参数 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
 | Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, Mapping[str, Any], ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步、恰好三个位置参数 | 由 Artifact Interface 调用；meta 来自 Artifact generator |
@@ -20,7 +20,7 @@
 
 ### 异步回调
 
-Validation、Lifecycle 和 Artifact 回调的调用点均直接使用 `await`。它们可读取或修改当前事务中的 Player 状态；不得自行创建事务、提交 Session，或持有请求结束后的 Session。
+Validation、Lifecycle 和 Artifact 回调的调用点均直接使用 `await`。它们可读取或修改当前事务中的 Player 状态；不得自行创建事务、提交 Session，或持有请求结束后的 Session。Validation 和 Lifecycle Context 的 Followup 进入调用方的 per-call scope；非 HTTP Workflow 使用 silent sink。
 
 Lifecycle Construct 在注册和既有玩家首次真实登录时触发。Lifecycle 回调失败会使 Construct 标记与同一事务中的状态修改一并回滚。
 

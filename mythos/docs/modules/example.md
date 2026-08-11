@@ -18,7 +18,7 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 | scripts | Guest Echo 脚本、完成提示和 Administrator notice |
 | validations | `example-answer` 对应 `example.answer.submit` handler |
 
-验证 handler 的数据对象是 `CommandContext`、answer payload、`ValidationOutcome` 与 `RawArtifact`。Guest 通过 Echo 后，handler 发放 Administrator 账号并生成玩家专属管理员凭据文件。
+验证 handler 的数据对象是 `ValidationContext`、answer payload、`ValidationResult` 与 `RawArtifact`。Guest 通过 Echo 后，handler 发放 Administrator 账号并生成玩家专属管理员凭据文件。
 
 ## HTTP 调用流
 

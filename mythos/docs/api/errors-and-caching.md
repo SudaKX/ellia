@@ -33,6 +33,7 @@ Bearer 认证失败不会主动发送 `WWW-Authenticate`。框架也不会移除
 | `insufficient-credits` | Insufficient credits | `409` | VTB 余额不足 |
 | `hint-content-version-mismatch` | Hint content is stale | `412` | Hint content token 已过期 |
 | `invalid-request` | Invalid request | `422` | 请求格式或字段校验失败；携带 `errors` 扩展 |
+| `validation-rejected` | Validation rejected | `409` | Validation Handler 通过领域 `reject(reason, details)` 拒绝当前尝试 |
 | `internal-error` | Internal server error | `500` | 未预期服务端错误；不暴露内部异常细节 |
 
 | 状态 | 通用含义 | 前端动作 |

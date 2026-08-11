@@ -11,14 +11,14 @@ from mythos.auth.dependencies import get_current_player
 from mythos.auth.tokens import PlayerIdentity
 from mythos.commands import (
     CachedResponse,
-    CommandRejected,
     RequestInProgressError,
     RequestReplayForbiddenError,
     ResponseFormatError,
     ResponseSpec,
 )
 from mythos.core.dependencies import get_runtime, get_session
-from mythos.core.followups import FollowupFormatError
+from mythos.core.exceptions import ValidationRejected
+from mythos.core.problems import ApiProblem, ProblemType
 from mythos.core.runtime import ApplicationRuntime
 from mythos.players.loader import PlayerNotFoundError
 from mythos.players.interfaces import ProgressTransitionError
@@ -65,15 +65,26 @@ async def submit_attempt(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Request-ID belongs to another player.") from error
     except PlayerNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player progress not found.") from error
-    except CommandRejected as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    except ValidationRejected as error:
+        raise ApiProblem(
+            ProblemType.VALIDATION_REJECTED,
+            status=status.HTTP_409_CONFLICT,
+            title="Validation rejected",
+            detail=error.reason,
+            extensions={"details": error.details} if error.details else {},
+        ) from error
     except ProgressTransitionError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
-    except (FollowupFormatError, ResponseFormatError) as error:
+    except ResponseFormatError as error:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Validation handler failed.") from error
     return _command_response(result)
 
 
 async def _submit_response(runtime, context, attempt, payload) -> ResponseSpec:
-    outcome = await runtime.services.validations.submit(context, attempt, payload)
+    outcome = await runtime.services.validations.submit(
+        context.player,
+        attempt,
+        payload,
+        scope=context.scope,
+    )
     return ResponseSpec(status_code=200, body={"accepted": outcome.accepted}, headers={})
