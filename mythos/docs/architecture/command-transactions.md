@@ -13,9 +13,12 @@ Endpoint -> JWT identity + AsyncSession
   -> RequestCache lease(Request-ID, player)
   -> Task transaction (普通写命令默认开启)
        -> ContextScope.http()
-       -> TaskService.run_itx(..., scope)
-       -> TaskContext -> Task Handler -> nested savepoint / hooks
-       -> commit
+        -> PlayerLoader lock/load writable Player once
+        -> one Task batch savepoint
+        -> PipelinedTransaction -> TaskService.run_loaded(...)
+        -> TaskContext -> all Task Handlers
+        -> one ordered pre-commit hook phase
+        -> commit
   -> Operation transaction
        -> PlayerLoader.lock/load writable Player
         -> CommandContext(scope) -> Domain Service / module handler
@@ -40,10 +43,10 @@ Endpoint -> JWT identity + AsyncSession
 - `POST /api/v1/vac/login`
 - `POST /api/v1/vac/logout`
 
-`POST /api/v1/tasks/process` 使用 `TaskCommandExecutor`，在一个 Task transaction 内运行 `TaskService.run_itx()` 并返回 `TaskRunReport`；它不经过普通 Player Operation Pipeline，也不会重复执行 Task phase。以上端点均要求 Bearer JWT 和 UUID `Request-ID` 请求头。
+`POST /api/v1/tasks/process` 使用 `TaskCommandExecutor`，由前端决定调用时机，在一个 Task transaction 内锁定并加载 Player、创建一个 Task batch savepoint、运行 `PipelinedTransaction` 和 `TaskService.run_loaded()`，成功后返回 `TaskRunReport`；它不经过普通 Player Operation Pipeline，也不会重复执行 Task phase。Auth 的 register、login、logout 和 refresh 由 Auth Workflow 直接执行，不包含 Task phase；logout 不调用 `/tasks/process`。以上需要 Request-ID 的 HTTP 命令均要求 Bearer JWT 和 UUID `Request-ID` 请求头。
 
 ## Hook、Example 与限制
 
-当前唯一 hook 是 `ProgressCheckpointHook`：它把已暂存 checkpoint 写入本地 JSON，并增加 `PlayerProgressCheckpoint` ORM 记录。普通 Operation 和 Task Handler 都可以触发该 Hook；TaskService 在成功 Handler 的保存点内刷新 Hook。Example 的 validation handler 在 Operation transaction 内推进 `example.completed` 并生成 Artifact；对象上传先于 SQL 提交，因此回滚可能留下对象存储孤儿。
+当前唯一 hook 是 `ProgressCheckpointHook`：它把已暂存 checkpoint 写入本地 JSON，并增加 `PlayerProgressCheckpoint` ORM 记录。普通 Operation 和 Task Handler 都可以触发该 Hook；Task CommandExecutor 在所有 Task Handler 成功后统一刷新 Hook。Example 的 validation handler 在 Operation transaction 内推进 `example.completed` 并生成 Artifact；对象上传先于 SQL 提交，因此回滚可能留下对象存储孤儿。
 
 HTTP Router 位于 `mythos.endpoints`，由 `endpoints.router` 聚合后挂载。Service 和内部 Workflow 不依赖 FastAPI Router、RequestCache 或 Endpoint Executor；共享 `PipelinedTransaction` 不保存 request-specific scope。相关对象：`ContextScope`、`CommandContext`、`TaskContext`、`ResponseSpec`、`CachedResponse`、`RequestCache`、`PlayerLoader`、`PipelinedTransaction`、`PendingCheckpoint`。相关实现：`commands/`、`endpoints/`、`core/followups.py`、`services/progress/checkpoint_hook.py`。

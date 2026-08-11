@@ -31,8 +31,8 @@
 
 #### Scenario: Nested workflow reuses an outer transaction
 
-- **WHEN** Auth Workflow 在已有认证 transaction 内调用 TaskService 或其他 Service
-- **THEN** 内部执行 SHALL 直接复用当前 transaction，不得开启独立 transaction 或提前提交认证变更
+- **WHEN** 内部 Workflow 在已有 transaction 内调用 Domain Service
+- **THEN** 内部执行 SHALL 直接复用当前 transaction，不得开启独立 transaction 或提前提交调用方变更；Auth Workflow SHALL NOT 自动调用 Task phase
 
 ### Requirement: PlayerLoader centralizes locking and loading
 
@@ -43,14 +43,14 @@
 - **WHEN** 可写 Workflow 请求加载玩家状态
 - **THEN** PlayerLoader SHALL 在加载可变 Player Interface 前锁定对应 PlayerRecord 行
 
-#### Scenario: Task retry reloads a fresh Player aggregate
+#### Scenario: Task batch uses one loaded Player aggregate
 
-- **WHEN** Task Handler savepoint 回滚后需要继续处理后续任务
-- **THEN** TaskService SHALL 通过同一 PlayerLoader 重载反映当前 transaction 状态的新 Player
+- **WHEN** CommandExecutor 开始 Task transaction
+- **THEN** CommandExecutor SHALL 通过 PlayerLoader 锁定并加载一个 Player，TaskService SHALL 在该 Player 上执行整个 batch，不得在 Handler 之间重载 Player
 
 ### Requirement: Domain Services are transaction-neutral
 
-TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 Player 上执行 ORM/PlayerInterface 写操作，但 SHALL NOT 自行管理外层 transaction、Request-ID 缓存、HTTP 响应或 Endpoint 专用 Context。TaskService SHALL 提供事务内 `run_itx(session, player_id, scope)` 入口；scope SHALL 只承载 per-call 的 transport-neutral Followup sink，并 SHALL NOT 要求 HTTP CommandContext。该入口 SHALL 只参与调用方已有 transaction。它们 SHALL 能被 Endpoint Command 和非 HTTP Workflow 复用。
+TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 Player 上执行 ORM/PlayerInterface 写操作，但 SHALL NOT 自行管理外层 transaction、Request-ID 缓存、HTTP 响应、Player 锁或 Endpoint 专用 Context。TaskService SHALL 提供接收调用方已加载 Player 的批次入口；scope SHALL 只承载 per-call 的 transport-neutral Followup sink，并 SHALL NOT 要求 HTTP CommandContext。Task 批次的 Pipeline、Player 加载、锁和 batch savepoint SHALL 由 CommandExecutor 或明确的 Workflow 组织。
 
 #### Scenario: Service mutation participates in the caller transaction
 
@@ -59,8 +59,8 @@ TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 
 
 #### Scenario: Service is reused by an internal workflow
 
-- **WHEN** Auth Workflow 或 reconciliation 调用 TaskService
-- **THEN** TaskService SHALL 使用 silent scope 或调用方提供的 transport-neutral scope 执行领域逻辑，而不要求 Request-ID、HTTP CommandContext 或 ResponseSpec
+- **WHEN** 非 Auth 的内部 Workflow 明确调用 TaskService
+- **THEN** Workflow SHALL 提供已加载 Player 和 silent 或调用方提供的 transport-neutral scope 执行领域逻辑，而不要求 Request-ID、HTTP CommandContext 或 ResponseSpec；Auth Workflow SHALL 只执行认证和生命周期逻辑
 
 ### Requirement: EndpointCommandExecutor owns HTTP command concerns
 
@@ -78,17 +78,22 @@ TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 
 
 ### Requirement: Pipeline phases are composable and domain-neutral
 
-系统 SHALL 提供不拥有 transaction 的 `PipelinedTransaction`，至少支持 Player Operation、可选的 post-operation phase 和有序 pre-commit hooks。所有 operation、phase 和 hook SHALL 直接接收当前 `session` 与 `player`，不得创建或传递 `PipelineContext`。跨 Task transaction 与 Operation transaction 的组合 SHALL 由 EndpointCommandExecutor 或内部 Workflow 显式编排。Pipeline SHALL NOT 暴露任意客户端可调用的 Callback 路由。
+系统 SHALL 提供不拥有 transaction 的 `PipelinedTransaction`，至少支持 Player Operation、可选的 post-operation phase 和有序 pre-commit hooks。所有 operation、phase 和 hook SHALL 直接接收当前 `session` 与 `player`，不得创建或传递 `PipelineContext`。Task transaction 的 Player 加载、单个 batch savepoint、Pipeline 执行和失败计数 SHALL 由 EndpointCommandExecutor 或 TaskCommandExecutor 显式编排；跨 Task transaction 与 Operation transaction 的组合 SHALL 由 EndpointCommandExecutor 或明确的内部 Workflow 显式编排。Pipeline SHALL NOT 暴露任意客户端可调用的 Callback 路由。
 
 #### Scenario: Task phase precedes a normal operation
 
 - **WHEN** EndpointCommandExecutor 执行需要惰性 Task 的普通写命令
-- **THEN** Executor SHALL 在业务 Operation transaction 前执行并提交 Task phase，再在新的 Operation transaction 中调用单 transaction Pipeline
+- **THEN** Executor SHALL 在业务 Operation transaction 前锁定并加载一次 Player，创建一个 Task batch savepoint，通过 Pipeline 执行 Task phase；Task phase 成功后提交 Task transaction，再在新的 Operation transaction 中重新加载 Player 并调用单 transaction Pipeline
+
+#### Scenario: Auth Workflow does not include Task phase
+
+- **WHEN** Auth Workflow 执行注册、登录、登出或 refresh
+- **THEN** Workflow SHALL 不调用 TaskService，不创建 Task batch savepoint；前端可以在认证成功后使用独立 Request-ID 请求 `/api/v1/tasks/process`，登出不得调用该接口
 
 #### Scenario: Achievement phase runs after the operation
 
 - **WHEN** 后续 AchievementChecker 被配置为 post-operation phase
-- **THEN** Checker SHALL 看到当前 Operation 产生的 Player 状态，并在同一 Operation transaction 中执行 effect 和 unlock
+- **THEN** EndpointCommandExecutor SHALL 在 Operation transaction 提交后，以独立的 Achievement Check/Effect transaction 执行 Checker；Achievement transaction 失败 SHALL 生成 warning 而不回滚已提交的 Operation
 
 #### Scenario: Runtime reuses one configured pipeline
 
@@ -97,12 +102,12 @@ TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 
 
 ### Requirement: Task-only commands use a domain-specific adapter
 
-系统 SHALL 允许 Task-only HTTP 命令通过 Task 专用命令适配器执行。该适配器 SHALL 复用独立的 Request-ID 和原生 Session transaction 基础设施，调用 TaskService，且 SHALL NOT 伪装成普通 Player Operation 或重复执行 Task phase。
+系统 SHALL 允许 Task-only HTTP 命令通过 Task 专用命令适配器执行。该适配器 SHALL 复用独立的 Request-ID、PlayerLoader、单个 batch savepoint 和原生 Session transaction 基础设施，调用已加载 Player 上的 TaskService 批次入口，且 SHALL NOT 伪装成普通 Player Operation 或重复执行 Task phase。
 
 #### Scenario: Explicit task processing returns a task report
 
 - **WHEN** 已认证玩家使用新的 Request-ID 请求 `POST /api/v1/tasks/process`
-- **THEN** Task command adapter SHALL 在一个 Task transaction 中运行 TaskService，并返回 TaskRunReport
+- **THEN** Task command adapter SHALL 在一个 Task transaction 中锁定并加载 Player、运行一个 Task batch savepoint 和 TaskService，并在成功时返回 TaskRunReport
 
 #### Scenario: Task processing replay is cached
 

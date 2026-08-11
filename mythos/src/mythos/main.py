@@ -79,9 +79,7 @@ def create_app(
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
         pipelined_transaction = PipelinedTransaction(pre_commit_hooks=(checkpoint_hook,))
         task_service = TaskService(
-            player_loader,
             catalogs.tasks,
-            (checkpoint_hook,),
             pre_commit_interfaces=PlayerInterfaces.PROGRESS,
         )
         request_cache = RequestCache(
@@ -94,7 +92,12 @@ def create_app(
             pipelined_transaction,
             task_service=task_service,
         )
-        task_command_executor = TaskCommandExecutor(task_service, request_cache)
+        task_command_executor = TaskCommandExecutor(
+            player_loader,
+            task_service,
+            request_cache,
+            pipelined_transaction,
+        )
         lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
         await ArtifactReconciliationRunner(
             database.session_factory,

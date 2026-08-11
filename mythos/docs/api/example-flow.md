@@ -26,6 +26,6 @@ POST /auth/register 或 /auth/login
 
 初始只有 `/public` 可见。Guest 登录后可提交 `echo-7`；成功后动态 `/archive` 包含玩家专属 `ADMIN_ACCESS.txt`，其 token 使用 `act3_`。Administrator 登录后 `/admin/CONTROL.txt` 可见。相同 Request-ID 用于网络重试，成功后新的用户提交使用新的 ID。
 
-Example 的两个公开 Hint 在认证后可见，价格为 2 和 3 VTB；完成 Echo 后第三个价格为 5 VTB 的 Hint 出现。开发/测试新玩家注册后初始拥有 5 VTB；第一次认证写操作、logout 或显式任务处理会惰性触发 `example.vtb-allowance`，按当前余额最多补发 5 VTB。之后任务按已到期的 60 秒周期补发，每次任务发放后的余额不超过 10 VTB。测试界面通过 `GET /api/v1/tasks` 展示 `time_2`、倒计时和 meta；倒计时到期只标记任务可处理，不自动请求，主动控件使用 `POST /api/v1/tasks/process`。
+Example 的两个公开 Hint 在认证后可见，价格为 2 和 3 VTB；完成 Echo 后第三个价格为 5 VTB 的 Hint 出现。开发/测试新玩家注册后初始拥有 5 VTB；Auth 的注册、登录和 logout 不执行任务，前端在需要时主动调用 `POST /api/v1/tasks/process`，非 Auth 已认证写操作仍按普通命令规则处理 `example.vtb-allowance`。任务按当前余额最多补发 5 VTB，之后按已到期的 60 秒周期补发，每次任务发放后的余额不超过 10 VTB。测试界面通过 `GET /api/v1/tasks` 展示 `time_2`、倒计时和 meta；倒计时到期只标记任务可处理，不自动请求，主动控件使用 `POST /api/v1/tasks/process`。
 
 Example 页面不会读取 `/files/tree` 或 `/files/version` 来展示文件，因为二者不包含 Artifact。完整系统行为见 [Example 模块](../modules/example.md)。

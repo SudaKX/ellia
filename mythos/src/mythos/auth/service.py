@@ -36,7 +36,6 @@ from mythos.persistence.models import (
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.lifecycle import PlayerConstructEvent
 from mythos.services.lifecycle import PlayerLifecycleDispatcher
-from mythos.services.tasks.service import TaskService
 from mythos.players.loader import PlayerLoader
 from mythos.players.context import PlayerLifecycleContext
 from mythos.players.interfaces import PlayerInterfaces
@@ -79,7 +78,6 @@ class AuthService:
         settings: Settings,
         progress_graph: ProgressGraph,
         player_loader: PlayerLoader,
-        task_service: TaskService,
         lifecycle_dispatcher: PlayerLifecycleDispatcher,
         pipelined_transaction: PipelinedTransaction,
     ) -> None:
@@ -87,7 +85,6 @@ class AuthService:
         self.settings = settings
         self.progress_graph = progress_graph
         self.player_loader = player_loader
-        self.task_service = task_service
         self.lifecycle_dispatcher = lifecycle_dispatcher
         self.pipelined_transaction = pipelined_transaction
 
@@ -123,7 +120,6 @@ class AuthService:
                 await self.session.flush()
                 self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
                 await self.session.flush()
-                await self.task_service.run_itx(self.session, player.id, scope)
                 await self._construct(player, "registration", scope=scope)
         except IntegrityError as error:
             if "players.username_normalized" in str(error).lower():
@@ -154,7 +150,6 @@ class AuthService:
             if not is_valid:
                 raise InvalidCredentialsError
 
-            await self.task_service.run_itx(self.session, player.id, scope)
             await self._construct(player, "first_login", scope=scope)
 
             credential = create_refresh_credential()
@@ -231,7 +226,6 @@ class AuthService:
 
     async def logout(self, player_id: UUID) -> None:
         async with self.session.begin():
-            await self.task_service.run_itx(self.session, player_id, ContextScope.silent())
             await self.session.execute(
                 update(PlayerAuth)
                 .where(PlayerAuth.player_id == player_id)

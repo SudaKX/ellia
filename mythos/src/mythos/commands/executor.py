@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,9 +15,40 @@ from mythos.players.context import CommandContext
 from mythos.players.loader import PlayerLoader
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
+from mythos.services.tasks.service import TaskHandlerFailure, TaskRunReport, TaskService
 
-if TYPE_CHECKING:
-    from mythos.services.tasks.service import TaskService, TaskRunReport
+
+@dataclass(frozen=True, slots=True)
+class _TaskPhaseResult:
+    report: TaskRunReport | None = None
+    failure: TaskHandlerFailure | None = None
+
+
+async def _run_task_phase(
+    session: AsyncSession,
+    player_loader: PlayerLoader,
+    task_service: TaskService,
+    pipeline: PipelinedTransaction,
+    player_id: UUID,
+    scope: ContextScope,
+) -> _TaskPhaseResult:
+    player = await player_loader.load_writable(
+        session,
+        player_id,
+        interfaces=PlayerInterfaces.TASKS,
+    )
+    report: TaskRunReport | None = None
+    failure: TaskHandlerFailure | None = None
+    try:
+        async with session.begin_nested():
+            async def task_operation(_session: AsyncSession, current_player: Player) -> TaskRunReport:
+                return await task_service.run_loaded(_session, current_player, scope)
+
+            report = await pipeline.run(session, player, task_operation)
+    except TaskHandlerFailure as error:
+        await task_service.record_handler_failure(session, error.player_id, error.task_id)
+        failure = error
+    return _TaskPhaseResult(report=report, failure=failure)
 
 
 class EndpointCommandExecutor:
@@ -47,9 +78,12 @@ class EndpointCommandExecutor:
             if lease.replay is not None:
                 return lease.replay
             scope = ContextScope.http()
+            task_result: _TaskPhaseResult | None = None
             if run_task_phase:
                 async with session.begin():
-                    await self._run_tasks_itx(session, identity.player_id, scope)
+                    task_result = await self._run_tasks_itx(session, identity.player_id, scope)
+                if task_result.failure is not None:
+                    raise task_result.failure
             async with session.begin():
                 completed = await self._execute_operation_itx(
                     session,
@@ -67,10 +101,17 @@ class EndpointCommandExecutor:
         session: AsyncSession,
         player_id: UUID,
         scope: ContextScope,
-    ) -> TaskRunReport:
+    ) -> _TaskPhaseResult:
         if self._task_service is None:
             raise RuntimeError("Task execution is not configured.")
-        return await self._task_service.run_itx(session, player_id, scope)
+        return await _run_task_phase(
+            session,
+            self._player_loader,
+            self._task_service,
+            self._pipeline,
+            player_id,
+            scope,
+        )
 
     async def _execute_operation_itx(
         self,
@@ -126,9 +167,17 @@ class EndpointCommandExecutor:
 class TaskCommandExecutor:
     """Adapt the transaction-neutral TaskService to the task HTTP endpoint."""
 
-    def __init__(self, task_service: TaskService, request_cache: RequestCache) -> None:
+    def __init__(
+        self,
+        player_loader: PlayerLoader,
+        task_service: TaskService,
+        request_cache: RequestCache,
+        pipeline: PipelinedTransaction,
+    ) -> None:
+        self._player_loader = player_loader
         self._task_service = task_service
         self._request_cache = request_cache
+        self._pipeline = pipeline
 
     async def execute(
         self,
@@ -140,9 +189,21 @@ class TaskCommandExecutor:
             if lease.replay is not None:
                 return lease.replay
             scope = ContextScope.http()
+            task_result: _TaskPhaseResult
             async with session.begin():
-                report = await self._task_service.run_itx(session, identity.player_id, scope)
-                response = self._response(identity.player_id, report, scope)
+                task_result = await _run_task_phase(
+                    session,
+                    self._player_loader,
+                    self._task_service,
+                    self._pipeline,
+                    identity.player_id,
+                    scope,
+                )
+            if task_result.failure is not None:
+                raise task_result.failure
+            if task_result.report is None:
+                raise RuntimeError("Task phase completed without a report.")
+            response = self._response(identity.player_id, task_result.report, scope)
             lease.complete(response)
             return response
 

@@ -22,7 +22,7 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 
 ## HTTP 调用流
 
-注册事务中的 Construct 回调先发放 Guest，并在 development/test 演示模式发放一次性 5 VTB，同时创建 `example.vtb-allowance` 任务。任务不会在后台运行；登录、已认证写操作、logout 或 `POST /api/v1/tasks/process` 等现有触发点处理任务。首次有效处理按当前余额最多补发 5 VTB，之后每个已到期的 60 秒周期补发 1 VTB，任务发放后的余额不超过 10 VTB。任务使用 `time_2` 保存下一次到期时间，使用 JSON `meta` 保存 schema 版本、首次奖励标志、累计发放量和最近发放时间。客户端认证后并行读取 `/credits`、`/tasks` 与其他 workspace 数据，在“自动恢复”区域展示任务状态、下一次到期、倒计时和 meta；倒计时只用于展示，不会自动调用处理接口。顶部“刷新”只重新读取状态，`立即处理` 才调用 `POST /api/v1/tasks/process`。购买成功后通过 Hint content URL 读取提示正文。客户端从 `/public/GUEST_ACCESS.txt` 读取凭据并调用 `/vac/login`，才可看到 Echo 脚本并提交答案。Guest 完成 Echo 后，命令事务推进 progress、发放 Administrator、写 checkpoint、生成 `/archive/ADMIN_ACCESS.txt`，并使 gated Hint 出现在 Hint 列表中。登录 Administrator 后 `/admin/CONTROL.txt` 可读。
+注册事务中的 Construct 回调先发放 Guest，并在 development/test 演示模式发放一次性 5 VTB，同时创建 `example.vtb-allowance` 任务。任务不会在后台运行；Auth 的注册、登录和 logout 不处理任务，前端在需要时调用 `POST /api/v1/tasks/process`，非 Auth 已认证写操作仍按普通命令规则处理任务。首次有效处理按当前余额最多补发 5 VTB，之后每个已到期的 60 秒周期补发 1 VTB，任务发放后的余额不超过 10 VTB。任务使用 `time_2` 保存下一次到期时间，使用 JSON `meta` 保存 schema 版本、首次奖励标志、累计发放量和最近发放时间。客户端认证后并行读取 `/credits`、`/tasks` 与其他 workspace 数据，在“自动恢复”区域展示任务状态、下一次到期、倒计时和 meta；倒计时只用于展示，不会自动调用处理接口。顶部“刷新”只重新读取状态，`立即处理` 才调用 `POST /api/v1/tasks/process`。购买成功后通过 Hint content URL 读取提示正文。客户端从 `/public/GUEST_ACCESS.txt` 读取凭据并调用 `/vac/login`，才可看到 Echo 脚本并提交答案。Guest 完成 Echo 后，命令事务推进 progress、发放 Administrator、写 checkpoint、生成 `/archive/ADMIN_ACCESS.txt`，并使 gated Hint 出现在 Hint 列表中。登录 Administrator 后 `/admin/CONTROL.txt` 可读。
 
 ## 测试与重要限制
 

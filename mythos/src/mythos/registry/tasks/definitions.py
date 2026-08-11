@@ -14,10 +14,6 @@ if TYPE_CHECKING:
 TaskHandler: TypeAlias = Callable[["TaskContext"], Awaitable[None]]
 
 
-class TaskHandlerError(Exception):
-    """A recoverable task failure whose savepoint can be rolled back."""
-
-
 @dataclass(frozen=True, slots=True)
 class TaskDefinition:
     task_id: str

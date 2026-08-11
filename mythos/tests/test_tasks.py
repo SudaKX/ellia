@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from _helpers.object_store import FakeObjectStore
 from mythos.auth.tokens import PlayerIdentity
-from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, ResponseSpec
+from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, ResponseSpec, TaskCommandExecutor
 from mythos.core.config import Settings
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.followups import ContextScope, Followup
@@ -32,13 +33,12 @@ from mythos.players.interfaces import ReadOnlyTaskError, TaskMetaError
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
-from mythos.registry.tasks import TaskHandlerError
 from mythos.registry.tasks import TaskRegistry, TaskSnapshot
 from mythos.registry.errors import RegistryError
 from mythos.main import create_app
 from mythos.services.tasks import (
     TaskCatalogEmptyError,
-    TaskRunStatus,
+    TaskHandlerFailure,
     TaskService,
     TaskReconciliationRunner,
     TaskSnapshotError,
@@ -86,10 +86,44 @@ async def _seed_player(session, *, task_ids: tuple[str, ...]) -> tuple[object, o
     return player_id, progress
 
 
-def _executor(registries: RegistryBundle) -> TaskService:
+@dataclass(frozen=True)
+class _TaskExecutor:
+    loader: PlayerLoader
+    service: TaskService
+
+    async def run_itx(self, session, player_id, scope=None):
+        player = await self.loader.load_writable(
+            session,
+            player_id,
+            interfaces=PlayerInterfaces.TASKS,
+        )
+        return await self.service.run_loaded(session, player, scope)
+
+
+def _executor(registries: RegistryBundle) -> _TaskExecutor:
     catalogs = registries.freeze(_FILE_IDS)
     loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
-    return TaskService(loader, catalogs.tasks)
+    return _TaskExecutor(loader, TaskService(catalogs.tasks))
+
+
+def _task_command(
+    registries: RegistryBundle,
+    *,
+    pre_commit_hooks: tuple[object, ...] = (),
+) -> TaskCommandExecutor:
+    catalogs = registries.freeze(_FILE_IDS)
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    service = TaskService(
+        catalogs.tasks,
+        pre_commit_interfaces=PlayerInterfaces.PROGRESS if pre_commit_hooks else PlayerInterfaces.NONE,
+    )
+    pipeline = PipelinedTransaction(pre_commit_hooks=pre_commit_hooks)
+    return TaskCommandExecutor(
+        loader,
+        service,
+        RequestCache(maxsize=4, ttl_seconds=60),
+        pipeline,
+    )
 
 
 def test_task_registry_freezes_handler_identity_and_snapshot() -> None:
@@ -225,20 +259,20 @@ async def test_task_service_silent_scope_discards_best_effort_followups(session)
     assert scope.to_json() == []
 
 
-async def test_task_handler_error_rolls_back_followups(session) -> None:
+async def test_task_handler_error_rolls_back_batch_and_records_exception(session) -> None:
     async def handler(context) -> None:
         context.follow(Followup(action="rolled-back", data={}))
-        raise TaskHandlerError("expected failure")
+        raise RuntimeError("expected failure")
 
     registries = _registries(("test.followup-failure", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.followup-failure",))
-    scope = ContextScope.http()
+    executor = _task_command(registries)
 
-    async with session.begin():
-        report = await _executor(registries).run_itx(session, player_id, scope)
+    with pytest.raises(TaskHandlerFailure):
+        await executor.execute(session, PlayerIdentity(player_id), uuid4())
 
-    assert report.runs[0].status is TaskRunStatus.FAILURE
-    assert scope.to_json() == []
+    state = await session.get(PlayerTaskState, (player_id, "test.followup-failure"))
+    assert state is not None and state.exception == 1 and state.time_1 is None
 
 
 async def test_task_executor_updates_context_state_and_time(session) -> None:
@@ -264,31 +298,30 @@ async def test_task_executor_updates_context_state_and_time(session) -> None:
     assert credits is not None and credits.vtb == 3
 
 
-async def test_handler_error_rolls_back_and_reloads_player_for_next_task(session) -> None:
+async def test_handler_error_rolls_back_entire_batch_and_stops(session) -> None:
     async def failing(context) -> None:
         await context.player.credits.grant_vtb(10)
-        raise TaskHandlerError("expected failure")
+        raise RuntimeError("unexpected Handler failure")
 
     async def succeeding(context) -> None:
         await context.player.credits.grant_vtb(2)
 
     registries = _registries(("test.failed", failing), ("test.success", succeeding))
     player_id, _ = await _seed_player(session, task_ids=("test.failed", "test.success"))
-    executor = _executor(registries)
+    executor = _task_command(registries)
 
-    async with session.begin():
-        report = await executor.run_itx(session, player_id)
+    with pytest.raises(TaskHandlerFailure):
+        await executor.execute(session, PlayerIdentity(player_id), uuid4())
 
     states = {
         state.task_id: state
         for state in (await session.scalars(select(PlayerTaskState).where(PlayerTaskState.player_id == player_id))).all()
     }
     credits = await session.get(PlayerCredits, player_id)
-    assert [run.status.value for run in report.runs] == ["failure", "success"]
     assert states["test.failed"].exception == 1
     assert states["test.failed"].time_1 is None
-    assert states["test.success"].time_1 is not None
-    assert credits is not None and credits.vtb == 2
+    assert states["test.success"].time_1 is None
+    assert credits is not None and credits.vtb == 0
 
 
 async def test_defer_preserves_time_1(session) -> None:
@@ -365,7 +398,7 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
     player_id, _ = await _seed_player(session, task_ids=("test.task",))
     catalogs = registries.freeze(_FILE_IDS)
     loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
-    task_service = TaskService(loader, catalogs.tasks)
+    task_service = TaskService(catalogs.tasks)
     executor = EndpointCommandExecutor(
         loader,
         RequestCache(maxsize=4, ttl_seconds=60),
@@ -403,7 +436,7 @@ async def test_endpoint_execute_replay_does_not_rerun_tasks(session) -> None:
         loader,
         RequestCache(maxsize=4, ttl_seconds=60),
         PipelinedTransaction(),
-        task_service=TaskService(loader, catalogs.tasks),
+        task_service=TaskService(catalogs.tasks),
     )
     identity = PlayerIdentity(player_id=player_id)
     request_id = uuid4()
@@ -506,14 +539,17 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
     asyncio.run(scenario())
 
 
-def test_login_task_failure_rolls_back_auth_mutations(tmp_path) -> None:
+def test_login_does_not_process_tasks(tmp_path) -> None:
     async def scenario() -> None:
+        calls = 0
         registries = RegistryBundle()
         registries.progress.register(NormalProgressNode("start", (), is_entry=True))
 
         @registries.tasks.task("test.auth-failure")
         async def handler(_context) -> None:
-            raise RuntimeError("task infrastructure failed")
+            nonlocal calls
+            calls += 1
+            raise RuntimeError("task handler should not run during login")
 
         settings = Settings(
             environment="test",
@@ -547,25 +583,26 @@ def test_login_task_failure_rolls_back_auth_mutations(tmp_path) -> None:
                     session.add(PlayerTaskState(player_id=player_id, task_id="test.auth-failure", meta="{}"))
                     await session.commit()
 
-                failed_login = await client.post(
+                login_response = await client.post(
                     "/api/v1/auth/login",
                     json={"username": "auth-task-player", "password": "correct-horse-battery"},
                 )
-                assert failed_login.status_code == 500
+                assert login_response.status_code == 200
+                assert calls == 0
 
                 async with app.state.database.session_factory() as session:
                     auth_after = await session.get(PlayerAuth, player_id)
                     assert auth_after is not None
-                    assert auth_after.refresh_selector == auth_before.refresh_selector
-                    assert auth_after.refresh_secret_hash == auth_before.refresh_secret_hash
-                    assert auth_after.refresh_rotated_at == auth_before.refresh_rotated_at
+                    assert auth_after.refresh_selector != auth_before.refresh_selector
+                    assert auth_after.refresh_secret_hash != auth_before.refresh_secret_hash
+                    assert auth_after.refresh_rotated_at != auth_before.refresh_rotated_at
 
     import asyncio
 
     asyncio.run(scenario())
 
 
-def test_logout_processes_authenticated_player_tasks(tmp_path) -> None:
+def test_logout_does_not_process_authenticated_player_tasks(tmp_path) -> None:
     async def scenario() -> None:
         calls = 0
         registries = RegistryBundle()
@@ -607,11 +644,11 @@ def test_logout_processes_authenticated_player_tasks(tmp_path) -> None:
 
                 logged_out = await client.post("/api/v1/auth/logout", headers=headers)
                 assert logged_out.status_code == 204
-                assert calls == 1
+                assert calls == 0
 
                 async with app.state.database.session_factory() as session:
                     task = await session.get(PlayerTaskState, (player_id, "test.logout-task"))
-                    assert task is not None and task.time_1 is not None
+                    assert task is not None and task.time_1 is None
 
     import asyncio
 
@@ -794,14 +831,20 @@ async def test_task_executor_runs_checkpoint_hook_inside_task_transaction(tmp_pa
         await session.commit()
         loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
         hook = ProgressCheckpointHook(LocalCheckpointStore(tmp_path / "checkpoints"))
-        executor = TaskService(
+        executor = TaskCommandExecutor(
             loader,
-            catalogs.tasks,
-            (hook,),
-            pre_commit_interfaces=PlayerInterfaces.PROGRESS,
+            TaskService(
+                catalogs.tasks,
+                pre_commit_interfaces=PlayerInterfaces.PROGRESS,
+            ),
+            RequestCache(maxsize=4, ttl_seconds=60),
+            PipelinedTransaction(pre_commit_hooks=(hook,)),
         )
-        async with session.begin():
-            await executor.run_itx(session, player_id)
+        await executor.execute(
+            session,
+            PlayerIdentity(player_id),
+            uuid4(),
+        )
 
         progress = await session.get(PlayerProgress, player_id)
         checkpoint = await session.get(PlayerProgressCheckpoint, (player_id, 0))
@@ -822,11 +865,15 @@ async def test_task_hook_failure_rolls_back_task_transaction(session) -> None:
     player_id, _ = await _seed_player(session, task_ids=("test.hook-failure",))
     catalogs = registries.freeze(_FILE_IDS)
     loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
-    executor = TaskService(loader, catalogs.tasks, (failing_hook,))
+    executor = TaskCommandExecutor(
+        loader,
+        TaskService(catalogs.tasks),
+        RequestCache(maxsize=4, ttl_seconds=60),
+        PipelinedTransaction(pre_commit_hooks=(failing_hook,)),
+    )
 
     with pytest.raises(RuntimeError, match="hook failed"):
-        async with session.begin():
-            await executor.run_itx(session, player_id)
+        await executor.execute(session, PlayerIdentity(player_id), uuid4())
 
     state = await session.get(PlayerTaskState, (player_id, "test.hook-failure"))
     assert state is not None and state.time_1 is None
