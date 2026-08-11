@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import type { DesktopApplication } from '@/types/desktop'
+import type { Privilege } from '@/registries/commands'
 
 const applications: DesktopApplication[] = [
   {
@@ -61,7 +62,8 @@ export const useDesktopStore = defineStore('desktop', () => {
   /** 在 Launchpad 中可见的应用（排除 hidden） */
   const visibleApplications = computed(() => applications.filter((app) => app.availability !== 'hidden'))
   const currentUser = ref('PLAYER')
-  const privilegeClass = ref('LIMITED')
+  /** 当前账号权限等级：LIMITED（玩家）| ADMIN（JDK 触发器管理员） */
+  const privilegeClass = ref<Privilege>('LIMITED')
   const accountType = ref<'player' | 'admin' | null>(null)
 
   // 锁定页状态

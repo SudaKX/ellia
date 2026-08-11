@@ -570,7 +570,7 @@ export function buildPlayerSnapshot(): PlayerSnapshot {
   const desktop = useDesktopStore()
   return {
     currentAccount: desktop.currentUser,
-    privilegeClass: desktop.privilegeClass as Privilege,
+    privilegeClass: desktop.privilegeClass,
   }
 }
 

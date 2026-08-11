@@ -7,9 +7,10 @@
  * ## 功能
  *
  * - 地址栏输入网址，回车或点"前往"加载
- * - **安全拦截**：危险协议（file:/data:/javascript: 等）、localhost、私有/内网
- *   IP 网段（含 127.1、0x7f000001、[::1] 等变形形式）一律不予放行，
- *   内容区显示"禁止访问"占位页（FakeOS 风格），不加载 iframe
+ * - **安全拦截（仅受限账号生效）**：危险协议（file:/data:/javascript: 等）、
+ *   localhost、私有/内网 IP 网段（含 127.1、0x7f000001、[::1] 等变形形式）
+ *   对 LIMITED 账号一律不予放行，内容区显示"禁止访问"占位页（FakeOS 风格）；
+ *   管理员（JDK 触发器，ADMIN）不受此限制
  * - 无协议输入自动补 `https://`
  *
  * ## 为什么拦截这些地址
@@ -17,7 +18,8 @@
  * 玩家浏览器若加载 localhost / 127.0.0.1 即可访问本机服务（如后端 API、
  * 开发者工具），这与"沙盒内玩家权限受限"的叙事冲突，也属于潜在越权面。
  * 判定逻辑集中在 useBrowserPolicy.ts（协议 → 主机名 → IP 网段三层），
- * 本组件只负责消费判定结果并呈现"禁止访问"演出。
+ * 是否启用拦截由当前账号权限（desktopStore.privilegeClass）决定，
+ * 与文件系统 / 终端共用同一套权限来源。
  *
  * ## 与 darksky 分支区别
  *
@@ -29,9 +31,11 @@ import { ShieldX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useFilterService } from '@/composables/useFilterService'
 import { evaluateBrowserAddress } from '@/composables/useBrowserPolicy'
+import { useDesktopStore } from '@/stores/desktop'
 
 const { t } = useI18n({ useScope: 'global' })
 const filterService = useFilterService()
+const desktop = useDesktopStore()
 
 /** 地址栏输入值 */
 const address = ref('https://example.com')
@@ -127,9 +131,9 @@ function normalizeUrl(raw: string): string {
 function navigate() {
   const raw = address.value
   if (!raw.trim()) return
-  // 安全拦截：危险协议 / localhost / 私有网段等一律走"禁止访问"演出
-  // （判定逻辑见 useBrowserPolicy.ts）
-  denied.value = !evaluateBrowserAddress(raw)
+  // 安全拦截仅对受限账号（LIMITED）生效；管理员（JDK 触发器，ADMIN）不受限。
+  // 判定逻辑见 useBrowserPolicy.ts
+  denied.value = desktop.privilegeClass === 'LIMITED' && !evaluateBrowserAddress(raw)
   if (denied.value) {
     currentSrc.value = ''
     playDeniedShow(t('browser.deniedTitle'))

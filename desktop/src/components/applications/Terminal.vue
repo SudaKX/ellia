@@ -63,7 +63,7 @@ import { inject, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Puzzle } from 'lucide-vue-next'
 
-import type { CommandContext, Privilege } from '@/registries/commands'
+import type { CommandContext } from '@/registries/commands'
 import { commandRegistry } from '@/registries/commands'
 import { puzzleRegistry } from '@/registries/puzzles'
 import { useDesktopStore } from '@/stores/desktop'
@@ -146,7 +146,7 @@ function stripHtmlMarker(line: string): string {
 function buildContext(): CommandContext {
   return {
     user: desktop.currentUser,
-    privilegeClass: desktop.privilegeClass as Privilege,
+    privilegeClass: desktop.privilegeClass,
     t: (key: string, params?: Record<string, string>) => t(key, params ?? {}),
     // 谜题窗口创建回调
     openPuzzleWindow: (puzzle) => {
