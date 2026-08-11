@@ -24,7 +24,7 @@ lifespan startup
   -> FileIdCodec、ObjectStore、Database
   -> StaticAssetPublisher 物化 Files/Hints 静态源
   -> RegistryBundle.freeze(file_ids)
-  -> PlayerLoader、checkpoint hook、EndpointCommandExecutor、TaskCommandExecutor、LifecycleDispatcher
+  -> PlayerLoader、checkpoint hook、AchievementService、EndpointCommandExecutor、AchievementCommandExecutor、TaskCommandExecutor、LifecycleDispatcher
   -> ArtifactReconciliationRunner
   -> AccountReconciliationRunner
   -> ApplicationRuntime 挂载到 app.state.runtime
@@ -57,6 +57,7 @@ Progress nodes
   -> ArtifactNodeTemplate
   -> Script
   -> ValidationAttempt
+  -> AchievementDefinition
 ```
 
 跨 Registry 的注册顺序由模块代码决定；RegistryBundle 不要求模块必须按照上述顺序注册。但 ArtifactNodeTemplate 必须指向已经注册的 ArtifactTemplate，当前 `ArtifactRegistry.register_node()` 会立即检查这一点。
@@ -99,6 +100,8 @@ validations -> ValidationCatalog
 accounts    -> VirtualAccountCatalog
 hints       -> HintCatalog
 lifecycle   -> LifecycleCatalog
+tasks       -> TaskCatalog
+achievements -> AchievementCatalog
 ```
 
 返回的 `RuntimeCatalogs` 是应用运行期使用的 Catalog 集合。Registry 在 freeze 后拒绝继续注册；Catalog 中的映射由构造时复制，运行期不再接受新的注册项。
@@ -109,7 +112,7 @@ Registry freeze 后继续创建：
 
 1. `PlayerLoader`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
 2. `LocalCheckpointStore` 和 `ProgressCheckpointHook`。
-3. `EndpointCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
+3. `AchievementService`、`EndpointCommandExecutor`、`AchievementCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
 4. `PlayerLifecycleDispatcher`。
 
 然后按顺序执行：

@@ -12,7 +12,13 @@ from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
-from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, TaskCommandExecutor
+from mythos.commands import (
+    AchievementCommandExecutor,
+    EndpointCommandExecutor,
+    PipelinedTransaction,
+    RequestCache,
+    TaskCommandExecutor,
+)
 from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.loader import PlayerLoader
@@ -86,15 +92,38 @@ def create_app(
             maxsize=resolved_settings.request_cache_maxsize,
             ttl_seconds=resolved_settings.request_cache_ttl_seconds,
         )
+        services = ServiceContainer.create(
+            catalogs.files,
+            catalogs.merged_files,
+            catalogs.hints,
+            catalogs.progress,
+            catalogs.scripts,
+            catalogs.validations,
+            resolved_object_store,
+            resolved_settings.file_content_url_ttl_seconds,
+            resolved_settings.file_content_cache_max_age_seconds,
+            resolved_settings.file_download_url_ttl_seconds,
+            checkpoint_store,
+            file_ids,
+            task_service,
+            catalogs.achievements,
+        )
         endpoint_executor = EndpointCommandExecutor(
             player_loader,
             request_cache,
             pipelined_transaction,
             task_service=task_service,
+            achievement_service=services.achievements,
         )
         task_command_executor = TaskCommandExecutor(
             player_loader,
             task_service,
+            request_cache,
+            pipelined_transaction,
+        )
+        achievement_command_executor = AchievementCommandExecutor(
+            player_loader,
+            services.achievements,
             request_cache,
             pipelined_transaction,
         )
@@ -126,23 +155,10 @@ def create_app(
         application.state.runtime = ApplicationRuntime(
             catalogs=catalogs,
             player_loader=player_loader,
-            services=ServiceContainer.create(
-                catalogs.files,
-                catalogs.merged_files,
-                catalogs.hints,
-                catalogs.progress,
-                catalogs.scripts,
-                catalogs.validations,
-                resolved_object_store,
-                resolved_settings.file_content_url_ttl_seconds,
-                resolved_settings.file_content_cache_max_age_seconds,
-                resolved_settings.file_download_url_ttl_seconds,
-                checkpoint_store,
-                file_ids,
-                task_service,
-            ),
+            services=services,
             object_store=resolved_object_store,
             endpoint_executor=endpoint_executor,
+            achievement_command_executor=achievement_command_executor,
             task_command_executor=task_command_executor,
             pipelined_transaction=pipelined_transaction,
             lifecycle_dispatcher=lifecycle_dispatcher,

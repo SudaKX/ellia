@@ -33,6 +33,8 @@ class ProblemType(StrEnum):
     HINT_UNAVAILABLE = "hint-unavailable"
     INSUFFICIENT_CREDITS = "insufficient-credits"
     HINT_CONTENT_VERSION_MISMATCH = "hint-content-version-mismatch"
+    ACHIEVEMENT_DELETED = "achievement-deleted"
+    ACHIEVEMENT_NOT_AVAILABLE = "achievement-not-available"
     INVALID_REQUEST = "invalid-request"
     VALIDATION_REJECTED = "validation-rejected"
     INTERNAL_ERROR = "internal-error"

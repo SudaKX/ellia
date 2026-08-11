@@ -1,4 +1,5 @@
 from mythos.persistence.models.auth import PlayerAuth
+from mythos.persistence.models.achievements import PlayerAchievementState
 from mythos.persistence.models.accounts import PlayerVirtualAccount, PlayerVirtualAccountState
 from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
 from mythos.persistence.models.credits import PlayerCredits
@@ -15,6 +16,7 @@ from mythos.persistence.models.tasks import PlayerTaskState
 
 __all__ = [
     "PlayerArtifact",
+    "PlayerAchievementState",
     "PlayerArtifactNode",
     "PlayerArtifactState",
     "PlayerAuth",

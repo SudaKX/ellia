@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from mythos.players.interfaces.accounts import AccountInterface
+from mythos.players.interfaces.achievements import AchievementInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.credits import CreditInterface
 from mythos.players.interfaces.hints import HintInterface
@@ -55,6 +56,7 @@ class Player:
         self._credits: CreditInterface | None = None
         self._hints: HintInterface | None = None
         self._tasks: TaskInterface | None = None
+        self._achievements: AchievementInterface | None = None
         self._file_tree_cache: PlayerFileTree | None = None
 
     @property
@@ -97,6 +99,12 @@ class Player:
             raise PlayerInterfaceNotLoadedError("tasks interface not loaded")
         return self._tasks
 
+    @property
+    def achievements(self) -> AchievementInterface:
+        if self._achievements is None:
+            raise PlayerInterfaceNotLoadedError("achievements interface not loaded")
+        return self._achievements
+
     async def load_interfaces(
         self,
         interfaces: PlayerInterfaces = PlayerInterfaces.ALL,
@@ -113,6 +121,8 @@ class Player:
             await self.load_hints()
         if PlayerInterfaces.TASKS in interfaces:
             await self.load_tasks()
+        if PlayerInterfaces.ACHIEVEMENTS in interfaces:
+            await self.load_achievements()
 
     async def load_progress(self) -> ProgressInterface:
         if self._progress is None:
@@ -173,6 +183,16 @@ class Player:
                 on_mutation=self.invalidate_cache,
             )
         return self._tasks
+
+    async def load_achievements(self) -> AchievementInterface:
+        if self._achievements is None:
+            self._achievements = await self._loader.load_achievements(
+                self._session,
+                self._player_id,
+                writable=self._writable,
+                on_mutation=self.invalidate_cache,
+            )
+        return self._achievements
 
     def invalidate_cache(self) -> None:
         self._file_tree_cache = None

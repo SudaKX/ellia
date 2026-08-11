@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.models import (
+    PlayerAchievementState,
     PlayerArtifact,
     PlayerCredits,
     PlayerHintDisclosure,
@@ -20,6 +21,7 @@ from mythos.persistence.models import (
     PlayerVirtualAccountState,
 )
 from mythos.players.interfaces.accounts import AccountInterface
+from mythos.players.interfaces.achievements import AchievementInterface
 from mythos.players.interfaces.artifacts import ArtifactInterface
 from mythos.players.interfaces.credits import CreditInterface
 from mythos.players.interfaces.hints import HintInterface
@@ -178,6 +180,31 @@ class PlayerLoader:
         return TaskInterface(
             player_id,
             self._catalogs.tasks,
+            session,
+            records,
+            writable=writable,
+            on_mutation=on_mutation,
+        )
+
+    async def load_achievements(
+        self,
+        session: AsyncSession,
+        player_id: UUID,
+        *,
+        writable: bool,
+        on_mutation: Callable[[], None] | None = None,
+    ) -> AchievementInterface:
+        records = tuple(
+            (
+                await session.scalars(
+                    select(PlayerAchievementState)
+                    .where(PlayerAchievementState.player_id == player_id)
+                    .order_by(PlayerAchievementState.achievement_stable_id)
+                )
+            ).all()
+        )
+        return AchievementInterface(
+            player_id,
             session,
             records,
             writable=writable,

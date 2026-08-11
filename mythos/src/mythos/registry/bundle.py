@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
 from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
+from mythos.registry.achievements import AchievementCatalog, AchievementRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
 from mythos.registry.errors import DuplicateStableIdError, RegistryError
 from mythos.registry.files import FileRegistry, FileTree, MergedFileTree
@@ -32,6 +33,7 @@ class RuntimeCatalogs:
     hints: HintCatalog
     lifecycle: LifecycleCatalog
     tasks: TaskCatalog
+    achievements: AchievementCatalog
 
 
 class RegistryBundle:
@@ -45,6 +47,7 @@ class RegistryBundle:
         self.hints = HintRegistry()
         self.lifecycle = LifecycleRegistry()
         self.tasks = TaskRegistry()
+        self.achievements = AchievementRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -73,6 +76,7 @@ class RegistryBundle:
             hints=self.hints.freeze(file_ids),
             lifecycle=self.lifecycle.freeze(),
             tasks=self.tasks.freeze(),
+            achievements=self.achievements.freeze(file_ids),
         )
         return self._catalogs
 

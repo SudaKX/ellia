@@ -11,6 +11,7 @@ from sqlalchemy.types import Uuid
 from mythos.persistence.base import Base, utcnow
 
 if TYPE_CHECKING:
+    from mythos.persistence.models.achievements import PlayerAchievementState
     from mythos.persistence.models.auth import PlayerAuth
     from mythos.persistence.models.progress import PlayerProgress
 
@@ -32,3 +33,7 @@ class PlayerRecord(Base):
 
     auth: Mapped[PlayerAuth] = relationship(back_populates="player", uselist=False)
     progress: Mapped[PlayerProgress] = relationship(back_populates="player", uselist=False)
+    achievements: Mapped[list[PlayerAchievementState]] = relationship(
+        back_populates="player",
+        cascade="all, delete-orphan",
+    )

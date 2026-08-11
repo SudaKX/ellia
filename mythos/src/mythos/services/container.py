@@ -3,12 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mythos.core.file_ids import FileIdCodec
+from mythos.registry.achievements import AchievementCatalog
 from mythos.registry.files import FileTree, MergedFileTree
 from mythos.registry.hints import HintCatalog
 from mythos.registry.progress import ProgressGraph
 from mythos.registry.scripts import ScriptCatalog
 from mythos.registry.validations import ValidationCatalog
 from mythos.services.accounts.service import AccountService
+from mythos.services.achievements.service import AchievementService
 from mythos.services.files.service import FileService
 from mythos.services.hints.service import HintService
 from mythos.services.object_store.service import ObjectStoreReader
@@ -28,6 +30,7 @@ class ServiceContainer:
     scripts: ScriptService
     validations: ValidationService
     tasks: TaskService
+    achievements: AchievementService
 
     @classmethod
     def create(
@@ -45,6 +48,7 @@ class ServiceContainer:
         checkpoint_store: LocalCheckpointStore,
         file_ids: FileIdCodec,
         task_service: TaskService,
+        achievement_catalog: AchievementCatalog,
     ) -> ServiceContainer:
         return cls(
             accounts=AccountService(),
@@ -67,4 +71,5 @@ class ServiceContainer:
             scripts=ScriptService(script_catalog),
             validations=ValidationService(validation_catalog),
             tasks=task_service,
+            achievements=AchievementService(achievement_catalog, file_ids),
         )

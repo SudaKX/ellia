@@ -1,4 +1,9 @@
 from mythos.players.interfaces.selection import PlayerInterfaces
+from mythos.players.interfaces.achievements import (
+    AchievementInterface,
+    AchievementStateSnapshot,
+    ReadOnlyAchievementError,
+)
 from mythos.players.interfaces.accounts import Account, AccountInterface, ReadOnlyAccountError
 from mythos.players.interfaces.artifacts import ArtifactInterface, ReadOnlyArtifactError
 from mythos.players.interfaces.credits import (
@@ -19,6 +24,8 @@ from mythos.players.interfaces.versioning import VersionedPlayerInterface
 
 __all__ = [
     "PlayerInterfaces",
+    "AchievementInterface",
+    "AchievementStateSnapshot",
     "Account",
     "AccountInterface",
     "ArtifactInterface",
@@ -36,6 +43,7 @@ __all__ = [
     "ReadOnlyHintsError",
     "VersionedPlayerInterface",
     "ReadOnlyTaskError",
+    "ReadOnlyAchievementError",
     "TaskInterface",
     "TaskMetaError",
     "TaskStateSnapshot",

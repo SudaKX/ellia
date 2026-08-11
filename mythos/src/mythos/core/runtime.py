@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mythos.commands.executor import EndpointCommandExecutor
+from mythos.commands.executor import AchievementCommandExecutor, EndpointCommandExecutor
 from mythos.commands.pipeline import PipelinedTransaction
 from mythos.commands.executor import TaskCommandExecutor
 from mythos.players.loader import PlayerLoader
@@ -19,6 +19,7 @@ class ApplicationRuntime:
     services: ServiceContainer
     object_store: ObjectStore
     endpoint_executor: EndpointCommandExecutor
+    achievement_command_executor: AchievementCommandExecutor
     task_command_executor: TaskCommandExecutor
     pipelined_transaction: PipelinedTransaction
     lifecycle_dispatcher: PlayerLifecycleDispatcher

@@ -31,7 +31,7 @@
 2. 普通 Player 写端点在业务操作成功后触发一次成就检查。
 3. 成就检查和成就奖励使用独立 transaction。
 4. 支持 immediate 成就自动发放 effect。
-5. 支持非 immediate 成就通过 claim 触发 effect。
+5. 支持当前活动且 available 成就通过 claim 触发 effect，包含 immediate 成就的失败重试。
 6. 支持 `POST /achievement/check` 进行补偿检查。
 7. 支持 `GET /achievement` 查询活动成就和玩家已达成的历史成就。
 8. 支持已从当前 Registry 删除的成就通过启动期 fallback 继续展示历史数据。
@@ -237,7 +237,7 @@ fallback 只允许在应用启动期配置，不提供 HTTP 修改入口。
 - 外部谜题包保留的历史兼容模块。
 - 应用启动组装阶段的固定配置。
 
-建议 `AchievementService.set_fallback()` 只接受数据型 fallback，不接受 effect/condition：
+建议 `AchievementRegistry.set_fallback()` 只接受数据型 fallback，不接受 effect/condition；同一 stable ID 的后续调用覆盖前值，freeze 时以最后数据为准：
 
 ```text
 set_fallback(stable_id, meta, immediate)
@@ -245,7 +245,7 @@ set_fallback(stable_id, meta, immediate)
 
 当前 Registry 中仍存在的 `stable_id` 不应配置 fallback；如同时存在，建议启动期拒绝配置冲突。
 
-如果已删除成就没有 fallback，系统无法恢复其历史 `meta` 和 `immediate`。可选择记录启动警告，或查询时返回标记为 orphaned 且展示字段为空的状态。
+如果已删除成就没有 fallback，系统使用空 `meta`，并根据 stable ID 继续计算 public ID；该历史成就不提供 claim 或 effect。
 
 ## 7. Player Interface
 

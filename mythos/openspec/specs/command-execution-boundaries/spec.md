@@ -50,7 +50,7 @@
 
 ### Requirement: Domain Services are transaction-neutral
 
-TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 Player 上执行 ORM/PlayerInterface 写操作，但 SHALL NOT 自行管理外层 transaction、Request-ID 缓存、HTTP 响应、Player 锁或 Endpoint 专用 Context。TaskService SHALL 提供接收调用方已加载 Player 的批次入口；scope SHALL 只承载 per-call 的 transport-neutral Followup sink，并 SHALL NOT 要求 HTTP CommandContext。Task 批次的 Pipeline、Player 加载、锁和 batch savepoint SHALL 由 CommandExecutor 或明确的 Workflow 组织。
+TaskService、AchievementService 及其他 Domain Service SHALL 可以在当前 Player 上执行 ORM/PlayerInterface 写操作，但 SHALL NOT 自行管理外层 transaction、Request-ID 缓存、HTTP 响应、Player 锁或 Endpoint 专用 Context。TaskService SHALL 提供接收调用方已加载 Player 的批次入口；AchievementService SHALL 提供事务中立的 condition 检查、earned 状态写入和 effect 批次入口；scope SHALL 只承载 per-call 的 transport-neutral Followup sink，并 SHALL NOT 要求 HTTP CommandContext。Task 批次和 Achievement Check/Effect 的 Pipeline、Player 加载、锁和 transaction SHALL 由 CommandExecutor 或明确的 Workflow 组织。
 
 #### Scenario: Service mutation participates in the caller transaction
 
@@ -64,12 +64,12 @@ TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 
 
 ### Requirement: EndpointCommandExecutor owns HTTP command concerns
 
-系统 SHALL 提供只由 `endpoints` 层使用的 `EndpointCommandExecutor`。该 Executor SHALL 负责 Request-ID lease、CommandContext、普通玩家命令 transaction、HTTP ResponseSpec/CachedResponse 组装、ContextScope 创建和配置的 Pipeline 阶段；Domain Service 和内部 Workflow SHALL NOT 依赖它。Endpoint SHALL 负责将 ContextScope 中的 Followup 编码为 HTTP JSON。
+系统 SHALL 提供只由 `endpoints` 层使用的 `EndpointCommandExecutor`。该 Executor SHALL 负责 Request-ID lease、CommandContext、普通玩家命令 transaction、Operation 提交后的独立 Achievement Check/Effect transaction、HTTP ResponseSpec/CachedResponse 组装、ContextScope 创建和配置的 Pipeline 阶段；Check/Effect 失败 SHALL 以安全 warning 聚合到已完成的 Operation 响应，并 SHALL NOT 回滚 Operation。Domain Service 和内部 Workflow SHALL NOT 依赖它。Endpoint SHALL 负责将 ContextScope 中的 Followup 编码为 HTTP JSON。
 
 #### Scenario: Endpoint executes a normal player write command
 
 - **WHEN** Endpoint 调用默认命令执行入口
-- **THEN** Executor SHALL 创建 HTTP collecting ContextScope 和可写 CommandContext，执行 Operation，运行配置阶段和 hooks，将 Context Followup 转换为响应内容，并在 transaction 成功后缓存响应
+- **THEN** Executor SHALL 创建 HTTP collecting ContextScope 和可写 CommandContext，执行 Operation，提交 Operation transaction，在新的 Check/Effect transaction 中运行 Achievement，聚合安全 warning，将 Context Followup 转换为响应内容，并在全部补偿阶段完成后缓存响应
 
 #### Scenario: Internal workflow does not depend on endpoint command execution
 
@@ -92,8 +92,8 @@ TaskService、AchievementChecker 及其他 Domain Service SHALL 可以在当前 
 
 #### Scenario: Achievement phase runs after the operation
 
-- **WHEN** 后续 AchievementChecker 被配置为 post-operation phase
-- **THEN** EndpointCommandExecutor SHALL 在 Operation transaction 提交后，以独立的 Achievement Check/Effect transaction 执行 Checker；Achievement transaction 失败 SHALL 生成 warning 而不回滚已提交的 Operation
+- **WHEN** 普通 Operation transaction 成功提交
+- **THEN** EndpointCommandExecutor SHALL 在新的 Check transaction 中执行全部 condition，再在新的 Effect transaction 中执行 effect；Achievement transaction 失败 SHALL 生成 warning、完成 RequestCache，而不回滚已提交的 Operation
 
 #### Scenario: Runtime reuses one configured pipeline
 
