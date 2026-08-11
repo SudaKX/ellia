@@ -7,15 +7,17 @@
  * ## 功能
  *
  * - 地址栏输入网址，回车或点"前往"加载
- * - **安全拦截**：目标为本地地址（`localhost` / `127.0.0.1`）时不予放行，
+ * - **安全拦截**：危险协议（file:/data:/javascript: 等）、localhost、私有/内网
+ *   IP 网段（含 127.1、0x7f000001、[::1] 等变形形式）一律不予放行，
  *   内容区显示"禁止访问"占位页（FakeOS 风格），不加载 iframe
  * - 无协议输入自动补 `https://`
  *
- * ## 为什么拦截本地地址
+ * ## 为什么拦截这些地址
  *
- * 玩家浏览器若加载 `localhost` / `127.0.0.1` 即可访问本机服务（如后端 API、
+ * 玩家浏览器若加载 localhost / 127.0.0.1 即可访问本机服务（如后端 API、
  * 开发者工具），这与"沙盒内玩家权限受限"的叙事冲突，也属于潜在越权面。
- * 因此本地地址一律拒绝。
+ * 判定逻辑集中在 useBrowserPolicy.ts（协议 → 主机名 → IP 网段三层），
+ * 本组件只负责消费判定结果并呈现"禁止访问"演出。
  *
  * ## 与 darksky 分支区别
  *
@@ -26,6 +28,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { ShieldX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useFilterService } from '@/composables/useFilterService'
+import { evaluateBrowserAddress } from '@/composables/useBrowserPolicy'
 
 const { t } = useI18n({ useScope: 'global' })
 const filterService = useFilterService()
@@ -108,32 +111,6 @@ onBeforeUnmount(() => {
   if (glitchHandle) filterService.destroy(glitchHandle.instanceId)
 })
 
-/** 禁止访问的本地主机名集合 */
-const DENIED_HOSTS = new Set(['localhost', '127.0.0.1'])
-
-/**
- * 解析输入并判断是否命中禁止访问的本地地址。
- * 无协议输入自动补 https:// 后再解析 hostname。
- *
- * @param raw - 地址栏原始输入
- * @returns true 表示目标为 localhost / 127.0.0.1
- */
-function isDeniedAddress(raw: string): boolean {
-  const trimmed = raw.trim()
-  if (!trimmed) return false
-  let hostname = ''
-  try {
-    hostname = new URL(trimmed).hostname
-  } catch {
-    try {
-      hostname = new URL(`https://${trimmed}`).hostname
-    } catch {
-      return false
-    }
-  }
-  return DENIED_HOSTS.has(hostname)
-}
-
 /**
  * 规范化地址：带协议的保留，无协议补 https://。
  *
@@ -146,11 +123,13 @@ function normalizeUrl(raw: string): string {
   return `https://${trimmed}`
 }
 
-/** 前往按钮 / 回车：校验并加载目标地址 */
+/** 前往按钮 / 回车：安全校验并加载目标地址 */
 function navigate() {
   const raw = address.value
   if (!raw.trim()) return
-  denied.value = isDeniedAddress(raw)
+  // 安全拦截：危险协议 / localhost / 私有网段等一律走"禁止访问"演出
+  // （判定逻辑见 useBrowserPolicy.ts）
+  denied.value = !evaluateBrowserAddress(raw)
   if (denied.value) {
     currentSrc.value = ''
     playDeniedShow(t('browser.deniedTitle'))
