@@ -155,6 +155,7 @@ function buildContext(): CommandContext {
         type: 'create-window',
         payload: {
           titleKey: puzzle.nameKey,
+          title: puzzle.definition?.title,
           icon: Puzzle,
           component: puzzle.component,
           componentProps: { puzzleId: puzzle.id },

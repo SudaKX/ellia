@@ -69,6 +69,7 @@ import { useFilterService } from '@/composables/useFilterService'
 import type { GlitchOptions } from '@/composables/useGlitchFilter'
 import { requestTextEditorClose } from '@/composables/useTextEditorSession'
 import { initStoryDialog } from '@/composables/useStoryDialog'
+import { loadPublishedPuzzles } from '@/composables/usePuzzleLibrary'
 import { useWindowService } from '@/composables/useWindowService'
 import { applicationRegistry } from '@/registries/applications'
 import type { FilterType } from '@/registries/filters'
@@ -87,6 +88,8 @@ initStoryDialog(windowService)
 const audioService = useAudioService()
 // 注册成就音效服务（unlockAchievement 播放解锁语音）
 initAchievementAudio(audioService)
+// 拉取出题器发布的已审核题目（fire-and-forget，开关 USE_PUBLISHED_QUESTIONS 控制）
+void loadPublishedPuzzles()
 const filterService = useFilterService()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()

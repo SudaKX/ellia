@@ -32,3 +32,13 @@ export const AUTH_ENDPOINTS = {
   /** POST — token 登录（如 key login） */
   tokenLogin: `${API_BASE}/api/auth/token-login`,
 } as const
+
+/**
+ * 出题器发布题库接入（自动发现）。
+ * 出题器（desktop_designer）审核通过的题目导出 published-questions.json 后，
+ * 把开关置为 true 并把 URL 指向该静态文件，游戏启动时自动注册进谜题列表。
+ * 默认关闭，对现有行为零影响。
+ */
+export const USE_PUBLISHED_QUESTIONS = false
+/** 已发布题库 JSON 地址（出题器 public/ 静态托管或其他可达静态地址） */
+export const PUBLISHED_QUESTIONS_URL = 'http://localhost:5174/published-questions.json'

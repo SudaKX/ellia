@@ -284,6 +284,9 @@ export const zhTW = {
     hint: '提示',
     solved: '謎題已解決！',
     solvedIcon: '✓',
+    notFound: '題目不存在。',
+    imageUnavailable: '圖片載入失敗。',
+    fillLabel: '填空',
     wrongAnswer: '答案不正確，請重試。',
     caesarCipher: {
       title: '凱撒密碼',

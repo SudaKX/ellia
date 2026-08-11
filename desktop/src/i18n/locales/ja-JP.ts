@@ -284,6 +284,9 @@ export const jaJP = {
     hint: 'ヒント',
     solved: 'パズル解決！',
     solvedIcon: '✓',
+    notFound: '問題が見つかりません。',
+    imageUnavailable: '画像を読み込めません。',
+    fillLabel: '空欄',
     wrongAnswer: '不正解です。もう一度お試しください。',
     caesarCipher: {
       title: 'シーザー暗号',

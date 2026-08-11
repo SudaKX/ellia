@@ -284,6 +284,9 @@ export const zhCN = {
     hint: '提示',
     solved: '谜题已解决！',
     solvedIcon: '✓',
+    notFound: '题目不存在。',
+    imageUnavailable: '图片加载失败。',
+    fillLabel: '填空',
     wrongAnswer: '答案不正确，请重试。',
     caesarCipher: {
       title: '凯撒密码',

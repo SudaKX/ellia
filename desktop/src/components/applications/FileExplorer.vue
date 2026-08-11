@@ -253,6 +253,7 @@ function handleFileDblClick(file: FileNode) {
         type: 'create-window',
         payload: {
           titleKey: puzzle.nameKey,
+          title: puzzle.definition?.title,
           icon: File,
           component: puzzle.component,
           componentProps: { puzzleId: puzzle.id },

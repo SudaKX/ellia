@@ -282,6 +282,9 @@ export const enUS = {
     hint: 'Hint',
     solved: 'Puzzle solved!',
     solvedIcon: '✓',
+    notFound: 'Puzzle not found.',
+    imageUnavailable: 'Image unavailable.',
+    fillLabel: 'Blank',
     wrongAnswer: 'Incorrect answer. Try again.',
     caesarCipher: {
       title: 'Caesar Cipher',

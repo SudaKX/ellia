@@ -38,6 +38,8 @@
 
 import type { Component } from 'vue'
 
+import type { PuzzleDefinition } from '@/types/puzzle'
+
 /** 谜题描述符——开发者注册谜题时需要提供的信息 */
 export interface PuzzleDescriptor {
   /** 唯一标识，用作 `sil <id>` 命令的参数 */
@@ -54,6 +56,11 @@ export interface PuzzleDescriptor {
   defaultHeight: number
   /** 是否允许调整窗口大小（默认 true） */
   resizable?: boolean
+  /**
+   * 数据驱动题定义。提供时窗口标题取 definition.title（而非 nameKey 的翻译），
+   * 组件通常为 PuzzlePlayer（通过 componentProps.puzzleId 内部取定义）。
+   */
+  definition?: PuzzleDefinition
 }
 
 /** 全局谜题注册表 */

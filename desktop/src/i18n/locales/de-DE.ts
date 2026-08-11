@@ -284,6 +284,9 @@ export const deDE = {
     hint: 'Hinweis',
     solved: 'Rätsel gelöst!',
     solvedIcon: '✓',
+    notFound: 'Rätsel nicht gefunden.',
+    imageUnavailable: 'Bild nicht verfügbar.',
+    fillLabel: 'Lücke',
     wrongAnswer: 'Falsche Antwort. Bitte versuchen Sie es erneut.',
     caesarCipher: {
       title: 'Caesar-Verschlüsselung',
