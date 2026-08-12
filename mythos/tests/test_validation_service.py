@@ -5,11 +5,15 @@ import httpx
 from pydantic import SecretStr
 
 from mythos.core.config import Settings
+from mythos.core.followups import ContextScope, Followup
 from mythos.main import create_app
+from mythos.players.context import ValidationContext
+from mythos.players.player import Player
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.progress import NormalProgressNode
-from mythos.registry.validations import ValidationAttempt, ValidationOutcome
+from mythos.registry.validations import ValidationAttempt, ValidationCatalog, ValidationResult
+from mythos.services.validations.service import ValidationService
 
 
 def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
@@ -26,21 +30,21 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
         async def checkpoint_handler(context, payload):
             calls["checkpoint"] += 1
             context.player.progress.push("checkpoint")
-            context.follow({"event": "checkpoint-set"})
-            return ValidationOutcome(accepted=True)
+            context.follow(Followup(action="checkpoint-set", data={}))
+            return ValidationResult(accepted=True)
 
         async def retry_handler(context, _payload):
             calls["retry"] += 1
             context.player.progress.push("retry")
             if calls["retry"] == 1:
-                context.reject(409, "retry command")
+                context.reject("retry command", {"code": "retry"})
             retry_versions.append(context.player.progress.version)
-            return ValidationOutcome(accepted=True)
+            return ValidationResult(accepted=True)
 
         async def waiting_handler(_context, _payload):
             started.set()
             await release.wait()
-            return ValidationOutcome(accepted=True)
+            return ValidationResult(accepted=True)
 
         registries.validations.register_attempt(
             ValidationAttempt("test.validation.checkpoint", "checkpoint", checkpoint_handler)
@@ -97,7 +101,7 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 assert first.status_code == duplicate.status_code == 200
                 assert first.json() == duplicate.json() == {
                     "content": {"accepted": True},
-                    "followups": [{"event": "checkpoint-set"}],
+                    "followups": [{"action": "checkpoint-set", "data": {}}],
                 }
                 assert calls["checkpoint"] == 1
 
@@ -138,6 +142,8 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                     json={},
                 )
                 assert first_retry.status_code == 409
+                assert first_retry.json()["status"] == 409
+                assert first_retry.json()["detail"] == "retry command"
                 assert second_retry.status_code == 200
                 assert second_retry.json()["content"] == {"accepted": True}
                 assert calls["retry"] == 2
@@ -162,5 +168,30 @@ def test_validation_attempts_execute_and_deduplicate(tmp_path) -> None:
                 assert in_progress.headers["retry-after"] == "1"
                 release.set()
                 assert (await first_wait).status_code == 200
+
+    asyncio.run(scenario())
+
+
+def test_validation_service_uses_domain_context_without_http_requirements() -> None:
+    async def scenario() -> None:
+        seen: list[ValidationContext] = []
+
+        async def handler(context, _payload):
+            seen.append(context)
+            context.follow(Followup(action="validated", data={}))
+            return ValidationResult(accepted=True)
+
+        attempt = ValidationAttempt("test.validation.direct", "direct", handler)
+        service = ValidationService(ValidationCatalog({"direct": attempt}))
+        player = Player(uuid4(), None, None, writable=True)  # type: ignore[arg-type]
+        scope = ContextScope.http()
+
+        result = await service.submit(player, attempt, {}, scope=scope)
+
+        assert result == ValidationResult(accepted=True)
+        assert len(seen) == 1
+        assert seen[0].player is player
+        assert not hasattr(seen[0], "request_id")
+        assert scope.to_json() == [{"action": "validated", "data": {}}]
 
     asyncio.run(scenario())

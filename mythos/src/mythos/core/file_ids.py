@@ -4,7 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping
 
 
 class FileIdCodec:
@@ -18,44 +18,58 @@ class FileIdCodec:
     def encode(self, stable_id: str) -> str:
         return self._encode("file:v1", stable_id)
 
-    def encode_content_token(
-        self,
-        stable_id: str,
-        revision: str,
-        object_key: str,
-        object_version_id: str,
-        media_type: str,
-        download_name: str,
-    ) -> str:
-        payload = json.dumps(
-            (stable_id, revision, object_key, object_version_id, media_type, download_name),
-            ensure_ascii=True,
-            separators=(",", ":"),
-        )
-        return self._encode("file-content:v1", payload, prefix="ct1_")
+    def encode_hint_id(self, stable_id: str) -> str:
+        return self._encode("hint:v1", stable_id, prefix="h1_")
+
+    def encode_achievement_id(self, stable_id: str) -> str:
+        payload = "achievement:v1\0".encode() + stable_id.encode()
+        digest = hmac.new(self._signing_key, payload, hashlib.sha256).digest()
+        return "a1_" + base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
     def encode_artifact_content_token(
         self,
         player_id: str,
-        stable_id: str,
-        revision: str,
-        object_key: str,
-        object_version_id: str,
+        artifact_id: str,
+        node_id: str,
+        artifact_version: str,
+        node_version: str,
         media_type: str,
         download_name: str,
     ) -> str:
-        payload = json.dumps(
-            (player_id, stable_id, revision, object_key, object_version_id, media_type, download_name),
-            ensure_ascii=True,
-            separators=(",", ":"),
+        return _fingerprint(
+            "act3_",
+            {
+                "schema": 3,
+                "player_id": player_id,
+                "artifact_id": artifact_id,
+                "artifact_version": artifact_version,
+                "node_id": node_id,
+                "node_version": node_version,
+                "download_name": download_name,
+                "media_type": media_type,
+            },
         )
-        return self._encode("artifact-content:v1", payload, prefix="act1_")
 
-    def encode_tree_version(self, entries: Sequence[tuple[str, ...]]) -> str:
-        payload = json.dumps(entries, ensure_ascii=True, separators=(",", ":"))
-        return self._encode("file-tree:v1", payload, prefix="ft1_")
+    def encode_player_tree_version(
+        self,
+        merged_file_tree_version: str,
+        state_versions: Mapping[str, int],
+    ) -> str:
+        return _fingerprint(
+            "pft4_",
+            {
+                "schema": 4,
+                "merged_file_tree_version": merged_file_tree_version,
+                "state_versions": dict(state_versions),
+            },
+        )
 
     def _encode(self, scope: str, *parts: str, prefix: str = "f1_") -> str:
         payload = ":".join((scope, *parts)).encode()
         digest = hmac.new(self._signing_key, payload, hashlib.sha256).digest()
         return prefix + base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def _fingerprint(prefix: str, value: object) -> str:
+    payload = json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+    return prefix + hashlib.sha256(payload).hexdigest()

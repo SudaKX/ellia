@@ -5,6 +5,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from mythos.core.config import Settings
+from mythos.core.problems import ProblemType
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
@@ -18,6 +19,27 @@ def test_production_rejects_short_auth_secrets() -> None:
             refresh_token_pepper=SecretStr("also-too-short"),
             file_id_signing_key=SecretStr("file-id-signing-key-with-at-least-32-bytes"),
         )
+
+
+def test_production_requires_problem_type_base_url() -> None:
+    secret = SecretStr("test-secret-with-at-least-32-bytes")
+    with pytest.raises(ValidationError, match="MYTHOS_PROBLEM_TYPE_BASE_URL"):
+        Settings(
+            environment="production",
+            jwt_signing_key=secret,
+            refresh_token_pepper=secret,
+            file_id_signing_key=secret,
+        )
+
+    settings = Settings(
+        environment="production",
+        jwt_signing_key=secret,
+        refresh_token_pepper=secret,
+        file_id_signing_key=secret,
+        problem_type_base_url="https://api.example/problems",
+        _env_file=None,
+    )
+    assert settings.problem_type_url("access-token-invalid") == "https://api.example/problems/access-token-invalid"
 
 
 def test_object_store_tls_setting_must_match_endpoint_scheme() -> None:
@@ -74,6 +96,11 @@ def test_authentication_lifecycle(tmp_path) -> None:
             async with app.state.database.engine.begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
 
+            runtime = app.state.runtime
+            assert not hasattr(runtime, "task_service")
+            assert runtime.services.tasks is runtime.endpoint_executor._task_service
+            assert runtime.services.tasks is runtime.task_command_executor._task_service
+
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
                 payload = {"username": "SudaKX", "password": "correct-horse-battery"}
@@ -86,12 +113,19 @@ def test_authentication_lifecycle(tmp_path) -> None:
 
                 duplicate_response = await client.post("/api/v1/auth/register", json=payload)
                 assert duplicate_response.status_code == 409
+                assert duplicate_response.json()["type"] == settings.problem_type_url(ProblemType.USERNAME_ALREADY_EXISTS)
 
                 invalid_login_response = await client.post(
                     "/api/v1/auth/login",
                     json={"username": "SudaKX", "password": "wrong-password"},
                 )
                 assert invalid_login_response.status_code == 401
+                assert invalid_login_response.headers["content-type"].startswith("application/problem+json")
+                assert invalid_login_response.headers.get("www-authenticate") is None
+                assert invalid_login_response.headers["cache-control"] == "no-store"
+                assert invalid_login_response.json()["type"] == settings.problem_type_url(
+                    ProblemType.PRIMARY_CREDENTIALS_INVALID
+                )
 
                 refresh_response = await client.post("/api/v1/auth/refresh")
                 assert refresh_response.status_code == 200
@@ -107,6 +141,9 @@ def test_authentication_lifecycle(tmp_path) -> None:
                 ) as replay_client:
                     replay_response = await replay_client.post("/api/v1/auth/refresh")
                 assert replay_response.status_code == 401
+                assert replay_response.json()["type"] == settings.problem_type_url(
+                    ProblemType.REFRESH_CREDENTIAL_INVALID
+                )
 
                 logout_response = await client.post(
                     "/api/v1/auth/logout",
@@ -116,5 +153,8 @@ def test_authentication_lifecycle(tmp_path) -> None:
 
                 logged_out_refresh_response = await client.post("/api/v1/auth/refresh")
                 assert logged_out_refresh_response.status_code == 401
+                assert logged_out_refresh_response.json()["type"] == settings.problem_type_url(
+                    ProblemType.REFRESH_CREDENTIAL_INVALID
+                )
 
     asyncio.run(scenario())

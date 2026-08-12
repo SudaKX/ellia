@@ -6,9 +6,11 @@ from pydantic import SecretStr
 from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.files import DisplayParams, FileReference, StaticNode
+from mythos.registry.artifacts import module_handler
+from mythos.registry.files import FileReference, NodeDisplayParams, StaticNodeSpec
 from mythos.registry.scripts import Script
 from _helpers.object_store import FakeObjectStore
 
@@ -19,19 +21,30 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
         hidden_leaf_rule_calls = 0
         hidden_directory_rule_calls = 0
 
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def child_rule(_player) -> bool:
             nonlocal child_rule_calls
             child_rule_calls += 1
             return True
 
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def hidden_leaf_rule(_player) -> bool:
             nonlocal hidden_leaf_rule_calls
             hidden_leaf_rule_calls += 1
             return False
 
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
         def hidden_directory_rule(_player) -> bool:
             nonlocal hidden_directory_rule_calls
             hidden_directory_rule_calls += 1
+            return True
+
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
+        def _deny(_player) -> bool:
+            return False
+
+        @module_handler("test.services")(1, dependencies=PlayerInterfaces.NONE)
+        def _allow(_player) -> bool:
             return True
 
         registries = RegistryBundle()
@@ -45,26 +58,24 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 FileReference("test", source_path, "text/plain")
             )
             registries.files.register_node(
-                StaticNode.file(
+                StaticNodeSpec.file(
                     stable_id,
                     path,
-                    "1",
                     source_locator,
                     download_name,
                     access_rule,
-                    display=DisplayParams(label=download_name, icon="document"),
+                    display=NodeDisplayParams(label=download_name, icon="document"),
                 )
             )
 
         register_file("test.readme", "/README.txt", "assets/readme.txt", "README.txt", "hello")
         register_file("test.guide", "/docs/guide.txt", "assets/guide.txt", "guide.txt", "guide")
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.private-directory",
                 "/private",
-                "1",
-                lambda _player: False,
-                display=DisplayParams(label="Private", icon="folder"),
+                _deny,
+                display=NodeDisplayParams(label="Private", icon="folder"),
             )
         )
         register_file(
@@ -76,22 +87,20 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             child_rule,
         )
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.open-directory",
                 "/open",
-                "1",
-                lambda _player: True,
-                display=DisplayParams(label="Open", icon="folder"),
+                _allow,
+                display=NodeDisplayParams(label="Open", icon="folder"),
             )
         )
         register_file("test.open-file", "/open/public.txt", "assets/open-public.txt", "public.txt", "public")
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.hidden-directory",
                 "/open/hidden",
-                "1",
-                lambda _player: False,
-                display=DisplayParams(label="Hidden", icon="folder"),
+                _deny,
+                display=NodeDisplayParams(label="Hidden", icon="folder"),
             )
         )
         register_file(
@@ -102,12 +111,11 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             "hidden",
         )
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.hidden-by-path-directory",
                 "/open/hidden-by-path",
-                "1",
                 hidden_directory_rule,
-                display=DisplayParams(label="Hidden by path", icon="folder"),
+                display=NodeDisplayParams(label="Hidden by path", icon="folder"),
                 hidden=True,
             )
         )
@@ -119,19 +127,17 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
             "hidden by path",
         )
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.empty-directory",
                 "/empty",
-                "1",
-                display=DisplayParams(label="Empty", icon="folder"),
+                display=NodeDisplayParams(label="Empty", icon="folder"),
             )
         )
         registries.files.register_node(
-            StaticNode.directory(
+            StaticNodeSpec.directory(
                 "test.visible-empty-directory",
                 "/visible-empty",
-                "1",
-                display=DisplayParams(label="Visible empty", icon="folder"),
+                display=NodeDisplayParams(label="Visible empty", icon="folder"),
             )
         )
         register_file(
@@ -191,8 +197,8 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert len(listing.json()["files"]) == 1
                 readme_id = listing.json()["files"][0]["file_id"]
                 readme_token = listing.json()["files"][0]["content_token"]
-                assert listing.json()["tree_version"].startswith("ft1_")
-                assert readme_token.startswith("ct1_")
+                assert listing.json()["tree_version"].startswith("fcv1_")
+                assert readme_token.startswith("snv1_")
                 assert "stable_id" not in listing.json()["files"][0]
                 assert listing.json()["files"][0]["display"]["label"] == "README.txt"
                 assert hidden_leaf_rule_calls == 0
@@ -241,7 +247,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                     {
                         "file_id": app.state.runtime.catalogs.files.file_id_for_stable_id("test.open-file"),
                         "path": "/open/public.txt",
-                        "revision": "1",
+                        "version": open_listing["files"][0]["version"],
                         "media_type": "text/plain",
                         "size_bytes": 6,
                         "content_token": open_listing["files"][0]["content_token"],
@@ -253,7 +259,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                         },
                     }
                 ]
-                assert open_listing["files"][0]["content_token"].startswith("ct1_")
+                assert open_listing["files"][0]["content_token"].startswith("snv1_")
 
                 hidden_by_path_listing = await client.get(
                     "/api/v1/files/ls",
@@ -285,7 +291,8 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert metadata.headers["vary"] == "Authorization"
                 assert metadata.json()["download_name"] == "README.txt"
                 assert metadata.json()["content_token"] == readme_token
-                assert metadata.json()["tree_version"] == listing.json()["tree_version"]
+                assert metadata.json()["tree_version"].startswith("pft4_")
+                assert metadata.json()["tree_version"] != listing.json()["tree_version"]
                 assert metadata.json()["display"]["label"] == "README.txt"
                 version = await client.get("/api/v1/files/version", headers=headers)
                 assert version.json() == {"tree_version": listing.json()["tree_version"]}
@@ -307,7 +314,7 @@ def test_global_services_read_frozen_registered_content(tmp_path) -> None:
                 assert content_url.json()["content_token"] == readme_token
                 assert content_url.json()["url"] == "https://objects.test/static/test/assets/readme.txt?expires=60"
                 stale_content_url = await client.get(
-                    f"/api/v1/files/{readme_id}/ct1_stale/content-url",
+                    f"/api/v1/files/{readme_id}/snv1_stale/content-url",
                     headers=headers,
                 )
                 assert stale_content_url.status_code == 412

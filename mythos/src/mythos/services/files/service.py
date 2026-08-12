@@ -4,7 +4,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from mythos.players.player import Player
-from mythos.registry.files import DisplayParams, FileTree, FileTreeDirectoryNotFoundError, TreeNode
+from mythos.players.interfaces import PlayerInterfaces
+from mythos.registry.files import (
+    FileTree,
+    FileTreeDirectoryNotFoundError,
+    MergedFileTree,
+    NodeDisplayParams,
+    TreeNode,
+)
 from mythos.registry.files.player_tree import PlayerFileTree
 from mythos.core.file_ids import FileIdCodec
 from mythos.services.object_store.service import ObjectStoreReader, PresignedObjectUrl
@@ -26,17 +33,17 @@ class FileContentVersionMismatchError(Exception):
 class FileSummary:
     file_id: str
     path: str
-    revision: str
+    version: str
     media_type: str
     size_bytes: int
     content_token: str
-    display: DisplayParams
+    display: NodeDisplayParams
 
 
 @dataclass(frozen=True)
 class DirectorySummary:
     path: str
-    display: DisplayParams
+    display: NodeDisplayParams
 
 
 @dataclass(frozen=True)
@@ -56,7 +63,7 @@ class FileMetadata(FileSummary):
 @dataclass(frozen=True)
 class DirectoryTree:
     path: str
-    display: DisplayParams
+    display: NodeDisplayParams
     directories: tuple["DirectoryTree", ...]
     files: tuple[FileSummary, ...]
 
@@ -68,6 +75,7 @@ class FileService:
     def __init__(
         self,
         static_tree: FileTree,
+        merged_tree: MergedFileTree,
         object_store: ObjectStoreReader,
         content_url_ttl_seconds: int,
         content_cache_max_age_seconds: int,
@@ -75,6 +83,7 @@ class FileService:
         file_ids: FileIdCodec,
     ) -> None:
         self._static_tree = static_tree
+        self._merged_tree = merged_tree
         self._object_store = object_store
         self._content_url_ttl_seconds = content_url_ttl_seconds
         self._content_cache_control = (
@@ -96,7 +105,12 @@ class FileService:
         return self._content_cache_control
 
     def _player_tree(self, player: Player) -> PlayerFileTree:
-        return player.artifacts.get_tree(self._static_tree, self._file_ids)
+        required_interfaces = self._merged_tree.required_interfaces | PlayerInterfaces.ARTIFACTS
+        tree_version = self._file_ids.encode_player_tree_version(
+            self._merged_tree.resource_version,
+            player.state_versions(required_interfaces),
+        )
+        return player.get_file_tree(self._merged_tree, tree_version)
 
     def list_directory(self, player: Player, path: str = "/") -> DirectoryListing:
         return self._list_directory(self._static_tree, player, path)
@@ -115,7 +129,7 @@ class FileService:
         directory = directory_chain[-1]
         directories: list[DirectorySummary] = []
         files: list[FileSummary] = []
-        for child in directory.children.values():
+        for child in self._children(tree, directory):
             if self._is_hidden_node(child) or not self._is_allowed_node(player, child):
                 continue
             if child.is_file:
@@ -225,7 +239,7 @@ class FileService:
     def _build_directory_tree(self, player: Player, tree: _ReadableFileTree, directory: TreeNode) -> DirectoryTree:
         directories: list[DirectoryTree] = []
         files: list[FileSummary] = []
-        for child in directory.children.values():
+        for child in self._children(tree, directory):
             if self._is_hidden_node(child) or not self._is_allowed_node(player, child):
                 continue
             if child.is_file:
@@ -239,6 +253,12 @@ class FileService:
             files=tuple(sorted(files, key=self._sort_by_display)),
         )
 
+    @staticmethod
+    def _children(tree: _ReadableFileTree, directory: TreeNode) -> tuple[TreeNode, ...]:
+        if isinstance(tree, PlayerFileTree):
+            return tree.children(directory)
+        return tuple(directory.children.values())
+
     def _is_allowed_chain(self, player: Player, chain: tuple[TreeNode, ...]) -> bool:
         return all(self._is_allowed_node(player, node) for node in chain)
 
@@ -251,11 +271,11 @@ class FileService:
         return node.definition is not None and node.definition.hidden
 
     @staticmethod
-    def _display(node: TreeNode) -> DisplayParams:
+    def _display(node: TreeNode) -> NodeDisplayParams:
         if node.definition is not None:
             return node.definition.display
         label = "/" if node.path == "/" else node.path.rsplit("/", maxsplit=1)[-1]
-        return DisplayParams(label=label, icon="folder")
+        return NodeDisplayParams(label=label, icon="folder")
 
     def _directory_summary(self, directory: TreeNode) -> DirectorySummary:
         return DirectorySummary(path=directory.path, display=self._display(directory))
@@ -271,7 +291,7 @@ class FileService:
         return FileSummary(
             file_id=file.file_id,
             path=file.definition.path,
-            revision=file.definition.revision,
+            version=file.definition.version,
             media_type=file.content.object_ref.media_type,
             size_bytes=file.content.object_ref.size_bytes,
             content_token=file.content.content_token,

@@ -5,9 +5,9 @@ import hmac
 import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID, uuid4
 
-from pwdlib import PasswordHash
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,19 +19,24 @@ from mythos.auth.tokens import (
     issue_access_token,
     parse_refresh_credential,
 )
+from mythos.auth.passwords import password_hasher
+from mythos.commands.pipeline import PipelinedTransaction
 from mythos.core.config import Settings
+from mythos.core.followups import ContextScope
+from mythos.eventbus import EventContext, EventDispatcher, PlayerConstructedEvent
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
+    PlayerCredits,
     PlayerAuth,
     PlayerProgress,
     PlayerProgressFrontierNode,
     PlayerProgressUnlockedNode,
     PlayerRecord,
+    PlayerVirtualAccountState,
 )
 from mythos.registry.progress import ProgressGraph
-
-password_hasher = PasswordHash.recommended()
-
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
 
 class UsernameAlreadyExistsError(Exception):
     pass
@@ -65,10 +70,21 @@ def _is_expired(value: datetime | None) -> bool:
 
 
 class AuthService:
-    def __init__(self, session: AsyncSession, settings: Settings, progress_graph: ProgressGraph) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        progress_graph: ProgressGraph,
+        player_loader: PlayerLoader,
+        event_dispatcher: EventDispatcher,
+        pipelined_transaction: PipelinedTransaction,
+    ) -> None:
         self.session = session
         self.settings = settings
         self.progress_graph = progress_graph
+        self.player_loader = player_loader
+        self.event_dispatcher = event_dispatcher
+        self.pipelined_transaction = pipelined_transaction
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
         password_hash = await asyncio.to_thread(password_hasher.hash, password)
@@ -97,9 +113,16 @@ class AuthService:
 
         try:
             async with self.session.begin():
+                scope = ContextScope.silent()
                 self.session.add_all((player, auth, progress))
+                await self.session.flush()
+                self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
+                await self.session.flush()
+                await self._construct(player, "registration", scope=scope)
         except IntegrityError as error:
-            raise UsernameAlreadyExistsError from error
+            if "players.username_normalized" in str(error).lower():
+                raise UsernameAlreadyExistsError from error
+            raise
 
         return AuthenticationResult(
             access_token=issue_access_token(player.id, self.settings),
@@ -109,27 +132,31 @@ class AuthService:
     async def login(self, username: str, password: str) -> AuthenticationResult:
         normalized_username = normalize_username(username)
         async with self.session.begin():
-            result = await self.session.execute(
-                select(PlayerRecord, PlayerAuth)
-                .join(PlayerAuth, PlayerAuth.player_id == PlayerRecord.id)
+            scope = ContextScope.silent()
+            player = await self.session.scalar(
+                select(PlayerRecord)
                 .where(PlayerRecord.username_normalized == normalized_username)
+                .with_for_update()
             )
-            row = result.one_or_none()
-            if row is None:
+            if player is None:
                 raise InvalidCredentialsError
 
-            player, auth = row
+            auth = await self.session.get(PlayerAuth, player.id, with_for_update=True)
+            if auth is None:
+                raise InvalidCredentialsError
             is_valid = await asyncio.to_thread(password_hasher.verify, password, auth.password_hash)
             if not is_valid:
                 raise InvalidCredentialsError
 
+            await self._construct(player, "first_login", scope=scope)
+
             credential = create_refresh_credential()
             now = utcnow()
-            player.last_accessed_at = now
             auth.refresh_selector = credential.selector
             auth.refresh_secret_hash = hash_refresh_secret(credential.secret, self.settings)
             auth.refresh_expires_at = now + timedelta(seconds=self.settings.refresh_token_ttl_seconds)
             auth.refresh_rotated_at = now
+            player.last_accessed_at = now
 
         return AuthenticationResult(
             access_token=issue_access_token(player.id, self.settings),
@@ -143,8 +170,20 @@ class AuthService:
 
         expected_hash = hash_refresh_secret(credential.secret, self.settings)
         async with self.session.begin():
+            player_id = await self.session.scalar(
+                select(PlayerAuth.player_id).where(PlayerAuth.refresh_selector == credential.selector)
+            )
+            if player_id is None:
+                raise InvalidRefreshCredentialError
+
+            await self.player_loader.lock_player(self.session, player_id)
             auth = await self.session.scalar(
-                select(PlayerAuth).where(PlayerAuth.refresh_selector == credential.selector)
+                select(PlayerAuth)
+                .where(
+                    PlayerAuth.player_id == player_id,
+                    PlayerAuth.refresh_selector == credential.selector,
+                )
+                .with_for_update()
             )
             if (
                 auth is None
@@ -174,12 +213,12 @@ class AuthService:
                 raise InvalidRefreshCredentialError
             await self.session.execute(
                 update(PlayerRecord)
-                .where(PlayerRecord.id == auth.player_id)
+                .where(PlayerRecord.id == player_id)
                 .values(last_accessed_at=now)
             )
 
         return AuthenticationResult(
-            access_token=issue_access_token(auth.player_id, self.settings),
+            access_token=issue_access_token(player_id, self.settings),
             refresh_credential=next_credential,
         )
 
@@ -195,3 +234,42 @@ class AuthService:
                     refresh_rotated_at=None,
                 )
             )
+
+    async def _construct(
+        self,
+        player: PlayerRecord,
+        trigger: Literal["registration", "first_login"],
+        *,
+        scope: ContextScope | None = None,
+    ) -> None:
+        if player.constructed_at is not None:
+            return
+        constructed_at = utcnow()
+        claimed = await self.session.execute(
+            update(PlayerRecord)
+            .where(
+                PlayerRecord.id == player.id,
+                PlayerRecord.constructed_at.is_(None),
+            )
+            .values(constructed_at=constructed_at)
+        )
+        if claimed.rowcount != 1:
+            await self.session.refresh(player, attribute_names=["constructed_at"])
+            return
+        player.constructed_at = constructed_at
+        event = PlayerConstructedEvent(
+            player_id=player.id,
+            occurred_at=constructed_at,
+            trigger=trigger,
+        )
+        aggregate = await self.player_loader.load_writable(
+            self.session,
+            player.id,
+            interfaces=PlayerInterfaces.ALL | self.event_dispatcher.dependencies_for(event),
+        )
+        async def publish(_session, player) -> None:
+            await self.event_dispatcher.publish(
+                EventContext(player=player, event=event, scope=scope or ContextScope.silent())
+            )
+
+        await self.pipelined_transaction.run(self.session, aggregate, publish)

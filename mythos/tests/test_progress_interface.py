@@ -13,7 +13,6 @@ def _interface(registries: RegistryBundle) -> ProgressInterface:
     entry_ids = catalogs.progress.entry_node_ids
     progress = PlayerProgress(
         player_id=uuid4(),
-        current_account="PLAYER",
         version=1,
         unlocked_nodes=[PlayerProgressUnlockedNode(node_id=node_id) for node_id in entry_ids],
         frontier_nodes=[PlayerProgressFrontierNode(node_id=node_id) for node_id in entry_ids],

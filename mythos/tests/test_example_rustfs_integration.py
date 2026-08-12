@@ -41,7 +41,6 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
     try:
         client.create_bucket(Bucket=bucket)
         bucket_created = True
-        client.put_bucket_versioning(Bucket=bucket, VersioningConfiguration={"Status": "Enabled"})
 
         async def scenario() -> None:
             settings = Settings(
@@ -57,7 +56,7 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
                 object_store_access_key=SecretStr(access_key),
                 object_store_secret_key=SecretStr(secret_key),
                 object_store_use_tls=endpoint.startswith("https://"),
-                puzzle_root=Path(__file__).resolve().parents[1] / "src" / "mythos" / "puzzles",
+                puzzle_root=Path(__file__).resolve().parents[1] / "puzzles",
             )
             database = Database(settings.database_url)
             async with database.engine.begin() as connection:
@@ -83,6 +82,13 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
                     )
                     assert b"ECHO-7" in await asyncio.to_thread(_read_url, readme_url.json()["url"])
 
+                    guest_login = await client.post(
+                        "/api/v1/vac/login",
+                        headers={**headers, "Request-ID": str(uuid4())},
+                        json={"username": "guest", "password": "guest-echo-7"},
+                    )
+                    assert guest_login.status_code == 200
+
                     completed = await client.post(
                         "/api/v1/validations/example-answer/attempts",
                         headers={**headers, "Request-ID": str(uuid4())},
@@ -90,43 +96,30 @@ def test_example_module_publishes_and_reads_from_rustfs(tmp_path: Path) -> None:
                     )
                     assert completed.json() == {"content": {"accepted": True}, "followups": []}
 
-                    completed_tree = await client.get("/api/v1/files/tree", headers=headers)
-                    archive = next(
-                        directory
-                        for directory in completed_tree.json()["directories"]
-                        if directory["path"] == "/archive"
-                    )
-                    result = archive["files"][0]
-                    result_url = await client.get(
-                        f"/api/v1/files/{result['file_id']}/{result['content_token']}/content-url",
-                        headers=headers,
-                    )
-                    assert b"ARCHIVE UNLOCKED" in await asyncio.to_thread(_read_url, result_url.json()["url"])
-
                     dynamic_tree = await client.get("/api/v1/files/d/tree", headers=headers)
                     dynamic_archive = next(
                         directory
                         for directory in dynamic_tree.json()["directories"]
                         if directory["path"] == "/archive"
                     )
-                    report = next(
+                    admin_access = next(
                         file
                         for file in dynamic_archive["files"]
-                        if file["path"] == "/archive/recovery-report.txt"
+                        if file["path"] == "/archive/ADMIN_ACCESS.txt"
                     )
-                    report_url = await client.get(
-                        f"/api/v1/files/{report['file_id']}/{report['content_token']}/content-url",
+                    admin_access_url = await client.get(
+                        f"/api/v1/files/{admin_access['file_id']}/{admin_access['content_token']}/content-url",
                         headers=headers,
                     )
-                    assert b"EXAMPLE RECOVERY REPORT" in await asyncio.to_thread(
+                    assert b"ADMINISTRATOR ACCESS" in await asyncio.to_thread(
                         _read_url,
-                        report_url.json()["url"],
+                        admin_access_url.json()["url"],
                     )
 
         asyncio.run(scenario())
     finally:
         if bucket_created:
-            _delete_bucket_versions(client, bucket)
+            _delete_bucket_objects(client, bucket)
 
 
 def _read_url(url: str) -> bytes:
@@ -134,11 +127,11 @@ def _read_url(url: str) -> bytes:
         return response.read()
 
 
-def _delete_bucket_versions(client, bucket: str) -> None:
-    versions = client.list_object_versions(Bucket=bucket)
+def _delete_bucket_objects(client, bucket: str) -> None:
+    objects = client.list_objects_v2(Bucket=bucket).get("Contents", [])
     objects = [
-        {"Key": item["Key"], "VersionId": item["VersionId"]}
-        for item in [*versions.get("Versions", []), *versions.get("DeleteMarkers", [])]
+        {"Key": item["Key"]}
+        for item in objects
     ]
     if objects:
         client.delete_objects(Bucket=bucket, Delete={"Objects": objects})

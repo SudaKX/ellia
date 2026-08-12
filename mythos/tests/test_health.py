@@ -23,7 +23,7 @@ def test_development_serves_example_page() -> None:
     async def request_example_page() -> httpx.Response:
         settings = Settings(
             environment="development",
-            puzzle_root=PROJECT_ROOT / "src" / "mythos" / "puzzles",
+            puzzle_root=PROJECT_ROOT / "puzzles",
         )
         app = create_app(settings)
         transport = httpx.ASGITransport(app=app)
@@ -34,14 +34,18 @@ def test_development_serves_example_page() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "Example Runtime" in response.text
+    assert "示例运行时" in response.text
+    assert "hints-section" in response.text
+    assert 'id="achievement-list"' in response.text
+    assert 'id="check-achievements-button"' in response.text
+    assert 'id="followup-list"' in response.text
 
 
 def test_development_serves_example_assets() -> None:
     async def request_example_assets() -> tuple[httpx.Response, httpx.Response]:
         settings = Settings(
             environment="development",
-            puzzle_root=PROJECT_ROOT / "src" / "mythos" / "puzzles",
+            puzzle_root=PROJECT_ROOT / "puzzles",
         )
         app = create_app(settings)
         transport = httpx.ASGITransport(app=app)
@@ -57,3 +61,9 @@ def test_development_serves_example_assets() -> None:
     assert script.status_code == 200
     assert 'const API_BASE = "/api/v1";' in script.text
     assert 'callApi("/files/d/tree?path=/")' in script.text
+    assert 'callApi("/achievement")' in script.text
+    assert 'callApi("/achievement/check"' in script.text
+    assert "/achievement/claim/" in script.text
+    assert "FOLLOWUP_ACTIVITY_LIMIT" in script.text
+    assert ".achievement-card" in stylesheet.text
+    assert ".followup-list" in stylesheet.text

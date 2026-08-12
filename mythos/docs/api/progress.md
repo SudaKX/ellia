@@ -9,7 +9,6 @@ Authorization: Bearer <access token>
 
 ```json
 {
-  "current_account":"PLAYER",
   "unlocked_nodes":["example.entry"],
   "frontier_nodes":["example.entry"],
   "checkpoint_sequence":-1,
@@ -30,7 +29,7 @@ Request-ID: <UUID>
 成功为：
 
 ```json
-{"content":{"progress":{"current_account":"PLAYER","unlocked_nodes":[],"frontier_nodes":[],"checkpoint_sequence":0,"version":2}},"followups":[]}
+{"content":{"progress":{"unlocked_nodes":[],"frontier_nodes":[],"checkpoint_sequence":0,"version":2}},"followups":[]}
 ```
 
 没有 checkpoint 返回 `404`；文件、玩家、图结构或节点状态不兼容返回 `409`。请求 ID 规则见 [命令 API](commands.md)，领域规则见 [进度系统](../systems/progress-and-checkpoints.md)。

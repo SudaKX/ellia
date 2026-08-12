@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import NamedTuple
 
 from mythos.registry.files import ObjectReference
@@ -52,20 +51,6 @@ class FakeObjectStore:
             content_digest=f"sha256:{hashlib.sha256(data).hexdigest()}",
             media_type=media_type,
             size_bytes=len(data),
-            version_id=f"test-version-{len(self.uploads)}",
-        )
-
-    async def put_file(
-        self,
-        source_path: Path,
-        *,
-        object_key: str,
-        media_type: str,
-    ) -> ObjectReference:
-        return await self.put_bytes(
-            source_path.read_bytes(),
-            object_key=object_key,
-            media_type=media_type,
         )
 
     async def presign_get(
@@ -93,6 +78,5 @@ class FakeObjectStore:
     async def list_objects(self, prefix: str) -> list[str]:
         return sorted(key for key in self.objects if key.startswith(prefix))
 
-    async def delete_object(self, key: str, version_id: str | None = None) -> None:
-        del version_id
+    async def delete_object(self, key: str) -> None:
         self.objects.pop(key, None)

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from mythos.players.context import CommandContext
+if TYPE_CHECKING:
+    from mythos.players.context import ValidationContext
 
 ValidationAttemptHandler: TypeAlias = Callable[
-    [CommandContext, Mapping[str, Any]],
-    Awaitable["ValidationOutcome"],
+    ["ValidationContext", Mapping[str, Any]],
+    Awaitable["ValidationResult"],
 ]
 
 
@@ -20,5 +21,5 @@ class ValidationAttempt:
 
 
 @dataclass(frozen=True)
-class ValidationOutcome:
+class ValidationResult:
     accepted: bool
