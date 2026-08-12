@@ -1,0 +1,19 @@
+{
+  "name": "question-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "出题器后端：账号角色 + 题目 CRUD + 审核 + 发布（Node + Express + 内置 SQLite，零编译依赖）",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
+    "seed-admin": "node --env-file-if-exists=.env src/seed-admin.js",
+    "seed-users": "node --env-file-if-exists=.env src/seed-users.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

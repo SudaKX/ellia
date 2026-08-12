@@ -1,15 +1,16 @@
 <script setup lang="ts">
 /**
- * # QuestionListView — 题目列表
+ * # QuestionListView — 题目列表（两段式）
  *
- * - 普通出题者：仅见本人题目，可编辑 / 删除 / 提交审核 / 测试预览
- * - 管理员：见全部题目，额外可审核（通过 / 驳回）与任意删除
+ * - 「我的题目」：本人题目（admin 见全部），可编辑 / 删除 / 提交审核 / 测试预览
+ * - 「已发布题库」：所有已发布题目（所有登录用户只读可见），可测试预览；
+ *   admin 额外可「打回」（approved → draft）与删除
  * - 顶部：状态筛选、"新建题目"、导出已发布题库（供 desktop 自动发现）
  */
 
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, ClipboardCopy, Download, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { Check, ClipboardCopy, Download, Pencil, Plus, Trash2, Undo2 } from 'lucide-vue-next'
 
 import PuzzlePlayer from '@/components/PuzzlePlayer.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -21,7 +22,11 @@ const auth = useAuthStore()
 const store = useQuestionsStore()
 const router = useRouter()
 
-onMounted(() => store.load())
+onMounted(() => {
+  // 后端未启动或网络异常时静默失败（列表保持为空，可引导检查 server/）
+  store.load().catch(() => undefined)
+  store.loadPublished().catch(() => undefined)
+})
 
 /** 状态筛选（'all' = 全部） */
 const filter = ref<'all' | QuestionStatus>('all')
@@ -82,27 +87,34 @@ function handleEdit(question: QuestionRecord) {
 }
 
 /** 提交审核（本人） */
-function handleSubmit(question: QuestionRecord) {
-  const result = store.submit(question.id)
+async function handleSubmit(question: QuestionRecord) {
+  const result = await store.submit(question.id)
   if (!result.ok) alert(result.error ?? '提交失败')
 }
 
 /** 管理员审核 */
-function handleReview(question: QuestionRecord, approved: boolean) {
+async function handleReview(question: QuestionRecord, approved: boolean) {
   const note = approved ? undefined : window.prompt('驳回原因（可选）：') ?? undefined
-  const result = store.review(question.id, approved, note)
+  const result = await store.review(question.id, approved, note)
   if (!result.ok) alert(result.error ?? '操作失败')
 }
 
 /** 删除（本人 / admin） */
-function handleDelete(question: QuestionRecord) {
+async function handleDelete(question: QuestionRecord) {
   if (!window.confirm(`确定删除题目「${question.title}」？`)) return
-  store.remove(question.id)
+  await store.remove(question.id)
+}
+
+/** 管理员打回已发布题目（approved → draft） */
+async function handleUnpublish(question: QuestionRecord) {
+  if (!window.confirm(`确定打回题目「${question.title}」？打回后将从已发布题库下架，作者可重新编辑后再提交审核。`)) return
+  const result = await store.unpublish(question.id)
+  if (!result.ok) alert(result.error ?? '打回失败')
 }
 
 /** 导出已发布题库：下载 JSON 文件 */
-function handleExport() {
-  const payload = store.exportPublished()
+async function handleExport() {
+  const payload = await store.exportPublished()
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -115,7 +127,7 @@ function handleExport() {
 
 /** 复制发布 JSON 到剪贴板 */
 async function handleCopyExport() {
-  const payload = store.exportPublished()
+  const payload = await store.exportPublished()
   try {
     await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
     exportNote.value = '已复制到剪贴板'
@@ -172,71 +184,129 @@ const exportNote = ref<string | null>(null)
       并将 URL 指向该文件即可自动发现。
     </p>
 
-    <!-- 空状态 -->
-    <div v-if="filteredQuestions.length === 0" class="questions__empty">
-      {{ filter === 'all' ? '还没有题目，点击右上角"新建题目"开始。' : '该状态下暂无题目。' }}
-    </div>
+    <!-- ── 我的题目 ── -->
+    <section class="questions__section">
+      <h3 class="questions__section-title">
+        我的题目
+        <span class="questions__section-count">{{ store.questions.length }}</span>
+      </h3>
 
-    <!-- 题目列表 -->
-    <ul v-else class="questions__list">
-      <li v-for="question in filteredQuestions" :key="question.id" class="question">
-        <div class="question__main">
-          <div class="question__head">
-            <span class="question__title">{{ question.title }}</span>
-            <span class="question__status" :class="statusClass(question.status)">
-              {{ statusLabel(question.status) }}
-            </span>
-          </div>
-          <div class="question__meta">
-            <span>题型：{{ question.type === 'single' ? '单选' : question.type === 'multi' ? '多选' : '填空' }}</span>
-            <span v-if="auth.isAdmin">作者：{{ question.authorUsername }}</span>
-            <span>更新：{{ new Date(question.updatedAt).toLocaleString() }}</span>
-            <span v-if="question.reviewNote" class="question__review-note">
-              驳回原因：{{ question.reviewNote }}
-            </span>
-          </div>
-        </div>
+      <div v-if="filteredQuestions.length === 0" class="questions__empty">
+        {{ filter === 'all' ? '还没有题目，点击右上角"新建题目"开始。' : '该状态下暂无题目。' }}
+      </div>
 
-        <div class="question__ops">
-          <button class="question__op" type="button" title="测试预览" @click="openPreview(question)">
-            测试
-          </button>
-          <button class="question__op" type="button" title="编辑" @click="handleEdit(question)">
-            <Pencil :size="14" :stroke-width="1.8" />
-          </button>
-          <button
-            v-if="question.status !== 'approved'"
-            class="question__op"
-            type="button"
-            title="提交审核"
-            @click="handleSubmit(question)"
-          >
-            提交审核
-          </button>
-          <template v-if="auth.isAdmin && question.status === 'pending'">
-            <button
-              class="question__op question__op--approve"
-              type="button"
-              title="通过"
-              @click="handleReview(question, true)"
-            >
-              <Check :size="14" :stroke-width="1.8" />
+      <ul v-else class="questions__list">
+        <li v-for="question in filteredQuestions" :key="question.id" class="question">
+          <div class="question__main">
+            <div class="question__head">
+              <span class="question__title">{{ question.title }}</span>
+              <span class="question__status" :class="statusClass(question.status)">
+                {{ statusLabel(question.status) }}
+              </span>
+            </div>
+            <div class="question__meta">
+              <span>题型：{{ question.type === 'single' ? '单选' : question.type === 'multi' ? '多选' : '填空' }}</span>
+              <span v-if="auth.isAdmin">作者：{{ question.authorUsername }}</span>
+              <span>更新：{{ new Date(question.updatedAt).toLocaleString() }}</span>
+              <span v-if="question.reviewNote" class="question__review-note">
+                驳回原因：{{ question.reviewNote }}
+              </span>
+            </div>
+          </div>
+
+          <div class="question__ops">
+            <button class="question__op" type="button" title="测试预览" @click="openPreview(question)">
+              测试
+            </button>
+            <button class="question__op" type="button" title="编辑" @click="handleEdit(question)">
+              <Pencil :size="14" :stroke-width="1.8" />
             </button>
             <button
-              class="question__op question__op--reject"
+              v-if="question.status !== 'approved'"
+              class="question__op"
               type="button"
-              title="驳回"
-              @click="handleReview(question, false)"
+              title="提交审核"
+              @click="handleSubmit(question)"
             >
-              驳回
+              提交审核
             </button>
-          </template>
-          <button class="question__op question__op--danger" type="button" title="删除" @click="handleDelete(question)">
-            <Trash2 :size="14" :stroke-width="1.8" />
-          </button>
-        </div>
-      </li>
-    </ul>
+            <template v-if="auth.isAdmin && question.status === 'pending'">
+              <button
+                class="question__op question__op--approve"
+                type="button"
+                title="通过"
+                @click="handleReview(question, true)"
+              >
+                <Check :size="14" :stroke-width="1.8" />
+              </button>
+              <button
+                class="question__op question__op--reject"
+                type="button"
+                title="驳回"
+                @click="handleReview(question, false)"
+              >
+                驳回
+              </button>
+            </template>
+            <button class="question__op question__op--danger" type="button" title="删除" @click="handleDelete(question)">
+              <Trash2 :size="14" :stroke-width="1.8" />
+            </button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ── 已发布题库 ── -->
+    <section class="questions__section">
+      <h3 class="questions__section-title">
+        已发布题库
+        <span class="questions__section-count">{{ store.published.length }}</span>
+      </h3>
+
+      <div v-if="store.published.length === 0" class="questions__empty">
+        暂无已发布的题目。审核通过后会自动出现在这里。
+      </div>
+
+      <ul v-else class="questions__list">
+        <li v-for="question in store.published" :key="question.id" class="question">
+          <div class="question__main">
+            <div class="question__head">
+              <span class="question__title">{{ question.title }}</span>
+              <span class="question__status question__status--mint">已发布</span>
+            </div>
+            <div class="question__meta">
+              <span>题型：{{ question.type === 'single' ? '单选' : question.type === 'multi' ? '多选' : '填空' }}</span>
+              <span>作者：{{ question.authorUsername }}</span>
+              <span>发布：{{ new Date(question.publishedAt ?? question.updatedAt).toLocaleString() }}</span>
+            </div>
+          </div>
+
+          <div class="question__ops">
+            <button class="question__op" type="button" title="测试预览" @click="openPreview(question)">
+              测试
+            </button>
+            <template v-if="auth.isAdmin">
+              <button
+                class="question__op"
+                type="button"
+                title="打回（下架为草稿）"
+                @click="handleUnpublish(question)"
+              >
+                <Undo2 :size="14" :stroke-width="1.8" /> 打回
+              </button>
+              <button
+                class="question__op question__op--danger"
+                type="button"
+                title="删除"
+                @click="handleDelete(question)"
+              >
+                <Trash2 :size="14" :stroke-width="1.8" />
+              </button>
+            </template>
+          </div>
+        </li>
+      </ul>
+    </section>
 
     <!-- 测试预览弹层 -->
     <div v-if="previewQuestion" class="preview" @click.self="previewQuestion = null">
@@ -262,7 +332,31 @@ const exportNote = ref<string | null>(null)
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+}
+
+/* ── 分段 ── */
+.questions__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.questions__section-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font: 600 13px var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.questions__section-count {
+  padding: 1px 7px;
+  border: 1px solid var(--line-default);
+  color: var(--text-muted);
+  font: 10px var(--font-mono);
 }
 
 /* ── 顶部工具栏 ── */

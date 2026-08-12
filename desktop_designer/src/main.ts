@@ -10,6 +10,10 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import { router } from './router'
+import { applyInitialTheme } from './composables/useTheme'
 import './styles/main.css'
+
+// 挂载前应用持久化主题（CSS 变量随 <html data-theme> 即时生效，避免闪烁）
+applyInitialTheme()
 
 createApp(App).use(createPinia()).use(router).mount('#app')

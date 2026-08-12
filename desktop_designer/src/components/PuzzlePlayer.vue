@@ -39,6 +39,8 @@ const selectedIndices = ref<number[]>([])
 const fillValues = ref<string[]>([])
 /** 是否提交过 */
 const hasAttempted = ref(false)
+/** 答错次数（用于按次数的错误提示） */
+const attemptCount = ref(0)
 /** 已揭示的提示 */
 const revealedHints = ref<string[]>([])
 /** 加载失败的图片 */
@@ -46,6 +48,59 @@ const failedImages = ref<Set<string>>(new Set())
 
 /** 填空输入框数量 */
 const fillCount = computed(() => props.definition.fillAnswers?.length ?? 1)
+
+/** 填空大小写不敏感比较 */
+function fillWrong(value: string, answer: string): boolean {
+  return value.trim().toLowerCase() !== answer.trim().toLowerCase()
+}
+
+/**
+ * 答错提示文本（按错误反馈规则计算）。
+ * 优先级：选项级/空级提示 → 答错次数提示 → 默认文案。
+ */
+const wrongMessage = computed(() => {
+  const definition = props.definition
+  const feedback = definition.wrongFeedback
+  const hints: string[] = []
+
+  // 1. 选项级提示（单选/多选）：命中选中的错误选项
+  if (definition.type === 'single' || definition.type === 'multi') {
+    const optionHints = feedback?.optionHints ?? {}
+    for (const index of selectedIndices.value) {
+      const option = definition.options?.[index]
+      if (option && !option.correct) {
+        const hint = optionHints[String(index)]
+        if (hint?.trim()) hints.push(hint.trim())
+      }
+    }
+  }
+
+  // 1'. 填空空级提示：命中答错的空
+  if (definition.type === 'fill') {
+    const fillHints = feedback?.fillHints ?? []
+    const answers = definition.fillAnswers ?? []
+    fillValues.value.forEach((value, index) => {
+      const answer = answers[index]
+      if (answer !== undefined && fillWrong(value, answer)) {
+        const hint = fillHints[index]
+        if (hint?.trim()) hints.push(hint.trim())
+      }
+    })
+  }
+
+  // 2. 答错次数提示（第1次错 [0]、第2次错 [1]、第3次及以上取最后一条）
+  if (hints.length === 0) {
+    const attemptHints = feedback?.attemptHints ?? []
+    if (attemptHints.length > 0) {
+      const index = Math.min(Math.max(attemptCount.value - 1, 0), attemptHints.length - 1)
+      const hint = attemptHints[index]
+      if (hint?.trim()) hints.push(hint.trim())
+    }
+  }
+
+  // 3. 默认提示
+  return hints.length > 0 ? hints.join('\n') : '答案不正确，请重试。'
+})
 
 /** 切换选项（单选替换 / 多选切换） */
 function toggleOption(index: number) {
@@ -72,6 +127,7 @@ function handleSubmit() {
     return
   }
   hasAttempted.value = true
+  attemptCount.value += 1
 }
 
 /** 揭示下一条提示 */
@@ -207,7 +263,7 @@ const correctIndices = computed(() =>
         </button>
       </div>
 
-      <p v-if="hasAttempted && !isSolved" class="puzzle-player__error">答案不正确，请重试。</p>
+      <p v-if="hasAttempted && !isSolved" class="puzzle-player__error">{{ wrongMessage }}</p>
     </div>
 
     <!-- 已答对 -->
@@ -426,7 +482,8 @@ const correctIndices = computed(() =>
 .puzzle-player__error {
   margin: 0;
   color: var(--signal-red);
-  font: 12px var(--font-ui);
+  font: 12px/1.6 var(--font-ui);
+  white-space: pre-line;
 }
 
 /* ── 已答对 ── */

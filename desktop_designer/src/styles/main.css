@@ -1,8 +1,9 @@
 /**
  * # main.css — 出题器全局样式（FakeOS 风格 tokens）
  *
- * 复制自 desktop 的 night 主题核心变量（desktop/src/styles/main.css），
- * 仅保留一套暗色主题，不做主题切换。全部 border-radius: 0（FakeOS 风格）。
+ * 主题机制与 desktop 一致：`:root` 为默认暗夜（night），
+ * `[data-theme]` 块按主题覆盖颜色变量，切换实时生效（见 composables/useTheme.ts）。
+ * 全部 border-radius: 0（FakeOS 风格）。
  */
 
 :root {
@@ -25,6 +26,86 @@
 
   --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+/* 日间 */
+[data-theme="day"] {
+  --canvas: #f5f5f0;
+  --surface-raised: #ffffff;
+  --surface-panel: #f0f0ed;
+  --surface-hover: #e8e8e0;
+
+  --line-subtle: #dcdcd4;
+  --line-default: #b0b0a8;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #808080;
+
+  --signal-red: #d32f2f;
+  --signal-red-soft: #e57373;
+  --signal-red-border: #b71c1c;
+  --signal-mint: #2e7d5b;
+}
+
+/* 深蓝 */
+[data-theme="deep-blue"] {
+  --canvas: #0a1628;
+  --surface-raised: #112240;
+  --surface-panel: #1a2d50;
+  --surface-hover: #243b60;
+
+  --line-subtle: #1e3558;
+  --line-default: #3a5280;
+
+  --text-primary: #e6f1ff;
+  --text-secondary: #a8c8f0;
+  --text-muted: #6a8db8;
+
+  --signal-red: #ff6b6b;
+  --signal-red-soft: #ff8a80;
+  --signal-red-border: #e05555;
+  --signal-mint: #64ffda;
+}
+
+/* 羊皮纸 */
+[data-theme="parchment"] {
+  --canvas: #f4ecd8;
+  --surface-raised: #faf3e6;
+  --surface-panel: #f0e8d0;
+  --surface-hover: #e8dcb8;
+
+  --line-subtle: #d8c8a0;
+  --line-default: #b8a878;
+
+  --text-primary: #3d2b1f;
+  --text-secondary: #6b5040;
+  --text-muted: #9a8070;
+
+  --signal-red: #c0392b;
+  --signal-red-soft: #d4786b;
+  --signal-red-border: #a33224;
+  --signal-mint: #4a8c6f;
+}
+
+/* 玫瑰（雍容华丽） */
+[data-theme="rose"] {
+  --canvas: #faf0eb;
+  --surface-raised: #fff8f5;
+  --surface-panel: #f5e8e0;
+  --surface-hover: #edd8d0;
+
+  --line-subtle: #e0ccc0;
+  --line-default: #c0a898;
+
+  --text-primary: #2a1818;
+  --text-secondary: #5c3a3a;
+  --text-muted: #907070;
+
+  --signal-red: #cd5076;
+  --signal-red-soft: #da738a;
+  --signal-red-border: #b24057;
+  --signal-mint: #6ba88a;
 }
 
 * {

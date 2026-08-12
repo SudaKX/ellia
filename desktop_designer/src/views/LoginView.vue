@@ -22,12 +22,12 @@ function switchMode(next: 'login' | 'register') {
   error.value = null
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   error.value = null
   const result =
     mode.value === 'login'
-      ? auth.login(username.value, password.value)
-      : auth.register(username.value, password.value)
+      ? await auth.login(username.value, password.value)
+      : await auth.register(username.value, password.value)
   if (!result.ok) {
     error.value = result.error ?? '操作失败'
     return
@@ -44,21 +44,22 @@ function handleSubmit() {
 
       <div class="login__tabs">
         <button
-          class="login__tab"
-          :class="{ 'login__tab--active': mode === 'login' }"
+          class="login__tab login__tab--active"
           type="button"
           @click="switchMode('login')"
         >
           登录
         </button>
-        <button
+        <!-- 注册入口已停用：账号由服务端预置（server/src/seed-users.js），
+             需要新账号请管理员在服务端添加 -->
+        <!-- <button
           class="login__tab"
           :class="{ 'login__tab--active': mode === 'register' }"
           type="button"
           @click="switchMode('register')"
         >
           注册
-        </button>
+        </button> -->
       </div>
 
       <form class="login__form" @submit.prevent="handleSubmit">
@@ -84,9 +85,10 @@ function handleSubmit() {
         </label>
 
         <p v-if="error" class="login__error">{{ error }}</p>
-        <p v-if="mode === 'register'" class="login__hint">
+        <!-- 注册提示已停用（见上方注册 tab 注释） -->
+        <!-- <p v-if="mode === 'register'" class="login__hint">
           首个注册的账号自动成为管理员，其余为普通出题者。
-        </p>
+        </p> -->
 
         <button class="login__submit" type="submit">
           {{ mode === 'login' ? '登录' : '注册并登录' }}

@@ -77,4 +77,23 @@ export interface PuzzleDefinition {
   hints?: string[]
   /** 答后解析（可选） */
   explanation?: string
+  /** 错误反馈规则（答错时给出针对性提示，可选） */
+  wrongFeedback?: WrongFeedback
+}
+
+/**
+ * 错误反馈规则。
+ *
+ * 答错时的提示优先级：
+ * 1. 选项级 / 填空空级提示（选择题按选中的错误选项；填空题按答错的空）
+ * 2. 无命中时回退到答错次数提示（attemptHints）
+ * 3. 仍无则使用默认提示
+ */
+export interface WrongFeedback {
+  /** 单选/多选：选项下标 → 提示。选中该错误选项时展示（多选命中多个则合并展示） */
+  optionHints?: Record<string, string>
+  /** 填空：按空下标 → 提示。该空答错时展示（多个空错则合并展示） */
+  fillHints?: string[]
+  /** 答错次数 → 提示：第 1 次错取 [0]，第 2 次取 [1]，第 3 次及以上取最后一条 */
+  attemptHints?: string[]
 }

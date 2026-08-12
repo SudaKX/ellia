@@ -17,7 +17,7 @@ import PuzzlePlayer from '@/components/PuzzlePlayer.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useQuestionsStore } from '@/stores/questions'
 import { getQuestion, type QuestionInput } from '@/composables/useQuestionApi'
-import type { ContentBlock, PuzzleDefinition, PuzzleOption, QuestionType } from '@/types/puzzle'
+import type { ContentBlock, PuzzleDefinition, PuzzleOption, QuestionType, WrongFeedback } from '@/types/puzzle'
 
 const auth = useAuthStore()
 const store = useQuestionsStore()
@@ -27,10 +27,10 @@ const router = useRouter()
 /** 编辑模式下的题目 id（/questions/new 时为 null） */
 const editingId = ref<string | null>(typeof route.params.id === 'string' ? route.params.id : null)
 
-onMounted(() => {
+onMounted(async () => {
   // 编辑模式：加载既有题目；权限校验（本人或 admin）
   if (editingId.value) {
-    const record = getQuestion(editingId.value)
+    const record = await getQuestion(editingId.value)
     if (!record) {
       router.replace('/questions')
       return
@@ -46,8 +46,9 @@ onMounted(() => {
     fillAnswers.value = [...(record.fillAnswers ?? [])]
     hints.value = [...(record.hints ?? [])]
     explanation.value = record.explanation ?? ''
+    wrongFeedback.value = record.wrongFeedback ? structuredClone(record.wrongFeedback) : {}
   }
-  store.load()
+  store.load().catch(() => undefined)
 })
 
 // ─── 表单状态 ──────────────────────────────────────
@@ -62,6 +63,8 @@ const explanation = ref('')
 const error = ref<string | null>(null)
 const previewReveal = ref(false)
 const showPreview = ref(false)
+/** 错误反馈规则（答错提示） */
+const wrongFeedback = ref<WrongFeedback>({})
 
 /** 实时预览定义 */
 const previewDefinition = computed<PuzzleDefinition>(() => ({
@@ -73,7 +76,58 @@ const previewDefinition = computed<PuzzleDefinition>(() => ({
   fillAnswers: fillAnswers.value,
   hints: hints.value,
   explanation: explanation.value,
+  wrongFeedback: wrongFeedback.value,
 }))
+
+// ─── 错误反馈编辑 ───────────────────────────────────
+
+/** 更新选项错误提示（trim 后为空则移除该条） */
+function setOptionHint(index: number, value: string) {
+  const hints = { ...wrongFeedback.value.optionHints }
+  const text = value.trim()
+  if (text) hints[String(index)] = text
+  else delete hints[String(index)]
+  wrongFeedback.value = { ...wrongFeedback.value, optionHints: hints }
+}
+
+/** 更新填空空错误提示 */
+function setFillHint(index: number, value: string) {
+  const hints = [...(wrongFeedback.value.fillHints ?? [])]
+  hints[index] = value.trim()
+  wrongFeedback.value = { ...wrongFeedback.value, fillHints: hints }
+}
+
+/** 新增一条答错次数提示 */
+function addAttemptHint() {
+  wrongFeedback.value = {
+    ...wrongFeedback.value,
+    attemptHints: [...(wrongFeedback.value.attemptHints ?? []), ''],
+  }
+}
+
+/** 删除一条答错次数提示 */
+function removeAttemptHint(index: number) {
+  const hints = [...(wrongFeedback.value.attemptHints ?? [])]
+  hints.splice(index, 1)
+  wrongFeedback.value = { ...wrongFeedback.value, attemptHints: hints }
+}
+
+/** 更新答错次数提示 */
+function setAttemptHint(index: number, value: string) {
+  const hints = [...(wrongFeedback.value.attemptHints ?? [])]
+  hints[index] = value.trim()
+  wrongFeedback.value = { ...wrongFeedback.value, attemptHints: hints }
+}
+
+/** 错误反馈是否为空（空则不写入题目数据） */
+function hasWrongFeedback(): boolean {
+  const feedback = wrongFeedback.value
+  return (
+    (feedback.optionHints !== undefined && Object.keys(feedback.optionHints).length > 0) ||
+    (feedback.fillHints !== undefined && feedback.fillHints.length > 0) ||
+    (feedback.attemptHints !== undefined && feedback.attemptHints.length > 0)
+  )
+}
 
 // ─── 题面块编辑器 ──────────────────────────────────
 
@@ -221,21 +275,22 @@ function buildInput(): QuestionInput {
     fillAnswers: type.value === 'fill' ? fillAnswers.value.map((value) => value.trim()) : undefined,
     hints: hints.value.map((value) => value.trim()).filter(Boolean),
     explanation: explanation.value.trim() || undefined,
+    wrongFeedback: hasWrongFeedback() ? wrongFeedback.value : undefined,
   }
 }
 
 /** 保存（草稿） */
-function handleSaveDraft() {
+async function handleSaveDraft() {
   if (!validate()) return
-  persist(false)
+  await persist(false)
 }
 
 /** 保存并提交审核 */
-function handleSaveAndSubmit() {
+async function handleSaveAndSubmit() {
   if (!validate()) return
-  const id = persist(true)
+  const id = await persist(true)
   if (id) {
-    const result = store.submit(id)
+    const result = await store.submit(id)
     if (!result.ok) alert(result.error ?? '提交失败')
   }
 }
@@ -243,20 +298,20 @@ function handleSaveAndSubmit() {
 /**
  * 持久化题目。
  *
- * @param markDirty - 是否将状态重置为草稿（提交审核流程用；保存草稿本身即 draft）
+ * @param _markDirty - 是否将状态重置为草稿（提交审核流程用；保存草稿本身即 draft）
  * @returns 题目 id
  */
-function persist(_markDirty: boolean): string | null {
+async function persist(_markDirty: boolean): Promise<string | null> {
   const input = buildInput()
   if (editingId.value) {
-    const result = store.update(editingId.value, input)
+    const result = await store.update(editingId.value, input)
     if (!result.ok) {
       error.value = result.error ?? '保存失败'
       return null
     }
     return editingId.value
   }
-  const record = store.create(input)
+  const record = await store.create(input)
   if (!record) {
     error.value = '创建失败'
     return null
@@ -385,6 +440,14 @@ function persist(_markDirty: boolean): string | null {
               <button class="option__remove" type="button" title="删除选项" @click="removeOption(index)">
                 <Trash2 :size="14" :stroke-width="1.8" />
               </button>
+              <input
+                v-if="!option.correct"
+                :value="wrongFeedback.optionHints?.[String(index)] ?? ''"
+                class="editor__input option__hint"
+                type="text"
+                placeholder="答错提示（选中此项时显示，可选）"
+                @input="setOptionHint(index, ($event.target as HTMLInputElement).value)"
+              />
             </div>
           </div>
           <button class="editor__btn" type="button" @click="addOption">
@@ -402,6 +465,13 @@ function persist(_markDirty: boolean): string | null {
               <button class="fill__remove" type="button" title="删除空" @click="removeFill(index)">
                 <Trash2 :size="14" :stroke-width="1.8" />
               </button>
+              <input
+                :value="wrongFeedback.fillHints?.[index] ?? ''"
+                class="editor__input fill__hint"
+                type="text"
+                placeholder="答错提示（该空答错时显示，可选）"
+                @input="setFillHint(index, ($event.target as HTMLInputElement).value)"
+              />
             </div>
           </div>
           <button class="editor__btn" type="button" @click="addFill">
@@ -423,6 +493,32 @@ function persist(_markDirty: boolean): string | null {
           <button class="editor__btn" type="button" @click="addHint">
             <Plus :size="14" :stroke-width="1.8" /> 添加提示
           </button>
+        </div>
+
+        <!-- 错误反馈：答错次数提示 -->
+        <div class="editor__field">
+          <span class="editor__label">答错次数提示（可选）</span>
+          <div class="editor__hints">
+            <div v-for="(hint, index) in wrongFeedback.attemptHints ?? []" :key="index" class="hint">
+              <span class="fill__label">第 {{ index + 1 }} 次答错</span>
+              <input
+                :value="hint"
+                class="editor__input"
+                type="text"
+                placeholder="提示内容"
+                @input="setAttemptHint(index, ($event.target as HTMLInputElement).value)"
+              />
+              <button class="hint__remove" type="button" title="删除提示" @click="removeAttemptHint(index)">
+                <Trash2 :size="14" :stroke-width="1.8" />
+              </button>
+            </div>
+          </div>
+          <button class="editor__btn" type="button" @click="addAttemptHint">
+            <Plus :size="14" :stroke-width="1.8" /> 添加次数提示
+          </button>
+          <p class="editor__note">
+            优先级：先按「选项/填空」级提示展示；未命中时按答错次数展示（第 1 次取第 1 条，第 3 次及以上取最后一条）。
+          </p>
         </div>
 
         <label class="editor__field">
@@ -621,6 +717,23 @@ function persist(_markDirty: boolean): string | null {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.option,
+.fill {
+  flex-wrap: wrap;
+}
+
+.option__hint,
+.fill__hint {
+  flex-basis: 100%;
+  margin-left: 28px;
+}
+
+.editor__note {
+  margin: 0;
+  color: var(--text-muted);
+  font: 11px/1.6 var(--font-ui);
 }
 
 .option__correct {

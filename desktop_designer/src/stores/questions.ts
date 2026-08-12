@@ -2,7 +2,7 @@
  * # useQuestionsStore — 题目列表状态（Pinia 响应式包装）
  *
  * 持有当前操作者可见的题目列表，方法内部委托 useQuestionApi（数据访问层），
- * 操作成功后刷新列表。权限判断在 useQuestionApi 内统一处理。
+ * 操作成功后刷新列表。权限判断在 useQuestionApi 内统一处理（远程 / 本地）。
  */
 
 import { ref } from 'vue'
@@ -13,17 +13,21 @@ import {
   createQuestion,
   deleteQuestion,
   exportPublishedQuestions,
+  listPublishedQuestions,
   listQuestions,
   reviewQuestion,
   submitForReview,
+  unpublishQuestion,
   updateQuestion,
   type QuestionInput,
   type QuestionRecord,
 } from '@/composables/useQuestionApi'
 
 export const useQuestionsStore = defineStore('questions', () => {
-  /** 当前可见题目列表 */
+  /** 当前可见题目列表（本人 / admin 全部） */
   const questions = ref<QuestionRecord[]>([])
+  /** 已发布题目列表（所有登录用户可见） */
+  const published = ref<QuestionRecord[]>([])
 
   /** 当前操作者（auth store） */
   function viewer() {
@@ -34,61 +38,87 @@ export const useQuestionsStore = defineStore('questions', () => {
   }
 
   /** 加载列表（登录后 / 操作后调用） */
-  function load(): void {
+  async function load(): Promise<void> {
     const current = viewer()
     if (!current) return
-    questions.value = listQuestions(current)
+    try {
+      questions.value = await listQuestions(current)
+    } catch (error) {
+      questions.value = []
+      throw error
+    }
+  }
+
+  /** 加载已发布题库（登录后 / 打回 / 删除后调用） */
+  async function loadPublished(): Promise<void> {
+    try {
+      published.value = await listPublishedQuestions()
+    } catch (error) {
+      published.value = []
+      throw error
+    }
   }
 
   /** 创建题目（草稿） */
-  function create(input: QuestionInput): QuestionRecord | null {
+  async function create(input: QuestionInput): Promise<QuestionRecord | null> {
     const current = viewer()
     if (!current) return null
-    const record = createQuestion(current.username, input)
-    load()
+    const record = await createQuestion(current.username, input)
+    await load()
     return record
   }
 
   /** 编辑题目 */
-  function update(id: string, patch: Partial<QuestionInput>): { ok: boolean; error?: string } {
+  async function update(id: string, patch: Partial<QuestionInput>): Promise<{ ok: boolean; error?: string }> {
     const current = viewer()
     if (!current) return { ok: false, error: '未登录' }
-    const result = updateQuestion(current, id, patch)
-    load()
+    const result = await updateQuestion(current, id, patch)
+    await load()
     return result
   }
 
   /** 删除题目 */
-  function remove(id: string): boolean {
+  async function remove(id: string): Promise<boolean> {
     const current = viewer()
     if (!current) return false
-    const ok = deleteQuestion(current, id)
-    load()
+    const ok = await deleteQuestion(current, id)
+    await load()
+    await loadPublished().catch(() => undefined)
     return ok
   }
 
-  /** 提交审核 */
-  function submit(id: string): { ok: boolean; error?: string } {
+  /** 打回已发布题目（admin）：approved → draft */
+  async function unpublish(id: string): Promise<{ ok: boolean; error?: string }> {
     const current = viewer()
     if (!current) return { ok: false, error: '未登录' }
-    const result = submitForReview(current, id)
-    load()
+    const result = await unpublishQuestion(current, id)
+    await load()
+    await loadPublished().catch(() => undefined)
+    return result
+  }
+
+  /** 提交审核 */
+  async function submit(id: string): Promise<{ ok: boolean; error?: string }> {
+    const current = viewer()
+    if (!current) return { ok: false, error: '未登录' }
+    const result = await submitForReview(current, id)
+    await load()
     return result
   }
 
   /** 管理员审核 */
-  function review(id: string, approved: boolean, note?: string): { ok: boolean; error?: string } {
+  async function review(id: string, approved: boolean, note?: string): Promise<{ ok: boolean; error?: string }> {
     const current = viewer()
     if (!current) return { ok: false, error: '未登录' }
-    const result = reviewQuestion(current, id, approved, note)
-    load()
+    const result = await reviewQuestion(current, id, approved, note)
+    await load()
     return result
   }
 
   /** 导出已发布题库（下载 / 复制） */
-  function exportPublished() {
+  async function exportPublished() {
     return exportPublishedQuestions()
   }
 
-  return { questions, load, create, update, remove, submit, review, exportPublished }
+  return { questions, published, load, loadPublished, create, update, remove, unpublish, submit, review, exportPublished }
 })
