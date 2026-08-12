@@ -113,6 +113,8 @@ class AchievementService:
         earned: list[str] = []
         effects: list[str] = []
         for definition in self._catalog.achievements:
+            if definition.condition is None:
+                continue
             state = player.achievements.state(definition.stable_id)
             if not definition.condition(player):
                 continue
@@ -122,9 +124,17 @@ class AchievementService:
             if state.claimed_at is None and definition.immediate:
                 effects.append(definition.stable_id)
         return AchievementCheckResult(
-            checked_count=len(self._catalog.achievements),
+            checked_count=sum(definition.condition is not None for definition in self._catalog.achievements),
             earned_stable_ids=tuple(earned),
             effect_stable_ids=tuple(effects),
+        )
+
+    def immediate_effect_candidates(self, stable_ids: Iterable[str]) -> tuple[str, ...]:
+        requested = frozenset(stable_ids)
+        return tuple(
+            definition.stable_id
+            for definition in self._catalog.achievements
+            if definition.immediate and definition.stable_id in requested
         )
 
     async def apply_effects(self, player: Player, stable_ids: Iterable[str]) -> tuple[str, ...]:

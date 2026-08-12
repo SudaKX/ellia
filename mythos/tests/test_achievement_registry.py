@@ -64,6 +64,23 @@ def test_achievement_registry_rejects_undecorated_callbacks() -> None:
         )
 
 
+def test_achievement_registry_accepts_grant_only_definition_and_uses_effect_dependencies() -> None:
+    definition = AchievementDefinition(
+        "test.grant-only",
+        True,
+        {},
+        None,
+        _effect,
+    )
+    registry = AchievementRegistry()
+    registry.register(definition)
+
+    catalog = registry.freeze(FileIdCodec("test-file-id-signing-key-with-at-least-32-bytes"))
+
+    assert catalog.achievement("test.grant-only").condition is None
+    assert catalog.dependencies == PlayerInterfaces.CREDITS
+
+
 def test_achievement_id_uses_the_separate_nul_terminated_domain() -> None:
     secret = "test-file-id-signing-key-with-at-least-32-bytes"
     stable_id = "test.achievement"

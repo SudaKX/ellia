@@ -34,6 +34,12 @@ class _TaskPhaseResult:
     failure: TaskHandlerFailure | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _OperationResult:
+    completed: CachedResponse
+    granted_stable_ids: tuple[str, ...]
+
+
 async def _run_task_phase(
     session: AsyncSession,
     player_loader: PlayerLoader,
@@ -97,7 +103,7 @@ class EndpointCommandExecutor:
                 if task_result.failure is not None:
                     raise task_result.failure
             async with session.begin():
-                completed = await self._execute_operation_itx(
+                operation_result = await self._execute_operation_itx(
                     session,
                     identity,
                     request_id,
@@ -108,7 +114,7 @@ class EndpointCommandExecutor:
             completed = await self._run_achievement_after_operation(
                 session,
                 identity.player_id,
-                completed,
+                operation_result,
             )
             lease.complete(completed)
             return completed
@@ -117,8 +123,9 @@ class EndpointCommandExecutor:
         self,
         session: AsyncSession,
         player_id: UUID,
-        completed: CachedResponse,
+        operation_result: _OperationResult,
     ) -> CachedResponse:
+        completed = operation_result.completed
         if self._achievement_service is None:
             return completed
         warnings: list[dict[str, str]] = []
@@ -136,7 +143,13 @@ class EndpointCommandExecutor:
         except Exception as error:
             _logger.exception("Achievement check failed for player=%s", player_id, exc_info=error)
             warnings.append(_achievement_warning("check"))
-        if check_result is not None and check_result.effect_stable_ids:
+        effect_stable_ids = self._achievement_service.immediate_effect_candidates(
+            (
+                *operation_result.granted_stable_ids,
+                *(check_result.effect_stable_ids if check_result is not None else ()),
+            )
+        )
+        if effect_stable_ids:
             try:
                 async with session.begin():
                     player = await self._load_achievement_player(session, player_id)
@@ -144,7 +157,7 @@ class EndpointCommandExecutor:
                     async def effect_operation(_session: AsyncSession, current_player: Player) -> tuple[str, ...]:
                         return await self._achievement_service.apply_effects(
                             current_player,
-                            check_result.effect_stable_ids,
+                            effect_stable_ids,
                         )
 
                     await self._pipeline.run(session, player, effect_operation)
@@ -189,7 +202,9 @@ class EndpointCommandExecutor:
         *,
         scope: ContextScope,
         interfaces: PlayerInterfaces,
-    ) -> CachedResponse:
+    ) -> _OperationResult:
+        if self._achievement_service is not None:
+            interfaces |= PlayerInterfaces.ACHIEVEMENTS
         player = await self._load_player(
             session,
             identity.player_id,
@@ -206,16 +221,20 @@ class EndpointCommandExecutor:
             return await operation(context)
 
         response = await self._pipeline.run(session, player, command_operation)
-        return CachedResponse(
-            owner_player_id=identity.player_id,
-            response=ResponseSpec(
-                status_code=response.status_code,
-                body={
-                    "content": response.body,
-                    "followups": scope.to_json(),
-                },
-                headers=response.headers,
+        granted_stable_ids = player.achievements.drain_grants() if self._achievement_service is not None else ()
+        return _OperationResult(
+            completed=CachedResponse(
+                owner_player_id=identity.player_id,
+                response=ResponseSpec(
+                    status_code=response.status_code,
+                    body={
+                        "content": response.body,
+                        "followups": scope.to_json(),
+                    },
+                    headers=response.headers,
+                ),
             ),
+            granted_stable_ids=granted_stable_ids,
         )
 
     async def _load_player(

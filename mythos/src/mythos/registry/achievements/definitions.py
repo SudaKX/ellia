@@ -22,7 +22,7 @@ class AchievementDefinition:
     stable_id: str
     immediate: bool
     meta: Mapping[str, Any]
-    condition: AchievementCondition
+    condition: AchievementCondition | None
     effect: AchievementEffect
     dependencies: PlayerInterfaces = field(init=False, default=PlayerInterfaces.NONE)
 
@@ -31,11 +31,15 @@ class AchievementDefinition:
             raise ValueError("Achievement IDs must be lowercase slugs up to 128 characters.")
         if not isinstance(self.immediate, bool):
             raise ValueError("Achievement immediate must be a boolean.")
-        if not callable(self.condition) or not callable(self.effect):
-            raise ValueError("Achievement condition and effect must be callable.")
+        if self.condition is not None and not callable(self.condition):
+            raise ValueError("Achievement condition must be callable when provided.")
+        if not callable(self.effect):
+            raise ValueError("Achievement effect must be callable.")
         object.__setattr__(self, "meta", _freeze_meta(self.meta))
         dependencies = PlayerInterfaces.NONE
         for callback in (self.condition, self.effect):
+            if callback is None:
+                continue
             declared = callback_dependencies(callback, field_name="Achievement callback")
             if declared is not None:
                 dependencies |= declared

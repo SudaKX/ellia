@@ -25,13 +25,14 @@ class AchievementRegistry:
         if definition.stable_id in self._definitions:
             raise DuplicateStableIdError(definition.stable_id)
         try:
-            validate_callback(
-                definition.condition,
-                field_name="Achievement condition",
-                parameter_count=1,
-                asynchronous=False,
-                require_dependencies=True,
-            )
+            if definition.condition is not None:
+                validate_callback(
+                    definition.condition,
+                    field_name="Achievement condition",
+                    parameter_count=1,
+                    asynchronous=False,
+                    require_dependencies=True,
+                )
             validate_callback(
                 definition.effect,
                 field_name="Achievement effect",
@@ -39,10 +40,14 @@ class AchievementRegistry:
                 asynchronous=True,
                 require_dependencies=True,
             )
-            condition_dependencies = callback_dependencies(
-                definition.condition,
-                field_name="Achievement condition",
-                required=True,
+            condition_dependencies = (
+                callback_dependencies(
+                    definition.condition,
+                    field_name="Achievement condition",
+                    required=True,
+                )
+                if definition.condition is not None
+                else PlayerInterfaces.NONE
             )
             effect_dependencies = callback_dependencies(
                 definition.effect,

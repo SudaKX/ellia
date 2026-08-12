@@ -1,6 +1,6 @@
 # 成就 API
 
-所有成就接口位于 `/api/v1/achievement`，需要 Bearer JWT。`check` 和 `claim` 是写命令，必须带 UUID `Request-ID`；同一个玩家重放已完成的 Request-ID 时，服务端返回原始缓存响应，不重新执行 condition 或 effect。
+所有成就接口位于 `/api/v1/achievement`，需要 Bearer JWT。`check` 和 `claim` 是写命令，必须带 UUID `Request-ID`；同一个玩家重放已完成的 Request-ID 时，服务端返回原始缓存响应，不重新执行 condition 或 effect。系统不提供客户端主动 grant API；主动授予只能由模块在普通 Operation 的可写 Player 上调用 `player.achievements.grant(stable_id)`。
 
 ## 查询
 
@@ -34,7 +34,7 @@ Authorization: Bearer <access token>
 Request-ID: <UUID>
 ```
 
-该接口不执行 Task。它在独立 Check transaction 中执行全部活动成就 condition，为新达成成就创建 earned 状态；Check 成功后在独立 Effect transaction 中执行 immediate effect。响应的 `content.check` 包含 `checked`、`earned` 和 `effects` public ID 数组。
+该接口不执行 Task。它在独立 Check transaction 中执行所有带 condition 的活动成就，为新达成成就创建 earned 状态；condition 为 null 的 grant-only 成就不会被该接口达成或执行 effect。Check 成功后在独立 Effect transaction 中执行 immediate effect。响应的 `content.check` 包含 `checked`、`earned` 和 `effects` public ID 数组。
 
 ## Claim
 
@@ -58,4 +58,4 @@ Request-ID: <UUID>
 a1_ + Base64URL(HMAC-SHA256(secret, "achievement:v1\0" + stable_id))
 ```
 
-这是定位符，不是授权凭据；claim 仍检查当前玩家和状态。C/D 失败不会回滚已经提交的普通 Operation，成功响应中会增加安全 `warn`，例如 `achievement-check-failed` 或 `achievement-effect-failed`。原始异常只写服务端日志，不返回给客户端。
+这是定位符，不是授权凭据；claim 仍检查当前玩家和状态。模块主动 grant 会在所属普通 Operation transaction 中立即创建 earned state，并仅将活动 stable ID 缓存为候选；Operation 提交后，Executor 将主动 immediate candidates 与 Check candidates 按 Catalog 顺序去重，在至多一个 Effect transaction 中执行。Check 失败不会丢弃已提交 Operation 的主动 immediate candidates；Effect 失败会回滚整个奖励批次但保留 earned state。C/D 失败不会回滚已经提交的普通 Operation，成功响应中会增加安全 `warn`，例如 `achievement-check-failed` 或 `achievement-effect-failed`。原始异常只写服务端日志，不返回给客户端。

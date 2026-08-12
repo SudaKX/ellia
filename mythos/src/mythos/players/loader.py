@@ -207,6 +207,7 @@ class PlayerLoader:
             player_id,
             session,
             records,
+            active_stable_ids=self._catalogs.achievements.stable_ids,
             writable=writable,
             on_mutation=on_mutation,
         )

@@ -15,6 +15,10 @@ class ReadOnlyAchievementError(Exception):
     pass
 
 
+class InactiveAchievementError(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class AchievementStateSnapshot:
     stable_id: str
@@ -40,14 +44,17 @@ class AchievementInterface:
         session: AsyncSession,
         records: Iterable[PlayerAchievementState],
         *,
+        active_stable_ids: frozenset[str],
         writable: bool,
         on_mutation: Callable[[], None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._session = session
         self._writable = writable
+        self._active_stable_ids = active_stable_ids
         self._on_mutation = on_mutation or (lambda: None)
         self._records_by_stable_id = {record.achievement_stable_id: record for record in records}
+        self._pending_grants: set[str] = set()
 
     @property
     def states(self) -> tuple[AchievementStateSnapshot, ...]:
@@ -80,6 +87,19 @@ class AchievementInterface:
         self._records_by_stable_id[stable_id] = record
         self._on_mutation()
         return self._snapshot(record)
+
+    async def grant(self, stable_id: str) -> AchievementStateSnapshot:
+        self._ensure_writable()
+        if stable_id not in self._active_stable_ids:
+            raise InactiveAchievementError("Only active achievements can be granted.")
+        state = await self.earn(stable_id)
+        self._pending_grants.add(stable_id)
+        return state
+
+    def drain_grants(self) -> tuple[str, ...]:
+        grants = tuple(sorted(self._pending_grants))
+        self._pending_grants.clear()
+        return grants
 
     async def claim(self, stable_id: str, *, claimed_at: datetime | None = None) -> AchievementStateSnapshot | None:
         self._ensure_writable()

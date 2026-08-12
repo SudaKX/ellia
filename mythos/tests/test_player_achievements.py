@@ -10,9 +10,11 @@ from _helpers.object_store import FakeObjectStore
 from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerAchievementState, PlayerRecord
-from mythos.players.interfaces import PlayerInterfaces, ReadOnlyAchievementError
+from mythos.players.interfaces import InactiveAchievementError, PlayerInterfaces, ReadOnlyAchievementError
 from mythos.players.loader import PlayerLoader
+from mythos.registry.achievements import AchievementDefinition
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.callbacks import module_handler
 
 
 pytestmark = pytest.mark.anyio
@@ -38,8 +40,16 @@ async def _seed_player(session):
     return player_id
 
 
-def _loader() -> PlayerLoader:
-    return PlayerLoader(RegistryBundle().freeze(_FILE_IDS), FakeObjectStore(), _FILE_IDS)
+@module_handler("test.player-achievements")(1, dependencies=PlayerInterfaces.NONE)
+async def _effect(_player) -> None:
+    pass
+
+
+def _loader(*, active: bool = False) -> PlayerLoader:
+    registries = RegistryBundle()
+    if active:
+        registries.achievements.register(AchievementDefinition("test.achievement", True, {}, None, _effect))
+    return PlayerLoader(registries.freeze(_FILE_IDS), FakeObjectStore(), _FILE_IDS)
 
 
 async def test_achievement_interface_is_idempotent_and_read_only(session) -> None:
@@ -78,3 +88,24 @@ async def test_achievement_state_cascades_when_player_is_deleted(session) -> Non
     assert await session.scalar(
         select(PlayerAchievementState.player_id).where(PlayerAchievementState.player_id == player_id)
     ) is None
+
+
+async def test_grant_rejects_inactive_ids_and_drains_pending_active_grants(session) -> None:
+    player_id = await _seed_player(session)
+    loader = _loader(active=True)
+
+    readonly = await loader.load(session, player_id, writable=False, interfaces=PlayerInterfaces.ACHIEVEMENTS)
+    with pytest.raises(ReadOnlyAchievementError):
+        await readonly.achievements.grant("test.achievement")
+
+    player = await loader.load(session, player_id, writable=True, interfaces=PlayerInterfaces.ACHIEVEMENTS)
+    with pytest.raises(InactiveAchievementError):
+        await player.achievements.grant("test.unknown")
+    first = await player.achievements.grant("test.achievement")
+    second = await player.achievements.grant("test.achievement")
+    assert first == second
+    assert player.achievements.drain_grants() == ("test.achievement",)
+    assert player.achievements.drain_grants() == ()
+    await player.achievements.claim("test.achievement")
+    await player.achievements.grant("test.achievement")
+    assert player.achievements.drain_grants() == ("test.achievement",)

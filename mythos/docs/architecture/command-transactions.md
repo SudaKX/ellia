@@ -19,9 +19,11 @@ Endpoint -> JWT identity + AsyncSession
         -> TaskContext -> all Task Handlers
         -> one ordered pre-commit hook phase
         -> commit
-  -> Operation transaction
-       -> PlayerLoader.lock/load writable Player
+   -> Operation transaction
+        -> PlayerLoader.lock/load writable Player
         -> CommandContext(scope) -> Domain Service / module handler
+        -> module may call player.achievements.grant(active stable_id)
+        -> drain pending proactive grants
         -> ordered pre-commit hooks -> commit
    -> Achievement Check transaction
         -> condition + earned records -> commit
@@ -37,7 +39,7 @@ Endpoint -> JWT identity + AsyncSession
 
 ## HTTP 契约
 
-普通写端点通过 `EndpointCommandExecutor.execute()` 执行，默认先处理惰性 Task，再执行重新加载 Player 的 Operation transaction。Operation 提交后，Executor 在独立 transaction 中运行成就 Check 和需要的 Effect；C/D 失败不影响 Operation，只在最终缓存响应中增加安全 `warn`。只有明确的补偿或 no-task 入口可以显式关闭 Task phase；普通业务 Endpoint 不传关闭选项。
+普通写端点通过 `EndpointCommandExecutor.execute()` 执行，默认先处理惰性 Task，再执行重新加载 Player 的 Operation transaction。配置成就系统时，Operation aggregate 也加载 AchievementInterface；模块可主动 grant 当前活动成就，Executor 在 Operation 成功后、提交前 drain 候选。Operation 提交后，Executor 在独立 transaction 中运行带 condition 的成就 Check，并将 Check 的 immediate candidates 与已 drain 的主动 candidates 按 Catalog 顺序去重后执行至多一个 Effect batch。C 失败仍会尝试已提交主动 immediate grants；C/D 失败都不影响 Operation，只在最终缓存响应中增加安全 `warn`。只有明确的补偿或 no-task 入口可以显式关闭 Task phase；普通业务 Endpoint 不传关闭选项。
 
 当前普通命令使用者是：
 

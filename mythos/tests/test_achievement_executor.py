@@ -143,6 +143,93 @@ async def test_endpoint_executor_preserves_operation_response_when_check_fails(s
     assert await session.get(PlayerAchievementState, (player_id, "test.check-failure")) is None
 
 
+async def test_endpoint_executor_drains_proactive_grants_and_deduplicates_effect_batch(session) -> None:
+    calls: list[str] = []
+
+    @module_handler("test.executor.grant")(1, dependencies=PlayerInterfaces.NONE)
+    def condition(_player) -> bool:
+        return True
+
+    @module_handler("test.executor.grant")(2, dependencies=PlayerInterfaces.NONE)
+    async def effect(_player) -> None:
+        calls.append("effect")
+
+    loader, service = _runtime(AchievementDefinition("test.proactive", True, {}, condition, effect))
+    player_id = await _seed_player(session)
+    executor = EndpointCommandExecutor(
+        loader,
+        RequestCache(maxsize=8, ttl_seconds=60),
+        PipelinedTransaction(),
+        achievement_service=service,
+    )
+
+    async def operation(context) -> ResponseSpec:
+        await context.player.achievements.grant("test.proactive")
+        assert calls == []
+        return ResponseSpec(status_code=200, body={"ok": True}, headers={})
+
+    result = await executor.execute(
+        session,
+        PlayerIdentity(player_id=player_id),
+        uuid4(),
+        operation,
+        run_task_phase=False,
+    )
+
+    assert result.response.body == {"content": {"ok": True}, "followups": []}
+    assert calls == ["effect"]
+    state = await session.get(PlayerAchievementState, (player_id, "test.proactive"))
+    assert state is not None and state.claimed_at is not None
+
+
+async def test_endpoint_executor_applies_proactive_grant_after_failed_check(session) -> None:
+    calls: list[str] = []
+
+    @module_handler("test.executor.grant-failure")(1, dependencies=PlayerInterfaces.NONE)
+    def failing_condition(_player) -> bool:
+        raise RuntimeError("condition failure")
+
+    @module_handler("test.executor.grant-failure")(2, dependencies=PlayerInterfaces.NONE)
+    async def effect(_player) -> None:
+        calls.append("effect")
+
+    loader, service = _runtime(
+        AchievementDefinition("test.check-failure", True, {}, failing_condition, effect),
+    )
+    registries = RegistryBundle()
+    registries.achievements.register(AchievementDefinition("test.check-failure", True, {}, failing_condition, effect))
+    registries.achievements.register(AchievementDefinition("test.proactive", True, {}, None, effect))
+    catalogs = registries.freeze(_FILE_IDS)
+    loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
+    service = AchievementService(catalogs.achievements, _FILE_IDS)
+    player_id = await _seed_player(session)
+    executor = EndpointCommandExecutor(
+        loader,
+        RequestCache(maxsize=8, ttl_seconds=60),
+        PipelinedTransaction(),
+        achievement_service=service,
+    )
+
+    async def operation(context) -> ResponseSpec:
+        await context.player.achievements.grant("test.proactive")
+        return ResponseSpec(status_code=201, body={"created": True}, headers={})
+
+    result = await executor.execute(
+        session,
+        PlayerIdentity(player_id=player_id),
+        uuid4(),
+        operation,
+        run_task_phase=False,
+    )
+
+    assert result.response.body["warn"][0]["code"] == "achievement-check-failed"
+    assert calls == ["effect"]
+    proactive = await session.get(PlayerAchievementState, (player_id, "test.proactive"))
+    failed_check = await session.get(PlayerAchievementState, (player_id, "test.check-failure"))
+    assert proactive is not None and proactive.claimed_at is not None
+    assert failed_check is None
+
+
 async def test_achievement_command_executor_check_claim_and_replay_without_tasks(session) -> None:
     effects: list[str] = []
 

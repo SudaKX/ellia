@@ -141,3 +141,32 @@ async def test_service_distinguishes_deleted_and_missing_fallback_states(session
     assert snapshots["test.missing"].meta == {}
     with pytest.raises(AchievementDeletedError):
         await service.claim(player, snapshots["test.deleted"].public_id)
+
+
+async def test_service_skips_grant_only_achievements_and_orders_immediate_candidates(session) -> None:
+    effects: list[str] = []
+
+    @module_handler("test.service.grant-only")(1, dependencies=PlayerInterfaces.NONE)
+    async def effect(_player) -> None:
+        effects.append("ran")
+
+    @module_handler("test.service.grant-only")(2, dependencies=PlayerInterfaces.NONE)
+    def condition(_player) -> bool:
+        return True
+
+    _catalogs, loader, service = _setup(
+        AchievementDefinition("test.condition", True, {}, condition, effect),
+        AchievementDefinition("test.grant-only", True, {}, None, effect),
+    )
+    player_id = await _seed_player(session)
+
+    async with session.begin():
+        player = await loader.load(session, player_id, writable=True, interfaces=PlayerInterfaces.ACHIEVEMENTS)
+        result = await service.check(player)
+        assert result.checked_count == 1
+        assert result.earned_stable_ids == ("test.condition",)
+        assert service.immediate_effect_candidates(("test.grant-only", "test.condition", "test.condition")) == (
+            "test.condition",
+            "test.grant-only",
+        )
+    assert effects == []

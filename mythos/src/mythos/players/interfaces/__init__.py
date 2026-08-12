@@ -2,6 +2,7 @@ from mythos.players.interfaces.selection import PlayerInterfaces
 from mythos.players.interfaces.achievements import (
     AchievementInterface,
     AchievementStateSnapshot,
+    InactiveAchievementError,
     ReadOnlyAchievementError,
 )
 from mythos.players.interfaces.accounts import Account, AccountInterface, ReadOnlyAccountError
@@ -26,6 +27,7 @@ __all__ = [
     "PlayerInterfaces",
     "AchievementInterface",
     "AchievementStateSnapshot",
+    "InactiveAchievementError",
     "Account",
     "AccountInterface",
     "ArtifactInterface",
