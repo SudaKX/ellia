@@ -12,13 +12,13 @@
 | `ArtifactInterface` | `player_artifacts` 及节点表 | `has_artifact()`、`tree_nodes()`、`version` | 仅可写 Player 可调用生成、刷新和删除 |
 | `TaskInterface` | `player_task_states` | 任务状态、`add_task()`、`remove_task()` | 仅可写 Player 可管理任务 |
 
-`Player` 懒加载 Interface；未加载时访问属性会抛出 `PlayerInterfaceNotLoadedError`。Progress、Account、Artifact 和 Credit Interface 实现 `VersionedPlayerInterface`。`TaskInterface` 保存请求级任务状态和 Handler 调度所需的写入能力，但不进入文件树版本向量。`Player.state_versions()` 按稳定顺序返回请求的状态版本，未加载或没有有效版本的 Interface 会抛出明确错误。完整 `PlayerFileTree` 缓存由 Player 持有，状态写入成功后通过 `Player.invalidate_cache()` 清空。
+`Player` 懒加载 Interface；未加载时访问属性会抛出 `PlayerInterfaceNotLoadedError`。Progress、Account、Artifact、Credit 和 Hint Interface 实现 `VersionedPlayerInterface`。`TaskInterface` 保存请求级任务状态和 Handler 调度所需的写入能力，但不进入文件树版本向量。`Player.state_versions()` 按稳定顺序返回请求的状态版本，未加载或没有有效版本的 Interface 会抛出明确错误。完整 `PlayerFileTree` 缓存由 Player 持有，状态写入成功后通过 `Player.invalidate_cache()` 清空。
 
 ## 请求对象、服务与端点
 
-`PlayerInterfaces` 位图为 `PROGRESS`、`ARTIFACTS`、`ACCOUNTS`、`CREDITS`、`HINTS`、`TASKS` 和 `ALL`。所有实际执行上下文都继承统一 `Context`，直接持有 `player` 和本次逻辑执行的 `ContextScope`。`ContextScope` 只包含 Followup sink，不包含 Player；HTTP Executor 创建 collecting scope，Auth、reconciliation 和其他非 HTTP Workflow 使用 silent scope。
+`PlayerInterfaces` 位图为 `PROGRESS`、`ARTIFACTS`、`ACCOUNTS`、`CREDITS`、`HINTS`、`TASKS`、`ACHIEVEMENTS` 和 `ALL`。所有实际执行上下文都继承统一 `Context`，直接持有 `player` 和本次逻辑执行的 `ContextScope`。`ContextScope` 只包含 Followup sink，不包含 Player；HTTP Executor 创建 collecting scope，Auth、reconciliation 和其他非 HTTP Workflow 使用 silent scope。
 
-`get_context()` 创建只读 `RequestContext`，文件动态端点加载全部 Interface，但 `pft4_` 只采集 Artifact 和文件 access_rule 声明的状态版本。`RequestContext` 保存 identity、Player 和共享 scope；`CommandContext` 增加 UUID `request_id` 与普通命令 reject；`TaskContext` 提供任务时间、异常、meta 状态和 `follow(Followup)`；`PlayerLifecycleContext` 和 `ValidationContext` 复用同一 Context/Followup 模型。子 Context 通过显式传递 scope 共享 Followup 顺序，不各自创建 collector。
+`get_context()` 创建只读 `RequestContext`，文件动态端点加载全部 Interface，但 `pft4_` 只采集 Artifact 和文件 access_rule 声明的状态版本。`RequestContext` 保存 identity、Player 和共享 scope；`CommandContext` 增加 UUID `request_id` 与普通命令 reject；`TaskContext` 提供任务时间、异常、meta 状态和 `follow(Followup)`；`ValidationContext` 复用同一 Context/Followup 模型。`EventContext` 直接持有调用方提供的 Player、Event 和 scope。子 Context 通过显式传递 scope 共享 Followup 顺序，不各自创建 collector。
 
 它们没有独立 Router、Registry 或 HTTP 端点；由认证依赖、文件/进度/脚本读取路由和命令执行器使用。相关 API 行为见 [命令契约](../api/commands.md)。
 

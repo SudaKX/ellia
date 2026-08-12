@@ -21,6 +21,11 @@ class FileIdCodec:
     def encode_hint_id(self, stable_id: str) -> str:
         return self._encode("hint:v1", stable_id, prefix="h1_")
 
+    def encode_achievement_id(self, stable_id: str) -> str:
+        payload = "achievement:v1\0".encode() + stable_id.encode()
+        digest = hmac.new(self._signing_key, payload, hashlib.sha256).digest()
+        return "a1_" + base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
     def encode_artifact_content_token(
         self,
         player_id: str,

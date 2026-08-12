@@ -25,6 +25,6 @@ Artifact content token 使用 `act3_`，payload 绑定 player ID、artifact ID�
 
 Example 注册 `example.admin-access` 和 `/archive/ADMIN_ACCESS.txt` 节点。Guest 验证成功后推进 completed、发放 Administrator 并生成凭据；新的 Request-ID 重复提交不会重新生成。该文件仅在完成谜题且当前登录 Guest 时出现在动态树中。
 
-启动期在 Registry freeze 后运行 `ArtifactReconciliationRunner`。它读取本地 JSON Catalog 快照；ArtifactCatalog version 未变且没有迁移期遗留记录时跳过，变化时仅查询受影响模板拥有者并在命令执行器事务内刷新。同步成功前应用不会 ready。对象上传发生在 SQL 事务提交前，回滚可能留下 `artifacts/` 前缀下的孤儿对象。`ArtifactCleanupService.sweep(session)` 是无 Router、无调度器的最佳努力维护工具。客户端读取规则见 [文件 API](../api/files.md)。
+启动期在 Registry freeze 后运行 `ArtifactReconciliationRunner`。它读取本地 JSON Catalog 快照；ArtifactCatalog version 未变且没有迁移期遗留记录时跳过，变化时仅查询受影响模板拥有者，并在独立数据库事务中加载可写 Player 后调用 `player.artifacts.refresh_stale(player)`。同步成功前应用不会 ready。对象上传发生在 SQL 事务提交前，回滚可能留下 `artifacts/` 前缀下的孤儿对象。`ArtifactCleanupService.sweep(session)` 是无 Router、无调度器的最佳努力维护工具。客户端读取规则见 [文件 API](../api/files.md)。
 
 相关实现：`registry/artifacts/`、`players/interfaces/artifacts.py`、`services/artifacts/reconciliation.py`、`services/artifacts/snapshot.py`、`services/artifacts/cleanup.py`。

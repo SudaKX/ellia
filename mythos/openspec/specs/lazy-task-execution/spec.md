@@ -48,14 +48,19 @@
 
 ### Requirement: TaskContext stages task state changes
 
-TaskService SHALL 使用当前任务行构造 TaskContext，并向 Handler 提供玩家、任务身份、`time_1`、`time_2`、`exception`、解析后的 meta 和统一 UTC 当前时间。TaskContext SHALL 提供设置 `extra_time`、替换或更新 meta、以及声明本次延后完成的方法。
+TaskService SHALL 使用当前任务行构造继承统一 Context 的 TaskContext，并向 Handler 提供玩家、任务身份、`time_1`、`time_2`、`exception`、解析后的 meta、统一 UTC 当前时间和 per-call ContextScope。TaskContext SHALL 提供设置 `extra_time`、替换或更新 meta、声明本次延后完成以及发出 transport-neutral Followup 的方法。
 
 Handler SHALL 不直接设置 `time_1` 或 `exception`，也不需要返回 TaskResult。Handler 正常返回且未声明延后时，TaskService SHALL 使用 Handler 成功完成时间自动更新 `time_1`。Handler 抛出可识别任务错误时，TaskService SHALL 不推进 `time_1`。
 
 #### Scenario: Handler 正常完成
 
 - **WHEN** Handler 正常返回且未调用延后方法
-- **THEN** TaskService SHALL 更新当前任务的 `time_1`，并保存 Context 中的 `time_2` 和 meta
+- **THEN** TaskService SHALL 更新当前任务的 `time_1`，保存 Context 中的 `time_2` 和 meta，并保留当前 ContextScope 中的 Followup
+
+#### Scenario: Handler 发出 Followup
+
+- **WHEN** Task Handler 使用 TaskContext 发出结构化 Followup
+- **THEN** Followup SHALL 进入当前 per-call ContextScope，且 Handler 不得直接构造 HTTP ResponseSpec
 
 #### Scenario: Handler 延后完成
 
@@ -74,22 +79,32 @@ Handler SHALL 不直接设置 `time_1` 或 `exception`，也不需要返回 Task
 
 ### Requirement: Lazy execution occurs at accepted player activity points
 
-系统 SHALL 在玩家注册或 Construct 激活、登录、已认证写命令开始前和显式任务处理请求中触发玩家任务处理。普通已认证写命令 SHALL 使用默认 `EndpointCommandExecutor` 的 Task pre-activity phase；纯读取端点 SHALL NOT 因读取而隐式写入任务状态。内部 Workflow 可以在自己的外层 transaction 中显式调用 TaskService.run_itx()。
+系统 SHALL 在已认证写命令开始前和显式任务处理请求中触发玩家任务处理。玩家注册或 Construct 生命周期可以激活任务，但 Auth Workflow SHALL NOT 执行 Task Handler；前端可以在认证成功后自行请求显式任务处理接口。登出 SHALL NOT 隐式调用任务处理。普通已认证写命令 SHALL 使用默认 `EndpointCommandExecutor` 的 Task pre-activity phase；纯读取端点 SHALL NOT 因读取而隐式写入任务状态。
 
 #### Scenario: 写命令触发默认任务处理
 
 - **WHEN** 已认证玩家提交一个由 `EndpointCommandExecutor` 执行的写命令
 - **THEN** 系统 SHALL 在业务 Operation transaction 前提交该玩家的 Task transaction
 
-#### Scenario: 登录触发任务处理
+#### Scenario: Auth Workflow 不触发任务处理
 
-- **WHEN** 玩家成功完成登录流程
-- **THEN** Auth Workflow SHALL 在其认证 transaction 内处理该玩家已经存在的任务；Construct 新增的任务默认可延迟到后续触发点
+- **WHEN** 玩家完成注册、登录、登出或 refresh 流程
+- **THEN** Auth Workflow SHALL 只提交认证和生命周期变更，不得执行 Task Handler；Construct 激活的任务 SHALL 保留为待处理状态
 
-#### Scenario: 内部 Workflow 显式触发任务处理
+#### Scenario: 内部 Workflow 使用非 HTTP scope
 
-- **WHEN** Auth Workflow 或其他受控内部 Workflow 需要在已有 transaction 中处理任务
-- **THEN** Workflow SHALL 直接调用 TaskService 的事务内 `run_itx()` 入口，不得依赖 HTTP `EndpointCommandExecutor`
+- **WHEN** 非 Auth 的受控内部 Workflow 明确需要在已有 transaction 中处理任务
+- **THEN** Workflow SHALL 由调用方加载可写 Player 并直接调用 TaskService 的已加载 Player 批次入口，且不得依赖 HTTP CommandContext；TaskContext SHALL 使用 silent 或调用方提供的 ContextScope
+
+#### Scenario: 认证成功后的显式任务处理
+
+- **WHEN** 前端在注册或登录成功后决定处理玩家任务
+- **THEN** 前端 SHALL 使用 Bearer JWT 和新的 Request-ID 请求 `POST /api/v1/tasks/process`；Auth 请求本身不得隐式执行该接口
+
+#### Scenario: 登出不处理任务
+
+- **WHEN** 玩家请求登出
+- **THEN** Auth Workflow SHALL 只撤销 refresh credential，不调用 `POST /api/v1/tasks/process`，任务处理时机交由后续前端流程
 
 #### Scenario: 读取端点不触发任务写入
 
@@ -98,19 +113,19 @@ Handler SHALL 不直接设置 `time_1` 或 `exception`，也不需要返回 Task
 
 ### Requirement: TaskService reuses Player on the normal path
 
-TaskService SHALL 在一个 Task transaction 开始时根据当前任务集合求出 Handler 依赖并集，加载一个可写 Player 并在正常成功路径复用该 Player。TaskService SHALL 将 `TASKS` 作为隐式依赖加入加载位图。
+CommandExecutor SHALL 在 Task transaction 中锁定并加载一次带 `TASKS` 的可写 Player，并将该 Player 传给 TaskService。TaskService SHALL 根据当前任务集合求出 Handler 依赖并集，在该 Player 上补充加载所需 Interface，并在正常成功路径复用该 Player。TaskService SHALL 将 `TASKS` 作为隐式依赖加入加载位图，且不得再次锁定或加载新的 Player。
 
-保存点回滚后，TaskService SHALL 丢弃可能包含失效 Python 缓存的 Player，重新加载 Player，并继续处理本轮任务键集合中的后续任务。若不能可靠重建 Player 或转移事务 Hook 状态，Task transaction SHALL 直接失败。
+TaskService SHALL NOT 在 Handler 之间创建保存点、重载 Player 或继续本轮后续任务。Task 批次的回滚和后续失败处理 SHALL 由 CommandExecutor 组织。
 
 #### Scenario: 多个任务共享一次 Interface 加载
 
 - **WHEN** 当前玩家有多个任务且其 Handler 依赖多个 Player Interface
 - **THEN** TaskService SHALL 先求依赖并集并复用一个 Player 完成正常任务遍历
 
-#### Scenario: 保存点回滚后重新加载
+#### Scenario: Task 批次复用已加载 Player
 
-- **WHEN** 一个 Handler 错误导致当前保存点回滚且调度器继续处理后续任务
-- **THEN** TaskService SHALL 在后续 Handler 前使用反映数据库事务状态的新 Player 聚合
+- **WHEN** CommandExecutor 已锁定并加载带 `TASKS` 的 Player
+- **THEN** TaskService SHALL 在同一个 Player 上完成当前 Task 批次，不得再次锁定 Player 或创建新的 Player 聚合
 
 ### Requirement: Task and Operation transactions are separate
 
@@ -133,19 +148,19 @@ TaskService SHALL 在一个 Task transaction 开始时根据当前任务集合�
 
 ### Requirement: Handler errors use nested rollback and increment exception
 
-TaskService SHALL 在 Task 外层事务内为每个 Handler 创建 `session.begin_nested()` 保存点。可识别的 `TaskHandlerError` SHALL 回滚当前 Handler 的 PlayerInterface 和任务状态修改，在 Task 外层事务中增加对应任务的 `exception`，记录该任务失败，重载 Player，并继续处理本轮剩余任务。
+CommandExecutor SHALL 在 Task transaction 内为整个 Task 批次创建一个 `session.begin_nested()` 保存点，并通过 `PipelinedTransaction` 执行全部 Handler。Handler 抛出的普通 `Exception` SHALL 回滚整个批次的 PlayerInterface 和任务状态修改，在 batch savepoint 回滚后于 Task 外层事务中增加对应任务的 `exception`，提交该计数后停止当前 CommandExecutor；取消或其他 `BaseException` SHALL 直接失败且不得计入 Handler `exception`。系统 SHALL NOT 为每个 Handler 创建独立保存点，且不得继续处理本轮剩余任务。
 
-任务外层事务、保存点控制、数据库读写、JSON 编解码、pre-commit hook 或提交失败 SHALL 直接抛出原始异常，TaskService 不得执行复杂的二次补偿，Operation transaction 不得启动。
+任务外层事务、保存点控制、数据库读写、JSON 编解码、pre-commit hook 或提交失败 SHALL 直接抛出原始异常，CommandExecutor 不得将其误记为 Handler `exception`，Operation transaction 不得启动。
 
 #### Scenario: 单个 Handler 错误
 
-- **WHEN** Handler 抛出可识别的 `TaskHandlerError`
-- **THEN** 系统 SHALL 回滚该 Handler 的保存点修改、增加 `exception`、报告该任务失败、重载 Player，并不得更新 `time_1`
+- **WHEN** Handler 抛出普通 `Exception`
+- **THEN** 系统 SHALL 回滚整个 Task 批次保存点、增加对应任务的 `exception`、不得更新任何本批次任务的 `time_1`，并在 Task transaction 提交计数后停止命令
 
-#### Scenario: Handler 错误后继续后续任务
+#### Scenario: Handler 错误后不继续后续任务
 
-- **WHEN** 当前任务集合中第一个 Handler 抛出 `TaskHandlerError`，且 Player 和事务 Hook 状态能够被重新加载
-- **THEN** 系统 SHALL 保留第一个任务的失败计数，并继续执行后续任务
+- **WHEN** 当前任务集合中任一 Handler 抛出普通 `Exception`
+- **THEN** 后续 Handler SHALL NOT 执行，前序 Handler 的修改 SHALL 被 batch savepoint 回滚，且命令 SHALL NOT 启动 Operation transaction
 
 #### Scenario: Task 外层提交失败
 
@@ -154,12 +169,12 @@ TaskService SHALL 在 Task 外层事务内为每个 Handler 创建 `session.begi
 
 ### Requirement: Task transaction retains pre-commit hook support
 
-TaskService SHALL 支持现有 `PipelineHook`，允许 Handler 通过 PlayerInterface 产生 checkpoint、Artifact 或其他既有事务前置提交行为。成功 Handler 的 Hook 状态 SHALL 被刷新到 Task transaction；失败 Handler 的保存点 SHALL NOT 刷新失败状态。Hook 或其外部持久化步骤失败时，Task transaction SHALL 直接失败。
+CommandExecutor SHALL 通过 `PipelinedTransaction` 保留现有 `PipelineHook`，允许 Task Handler 通过 PlayerInterface 产生 checkpoint、Artifact 或其他既有事务前置提交行为。所有 Handler 成功完成后，Hook SHALL 在 Task batch 内统一执行一次；失败批次 SHALL NOT 执行 Hook。Hook 或其外部持久化步骤失败时，Task transaction SHALL 直接失败。
 
 #### Scenario: Task Handler 触发 checkpoint Hook
 
 - **WHEN** Handler 通过 ProgressInterface 产生待提交 checkpoint
-- **THEN** TaskService SHALL 在 Task transaction 内运行现有 checkpoint Hook，并在 Task transaction 成功时保存对应数据库 metadata
+- **THEN** CommandExecutor SHALL 在全部 Task Handler 成功后通过 Pipeline 运行一次现有 checkpoint Hook，并在 Task transaction 成功时保存对应数据库 metadata
 
 #### Scenario: Task Handler 触发 Artifact 生成
 
@@ -202,7 +217,7 @@ TaskService SHALL 支持现有 `PipelineHook`，允许 Handler 通过 PlayerInte
 
 ### Requirement: Task HTTP endpoints expose semantic operations
 
-系统 SHALL 暴露固定的玩家任务读取和显式处理接口：`GET /api/v1/tasks` 与 `POST /api/v1/tasks/process`。处理接口 SHALL 要求 Bearer JWT 和 UUID `Request-ID`，并 SHALL 使用 Task 专用命令适配器和 Task transaction。处理报告 SHALL 为本轮每个任务返回 `success` 或 `failure` 状态。系统 SHALL NOT 暴露任意任务身份到 Handler Callback 的通用执行路由。
+系统 SHALL 暴露固定的玩家任务读取和显式处理接口：`GET /api/v1/tasks` 与 `POST /api/v1/tasks/process`。处理接口 SHALL 要求 Bearer JWT 和 UUID `Request-ID`，并 SHALL 使用 Task 专用命令适配器、Task transaction、单个 batch savepoint 和 HTTP collecting ContextScope。成功处理报告 SHALL 为本轮每个任务返回 `success` 状态；Handler 失败 SHALL 返回命令错误而不是部分 `failure` 报告，成功响应可以包含由 TaskContext 发出的 Followup JSON。系统 SHALL NOT 暴露任意任务身份到 Handler Callback 的通用执行路由。
 
 #### Scenario: 查询任务状态
 
@@ -212,7 +227,7 @@ TaskService SHALL 支持现有 `PipelineHook`，允许 Handler 通过 PlayerInte
 #### Scenario: 显式处理任务
 
 - **WHEN** 已认证玩家使用新的 Request-ID 请求 `POST /api/v1/tasks/process`
-- **THEN** 系统 SHALL 在 Task transaction 中处理该玩家任务，并为每个任务返回成功或失败状态
+- **THEN** Task command adapter SHALL 在 Task transaction 中处理任务，成功时为本轮每个任务返回 `success` 状态，并将 Followup 转换为响应 JSON；普通 Handler 异常失败时 SHALL 持久化对应任务的 `exception` 后停止命令
 
 #### Scenario: 拒绝任意 Callback 路由
 

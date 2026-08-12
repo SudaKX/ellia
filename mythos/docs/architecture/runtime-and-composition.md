@@ -11,12 +11,13 @@ Settings + RegistryBundle
   -> puzzles.register_all()
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
-  -> PlayerLoader + checkpoint hook + TaskService + EndpointCommandExecutor + TaskCommandExecutor + shared PipelinedTransaction + PlayerLifecycleDispatcher
+  -> PlayerLoader + checkpoint hook + shared PipelinedTransaction + TaskService + RequestCache + ServiceContainer
+  -> EndpointCommandExecutor + AchievementCommandExecutor + TaskCommandExecutor + EventDispatcher
   -> ArtifactReconciliationRunner + AccountReconciliationRunner + TaskReconciliationRunner
-  -> ServiceContainer + ApplicationRuntime
+  -> ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle`、`tasks` 九个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 通过 `ServiceContainer.tasks` 暴露唯一的 `TaskService`，同时保存其他全局 Service、Catalog、对象存储、命令执行器、共享 `PipelinedTransaction` 和生命周期 Dispatcher；请求级 `ContextScope` 不进入 Runtime。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`events`、`tasks`、`achievements` 十个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog、EventCatalog、Achievement Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 通过 `ServiceContainer.tasks` 和 `ServiceContainer.achievements` 暴露全局领域 Service，同时保存 Catalog、对象存储、命令执行器、共享 `PipelinedTransaction` 和 EventDispatcher；请求级 `ContextScope` 不进入 Runtime。
 
 ## 服务和 HTTP
 
@@ -30,11 +31,12 @@ Settings + RegistryBundle
 | VirtualAccount | `AccountService` | `/api/v1/vac` |
 | Credits | 无独立全局 Service；通过请求级 `Player.credits` | `/api/v1/credits` |
 | 惰性任务 | `TaskService` | `/api/v1/tasks` |
+| 成就 | `AchievementService` | `/api/v1/achievement` |
 | 认证 | 请求级 `AuthService` | `/api/v1/auth` |
 
-Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
+Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照，并在独立的 `async with session.begin()` 事务中加载受影响玩家、调用 `player.artifacts.refresh_stale(player)` 同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
 
-`PlayerLifecycleDispatcher` 同样没有 Router。注册时和既有玩家首次真实登录时，它在认证事务中顺序分发 Construct 回调；Deconstruct 回调预留给未来框架拥有的玩家删除服务。
+`EventDispatcher` 不属于 ServiceContainer，也没有 Router。它在调用方持有的 transaction 内同步分发精确类型的 Event listener；注册与既有玩家首次真实登录会派发 `PlayerConstructedEvent`，虚拟账号登录会派发 `VirtualAccountLoggedInEvent`。`PlayerDeconstructingEvent` 预留给未来框架拥有的玩家删除服务。
 
 ## 数据对象与 Example
 
@@ -47,5 +49,6 @@ Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Playe
 - HTTP Executor 为每个逻辑请求创建 collecting `ContextScope`；Auth、reconciliation 和其他非 HTTP Workflow 使用 silent scope；共享 Pipeline 不保存请求级 scope。
 - 普通写入 Endpoint 必须通过 `EndpointCommandExecutor`，Task-only 端点通过 `TaskCommandExecutor`；内部 Workflow 使用 `async with session.begin()`、`PlayerLoader` 和事务内 Service。模块只注册内容和 handler，不能添加通用 HTTP 回调。
 - Task Handler 只能通过冻结 TaskCatalog 调用；任务状态写入必须处于 Task transaction 或 Operation transaction 中，不能由 Service 自行提交 Session。
+- Achievement definition 只能在 freeze 前由 puzzles 注册；public ID 使用 `a1_` 和 `achievement:v1\0` HMAC 域。玩家状态只保存 earned/claimed 时间戳，已删除成就的 fallback 只在启动期配置，不能通过 HTTP 修改或 claim。
 
 相关实现：`main.py`、`registry/bundle.py`、`core/runtime.py`、`services/container.py`。

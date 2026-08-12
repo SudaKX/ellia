@@ -93,12 +93,15 @@ def test_task_handler_generates_artifact_in_rustfs(tmp_path: Path) -> None:
                     ]
                 )
                 await session.commit()
-                executor = TaskService(
-                    PlayerLoader(catalogs, object_store, file_ids),
-                    catalogs.tasks,
-                )
+                loader = PlayerLoader(catalogs, object_store, file_ids)
+                executor = TaskService(catalogs.tasks)
                 async with session.begin():
-                    report = await executor.run_itx(session, player_id)
+                    player = await loader.load_writable(
+                        session,
+                        player_id,
+                        interfaces=PlayerInterfaces.TASKS,
+                    )
+                    report = await executor.run_loaded(session, player)
 
                 artifact = await session.scalar(
                     select(PlayerArtifact).where(

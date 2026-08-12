@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mythos.core.file_ids import FileIdCodec
+from mythos.eventbus import EventCatalog, EventRegistry
 from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
+from mythos.registry.achievements import AchievementCatalog, AchievementRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
 from mythos.registry.errors import DuplicateStableIdError, RegistryError
 from mythos.registry.files import FileRegistry, FileTree, MergedFileTree
 from mythos.registry.hints import HintCatalog, HintRegistry
-from mythos.registry.lifecycle import LifecycleCatalog, LifecycleRegistry
 from mythos.registry.progress import ProgressGraph, ProgressRegistry
 from mythos.registry.scripts import ScriptCatalog, ScriptRegistry
 from mythos.registry.tasks import TaskCatalog, TaskRegistry
@@ -30,8 +31,9 @@ class RuntimeCatalogs:
     artifacts: ArtifactCatalog
     accounts: VirtualAccountCatalog
     hints: HintCatalog
-    lifecycle: LifecycleCatalog
+    events: EventCatalog
     tasks: TaskCatalog
+    achievements: AchievementCatalog
 
 
 class RegistryBundle:
@@ -43,8 +45,9 @@ class RegistryBundle:
         self.artifacts = ArtifactRegistry()
         self.accounts = VirtualAccountRegistry()
         self.hints = HintRegistry()
-        self.lifecycle = LifecycleRegistry()
+        self.events = EventRegistry()
         self.tasks = TaskRegistry()
+        self.achievements = AchievementRegistry()
         self._catalogs: RuntimeCatalogs | None = None
 
     def configure_puzzle_root(self, puzzle_root: Path) -> None:
@@ -71,8 +74,9 @@ class RegistryBundle:
             artifacts=artifacts,
             accounts=self.accounts.freeze(),
             hints=self.hints.freeze(file_ids),
-            lifecycle=self.lifecycle.freeze(),
+            events=self.events.freeze(),
             tasks=self.tasks.freeze(),
+            achievements=self.achievements.freeze(file_ids),
         )
         return self._catalogs
 

@@ -14,21 +14,19 @@ TaskRegistry freeze 后拒绝新注册。当前实现没有任务 revision；同
 
 ## 惰性触发与事务
 
-任务只在以下时机触发：
+任务只在以下时机处理：
 
-- Construct 或业务 Handler 显式添加任务后；
-- 登录完成后；
-- 登出等已认证写操作开始前；
+- 非 Auth 的已认证写操作开始前；
 - 已认证写命令的 `EndpointCommandExecutor.execute()` 默认 Task 前置阶段；
-- `POST /api/v1/tasks/process`。
+- 前端显式请求 `POST /api/v1/tasks/process`。
 
-普通 GET 不隐式写入任务。HTTP Executor 为一次逻辑请求创建 collecting scope，`TaskService.run_itx(..., scope)` 在 Task transaction 开始时读取当前任务键集合，求当前 Handler 依赖并集，加载并复用一个可写 Player。每个 Handler 使用 `session.begin_nested()` 保存点；`TaskHandlerError` 回滚当前 Handler、增加 `exception`、记录失败并重载 Player 后继续后续任务。Auth、reconciliation 等非 HTTP Workflow 使用 silent scope。
+Construct 生命周期可以激活任务，但 Auth Workflow 不执行 Task Handler。普通 GET 不隐式写入任务。CommandExecutor 为一次逻辑请求创建 collecting scope，在 Task transaction 中锁定并加载一次带 `TASKS` 的可写 Player，求当前 Handler 依赖并集，并通过 `PipelinedTransaction` 执行完整 Task 批次。整个批次使用一个 `session.begin_nested()` 保存点；成功后统一运行一次 pre-commit hooks，普通 Handler 异常失败时回滚批次、增加对应任务的 `exception`，提交计数后停止命令，不重载 Player，也不继续后续任务；取消和其他 `BaseException` 不计数并直接失败。Auth、reconciliation 等非 HTTP Workflow 不自动处理任务。
 
-Task transaction 保留现有 pre-commit hook。成功 Handler 的 checkpoint、Artifact 或其他 PlayerInterface 变更可以触发 Hook；Hook 失败、数据库错误、JSON 错误、保存点控制错误和提交错误直接回滚并终止任务阶段。
+Task transaction 保留现有 pre-commit hook。多个 Handler 的 checkpoint、Artifact 或其他 PlayerInterface 变更在批次成功后统一触发 Hook；Hook 失败、数据库错误、JSON 错误、保存点控制错误和提交错误直接回滚并终止任务阶段。失败批次不保存 checkpoint。
 
-普通写命令的 `EndpointCommandExecutor.execute()` 只保留一次 Request-ID lease，但依次提交 Task transaction 和 Operation transaction。Operation transaction 重新加载 Player；Operation 失败不会回滚已提交的任务状态。成功的任务报告包含每个任务的 `success` 或 `failure` 状态。`POST /api/v1/tasks/process` 使用独立的 `TaskCommandExecutor`，只运行一次 Task phase。
+普通写命令的 `EndpointCommandExecutor.execute()` 只保留一次 Request-ID lease，但依次提交 Task transaction 和 Operation transaction。Operation transaction 重新加载 Player；Operation 失败不会回滚已提交的任务状态。成功的任务报告包含每个任务的 `success` 状态；可识别 Handler 失败不返回部分报告。`POST /api/v1/tasks/process` 使用独立的 `TaskCommandExecutor`，由前端决定调用时机，只运行一次 Task phase。Auth 的 register、login、logout 和 refresh 不执行 Task；logout 不调用 `/tasks/process`。
 
-注册、登录和登出由 `AuthService` 在各自的认证事务中直接调用无缓存 `TaskService`，并向 Task/Lifecycle Context 传递 silent scope。这样任务基础设施失败时，注册玩家、refresh credential 和 logout 状态会与认证事务一起回滚；这些认证流程不使用命令 Request-ID 包装。
+注册、登录、登出和 refresh 由 `AuthService` 在各自的认证事务中直接处理认证和生命周期逻辑，不调用 TaskService；Construct 激活的任务由前端后续决定是否请求 `/api/v1/tasks/process`。这些认证流程不使用命令 Request-ID 包装。
 
 ## Snapshot 清理
 

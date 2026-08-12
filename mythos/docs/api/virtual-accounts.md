@@ -28,4 +28,4 @@ Authorization: Bearer <access token>
 Request-ID: <UUID>
 ```
 
-成功后 `current_account` 为 `null`。账号发放和删除不提供通用 HTTP 路由，只能由模块 lifecycle callback 或命令通过 `Player.accounts` 执行。
+成功后 `current_account` 为 `null`。账号发放和删除不提供通用 HTTP 路由，只能由模块 EventBus listener 或命令通过 `Player.accounts` 执行。

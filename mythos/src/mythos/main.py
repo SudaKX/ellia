@@ -12,7 +12,14 @@ from mythos.core.config import PROJECT_ROOT, Settings, get_settings
 from mythos.core.database import Database
 from mythos.core.file_ids import FileIdCodec
 from mythos.core.runtime import ApplicationRuntime
-from mythos.commands import EndpointCommandExecutor, PipelinedTransaction, RequestCache, TaskCommandExecutor
+from mythos.commands import (
+    AchievementCommandExecutor,
+    EndpointCommandExecutor,
+    PipelinedTransaction,
+    RequestCache,
+    TaskCommandExecutor,
+)
+from mythos.eventbus import EventDispatcher
 from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.loader import PlayerLoader
@@ -26,7 +33,6 @@ from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunne
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
-from mythos.services.lifecycle import PlayerLifecycleDispatcher
 from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
 from mythos.endpoints import router as endpoint_router
 from mythos.core.problems import (
@@ -79,23 +85,49 @@ def create_app(
         checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
         pipelined_transaction = PipelinedTransaction(pre_commit_hooks=(checkpoint_hook,))
         task_service = TaskService(
-            player_loader,
             catalogs.tasks,
-            (checkpoint_hook,),
             pre_commit_interfaces=PlayerInterfaces.PROGRESS,
         )
         request_cache = RequestCache(
             maxsize=resolved_settings.request_cache_maxsize,
             ttl_seconds=resolved_settings.request_cache_ttl_seconds,
         )
+        services = ServiceContainer.create(
+            catalogs.files,
+            catalogs.merged_files,
+            catalogs.hints,
+            catalogs.progress,
+            catalogs.scripts,
+            catalogs.validations,
+            resolved_object_store,
+            resolved_settings.file_content_url_ttl_seconds,
+            resolved_settings.file_content_cache_max_age_seconds,
+            resolved_settings.file_download_url_ttl_seconds,
+            checkpoint_store,
+            file_ids,
+            task_service,
+            catalogs.achievements,
+        )
         endpoint_executor = EndpointCommandExecutor(
             player_loader,
             request_cache,
             pipelined_transaction,
             task_service=task_service,
+            achievement_service=services.achievements,
         )
-        task_command_executor = TaskCommandExecutor(task_service, request_cache)
-        lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
+        task_command_executor = TaskCommandExecutor(
+            player_loader,
+            task_service,
+            request_cache,
+            pipelined_transaction,
+        )
+        achievement_command_executor = AchievementCommandExecutor(
+            player_loader,
+            services.achievements,
+            request_cache,
+            pipelined_transaction,
+        )
+        event_dispatcher = EventDispatcher(catalogs.events)
         await ArtifactReconciliationRunner(
             database.session_factory,
             player_loader,
@@ -123,26 +155,13 @@ def create_app(
         application.state.runtime = ApplicationRuntime(
             catalogs=catalogs,
             player_loader=player_loader,
-            services=ServiceContainer.create(
-                catalogs.files,
-                catalogs.merged_files,
-                catalogs.hints,
-                catalogs.progress,
-                catalogs.scripts,
-                catalogs.validations,
-                resolved_object_store,
-                resolved_settings.file_content_url_ttl_seconds,
-                resolved_settings.file_content_cache_max_age_seconds,
-                resolved_settings.file_download_url_ttl_seconds,
-                checkpoint_store,
-                file_ids,
-                task_service,
-            ),
+            services=services,
             object_store=resolved_object_store,
             endpoint_executor=endpoint_executor,
+            achievement_command_executor=achievement_command_executor,
             task_command_executor=task_command_executor,
             pipelined_transaction=pipelined_transaction,
-            lifecycle_dispatcher=lifecycle_dispatcher,
+            event_dispatcher=event_dispatcher,
         )
         try:
             yield

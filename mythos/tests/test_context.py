@@ -10,12 +10,11 @@ from mythos.core.followups import ContextScope, Followup
 from mythos.players.context import (
     CommandContext,
     Context,
-    PlayerLifecycleContext,
     RequestContext,
     TaskContext,
     ValidationContext,
 )
-from mythos.registry.lifecycle import PlayerConstructEvent
+from mythos.eventbus import EventContext, PlayerConstructedEvent
 from mythos.players.interfaces import ProgressInterface, ReadOnlyPlayerError
 from mythos.players.player import Player
 from mythos.persistence.models import PlayerProgress, PlayerProgressFrontierNode, PlayerProgressUnlockedNode
@@ -144,21 +143,22 @@ def test_context_children_share_scope_identity_and_ordered_followups() -> None:
         now=datetime.now(),
     )
     validation = ValidationContext.from_context(command)
-    lifecycle = PlayerLifecycleContext.from_context(
-        command,
-        event=PlayerConstructEvent(player.id, task.now, "first_login"),
+    event = EventContext(
+        player=player,
+        event=PlayerConstructedEvent(player_id=player.id, occurred_at=task.now, trigger="first_login"),
+        scope=scope,
     )
 
-    assert all(context.scope is scope for context in (request, command, task, validation, lifecycle))
+    assert all(context.scope is scope for context in (request, command, task, validation, event))
     request.follow(Followup(action="request", data={}))
     task.follow(Followup(action="task", data={}))
     validation.follow(Followup(action="validation", data={}))
-    lifecycle.follow(Followup(action="lifecycle", data={}))
+    event.scope.follow(Followup(action="event", data={}))
     assert scope.to_json() == [
         {"action": "request", "data": {}},
         {"action": "task", "data": {}},
         {"action": "validation", "data": {}},
-        {"action": "lifecycle", "data": {}},
+        {"action": "event", "data": {}},
     ]
 
 

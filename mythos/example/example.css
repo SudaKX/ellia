@@ -121,6 +121,20 @@ input {
 .task-report { min-height: 18px; margin: 0; color: #8c8c94; font: 11px/1.4 "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .task-report.success { color: #74d8c4; }
 .task-report.error { color: #f07177; }
+.achievement-section, .followup-section { margin: 14px 0; }
+.achievement-section > .panel-header, .followup-section > .panel-header { margin-bottom: 8px; }
+.achievement-list, .followup-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.achievement-card { display: grid; gap: 7px; border: 1px solid #34343d; border-radius: 4px; padding: 10px; background: #111217; }
+.achievement-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.achievement-title { color: #f2f2f0; font-size: 13px; line-height: 1.35; }
+.achievement-status, .achievement-meta { color: #8c8c94; font: 11px/1.4 "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.achievement-status.available { color: #f0c674; }
+.achievement-status.claimed { color: #74d8c4; }
+.achievement-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.followup-list { max-height: 180px; overflow: auto; }
+.followup-list li { border-left: 2px solid #4a4a55; padding: 4px 0 4px 9px; color: #c4c4c8; font: 11px/1.45 "SFMono-Regular", Consolas, "Liberation Mono", monospace; overflow-wrap: anywhere; }
+.followup-action { display: block; color: #74d8c4; }
+.followup-data { display: block; margin-top: 2px; color: #8c8c94; white-space: pre-wrap; }
 .hint-list { display: grid; gap: 8px; }
 .hint-card { display: grid; gap: 8px; border: 1px solid #34343d; border-radius: 4px; padding: 10px; background: #111217; }
 .hint-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

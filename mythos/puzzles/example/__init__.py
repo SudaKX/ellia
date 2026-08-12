@@ -4,7 +4,9 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from mythos.players.context import PlayerLifecycleContext, TaskContext, ValidationContext
+from mythos.eventbus import EventContext, EventPriority, PlayerConstructedEvent, VirtualAccountLoggedInEvent
+from mythos.core.followups import Followup
+from mythos.players.context import TaskContext, ValidationContext
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
@@ -16,9 +18,9 @@ from mythos.registry.artifacts import (
 )
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
+from mythos.registry.achievements import AchievementDefinition
 from mythos.registry.files import FileReference, NodeDisplayParams
 from mythos.registry.hints import Hint, HintDisplayParams
-from mythos.registry.lifecycle import LifecyclePriority
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationResult
@@ -40,6 +42,9 @@ VTB_TASK_INTERVAL = timedelta(seconds=60)
 VTB_TASK_INITIAL_GRANT = 5
 VTB_TASK_CAP = 10
 VTB_TASK_META_SCHEMA_VERSION = 1
+GUEST_LOGIN_ACHIEVEMENT_ID = "example.guest-login"
+VTB_OVER_15_ACHIEVEMENT_ID = "example.vtb-over-15"
+ACHIEVEMENT_VTB_REWARD = 10
 _ANSWER = "echo-7"
 _handler = module_handler(MODULE_ID)
 
@@ -107,6 +112,30 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             metadata={"tier": "guest"},
         )
     )
+    registries.achievements.register(
+        AchievementDefinition(
+            GUEST_LOGIN_ACHIEVEMENT_ID,
+            True,
+            {
+                "title": "Guest 已登录",
+                "description": "首次登录 Guest 虚拟账号。",
+            },
+            None,
+            _grant_guest_login_achievement_reward,
+        )
+    )
+    registries.achievements.register(
+        AchievementDefinition(
+            VTB_OVER_15_ACHIEVEMENT_ID,
+            False,
+            {
+                "title": "VTB 储备",
+                "description": "VTB 余额超过 15。",
+            },
+            _has_vtb_over_15,
+            _grant_vtb_over_15_achievement_reward,
+        )
+    )
     registries.accounts.register_template(
         VirtualAccountTemplate(
             ADMIN_ACCOUNT_ID,
@@ -116,17 +145,38 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
         )
     )
 
-    @registries.lifecycle.on_construct
-    async def _issue_guest(context: PlayerLifecycleContext) -> None:
+    @registries.events.on(PlayerConstructedEvent)
+    @_handler(1, dependencies=PlayerInterfaces.ACCOUNTS)
+    async def _issue_guest(context: EventContext) -> None:
         await context.player.accounts.issue(
             GUEST_ACCOUNT_ID,
             GUEST_USERNAME,
             GUEST_PASSWORD,
         )
 
+    @registries.events.on(VirtualAccountLoggedInEvent)
+    @_handler(1, dependencies=PlayerInterfaces.ACHIEVEMENTS)
+    async def _grant_guest_login_achievement(context: EventContext) -> None:
+        if not isinstance(context.event, VirtualAccountLoggedInEvent) or context.event.account_id != GUEST_ACCOUNT_ID:
+            return
+        if context.player.achievements.has_earned(GUEST_LOGIN_ACHIEVEMENT_ID):
+            return
+        await context.player.achievements.grant(GUEST_LOGIN_ACHIEVEMENT_ID)
+        context.scope.follow(
+            Followup(
+                action="achievement-earned",
+                data={
+                    "achievement_id": GUEST_LOGIN_ACHIEVEMENT_ID,
+                    "immediate": True,
+                    "vtb_reward": ACHIEVEMENT_VTB_REWARD,
+                },
+            )
+        )
+
     if initial_vtb:
-        @registries.lifecycle.on_construct
-        async def _grant_initial_vtb(context: PlayerLifecycleContext) -> None:
+        @registries.events.on(PlayerConstructedEvent)
+        @_handler(1, dependencies=PlayerInterfaces.CREDITS)
+        async def _grant_initial_vtb(context: EventContext) -> None:
             await context.player.credits.grant_vtb(initial_vtb)
 
     @registries.tasks.task(VTB_TASK_ID, dependencies=PlayerInterfaces.CREDITS)
@@ -198,8 +248,9 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             }
         )
 
-    @registries.lifecycle.on_construct(priority=LifecyclePriority.LATE)
-    async def _activate_vtb_allowance(context: PlayerLifecycleContext) -> None:
+    @registries.events.on(PlayerConstructedEvent, priority=EventPriority.LATE)
+    @_handler(1, dependencies=PlayerInterfaces.TASKS)
+    async def _activate_vtb_allowance(context: EventContext) -> None:
         await context.player.tasks.add_task(VTB_TASK_ID)
 
     registries.artifacts.register_template(
@@ -283,6 +334,21 @@ def _is_guest_completed(player: Player) -> bool:
 @_handler(1, dependencies=PlayerInterfaces.ACCOUNTS)
 def _is_admin(player: Player) -> bool:
     return player.accounts.is_current(ADMIN_ACCOUNT_ID)
+
+
+@_handler(1, dependencies=PlayerInterfaces.CREDITS)
+def _has_vtb_over_15(player: Player) -> bool:
+    return player.credits.vtb > 15
+
+
+@_handler(1, dependencies=PlayerInterfaces.CREDITS)
+async def _grant_guest_login_achievement_reward(player: Player) -> None:
+    await player.credits.grant_vtb(ACHIEVEMENT_VTB_REWARD)
+
+
+@_handler(1, dependencies=PlayerInterfaces.CREDITS)
+async def _grant_vtb_over_15_achievement_reward(player: Player) -> None:
+    await player.credits.grant_vtb(ACHIEVEMENT_VTB_REWARD)
 
 
 @_handler(1)

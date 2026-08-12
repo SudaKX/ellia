@@ -13,7 +13,7 @@ Request-ID: <UUID>
 {"content": {}, "followups": []}
 ```
 
-`content` 由具体端点定义；`followups` 是由 Command、Task、Validation 或 Lifecycle Context 产生的 JSON 对象数组。`4xx` 和 `5xx` 不使用此包装，而是返回 RFC 9457 Problem Details。客户端必须为一次用户意图生成一个 UUID；网络错误重试必须复用相同 ID，新的用户意图必须生成新 ID。
+`content` 由具体端点定义；`followups` 是由 Command、Task、Validation 或 Event listener 使用调用方 scope 产生的 JSON 对象数组。`4xx` 和 `5xx` 不使用此包装，而是返回 RFC 9457 Problem Details。客户端必须为一次用户意图生成一个 UUID；网络错误重试必须复用相同 ID，新的用户意图必须生成新 ID。
 
 | 方法 | 路径 | 领域操作 |
 | --- | --- | --- |

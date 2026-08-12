@@ -1,42 +1,22 @@
-# desktop
+# Ellia Desktop
 
-This template should help get you started developing with Vue 3 in Vite.
+`desktop/` 是 Ellia 的 Vue 3/Vite FakeOS 控制台。当前提供模拟桌面、窗口管理、应用总览、文件浏览、归档查看、终端和 Sandbox 控制界面；桌面状态由 Pinia 管理。
 
-## Recommended IDE Setup
+部署基路径固定为 `/console/`，`@` 映射到 `src/`。路由使用该基路径，当前只提供桌面根视图。
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## 开发
 
-## Recommended Browser Setup
+从仓库根目录使用 pnpm：
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```powershell
+pnpm --dir desktop install --frozen-lockfile
+pnpm --dir desktop dev
 ```
 
-### Compile and Hot-Reload for Development
+生产构建会先运行 `vue-tsc --build`，再运行 Vite：
 
-```sh
-npm run dev
+```powershell
+pnpm --dir desktop build
 ```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
+推荐在编辑器中使用 [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) 提供 `.vue` 的类型支持。

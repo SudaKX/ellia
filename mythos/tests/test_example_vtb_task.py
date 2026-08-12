@@ -74,7 +74,7 @@ async def _task_harness(
     )
     catalogs = registries.freeze(_FILE_IDS)
     loader = PlayerLoader(catalogs, FakeObjectStore(), _FILE_IDS)
-    executor = TaskService(loader, catalogs.tasks)
+    executor = TaskService(catalogs.tasks)
     session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     player_id = uuid4()
 
@@ -97,14 +97,19 @@ async def _task_harness(
             ]
         )
         await session.commit()
-        yield session, executor, player_id
+        yield session, executor, loader, player_id
 
     await engine.dispose()
 
 
-async def _run_task(session, executor: TaskService, player_id: UUID):
+async def _run_task(session, executor: TaskService, loader: PlayerLoader, player_id: UUID):
     async with session.begin():
-        return await executor.run_itx(session, player_id)
+        player = await loader.load_writable(
+            session,
+            player_id,
+            interfaces=PlayerInterfaces.TASKS,
+        )
+        return await executor.run_loaded(session, player)
 
 
 def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monkeypatch) -> None:
@@ -257,15 +262,15 @@ def test_example_vtb_task_defers_before_due_time(tmp_path: Path, monkeypatch) ->
     async def scenario() -> None:
         clock = _TaskClock(datetime(2026, 8, 9, 12, 0, tzinfo=UTC))
         monkeypatch.setattr(task_service_module, "_utcnow", clock)
-        async with _task_harness(tmp_path) as (session, executor, player_id):
-            await _run_task(session, executor, player_id)
+        async with _task_harness(tmp_path) as (session, executor, loader, player_id):
+            await _run_task(session, executor, loader, player_id)
             first = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
             assert first is not None
             first_time_1 = first.time_1
             first_time_2 = first.time_2
 
             clock.advance(seconds=30)
-            await _run_task(session, executor, player_id)
+            await _run_task(session, executor, loader, player_id)
             deferred = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
             credits = await session.get(PlayerCredits, player_id)
             assert deferred is not None
@@ -283,16 +288,16 @@ def test_example_vtb_task_grants_one_period_and_catches_up_missed_periods(
     async def scenario() -> None:
         clock = _TaskClock(datetime(2026, 8, 9, 12, 0, tzinfo=UTC))
         monkeypatch.setattr(task_service_module, "_utcnow", clock)
-        async with _task_harness(tmp_path) as (session, executor, player_id):
-            await _run_task(session, executor, player_id)
+        async with _task_harness(tmp_path) as (session, executor, loader, player_id):
+            await _run_task(session, executor, loader, player_id)
 
             clock.advance(seconds=60)
-            await _run_task(session, executor, player_id)
+            await _run_task(session, executor, loader, player_id)
             after_one = await session.get(PlayerCredits, player_id)
             assert after_one is not None and after_one.vtb == 6
 
             clock.advance(seconds=180)
-            await _run_task(session, executor, player_id)
+            await _run_task(session, executor, loader, player_id)
             after_catch_up = await session.get(PlayerCredits, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
             assert after_catch_up is not None and after_catch_up.vtb == 9
@@ -317,8 +322,8 @@ def test_example_vtb_task_respects_cap_for_initial_execution(
         now = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
         clock = _TaskClock(now)
         monkeypatch.setattr(task_service_module, "_utcnow", clock)
-        async with _task_harness(tmp_path, vtb=vtb) as (session, executor, player_id):
-            await _run_task(session, executor, player_id)
+        async with _task_harness(tmp_path, vtb=vtb) as (session, executor, loader, player_id):
+            await _run_task(session, executor, loader, player_id)
             credits = await session.get(PlayerCredits, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
             assert credits is not None and credits.vtb == vtb + expected_grant
@@ -353,8 +358,8 @@ def test_example_vtb_task_reinitializes_old_meta_without_using_meta_for_cap(
                 "initial_grant_applied": True,
                 "total_granted": 100000,
             },
-        ) as (session, executor, player_id):
-            await _run_task(session, executor, player_id)
+        ) as (session, executor, loader, player_id):
+            await _run_task(session, executor, loader, player_id)
             credits = await session.get(PlayerCredits, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
             assert credits is not None and credits.vtb == 10

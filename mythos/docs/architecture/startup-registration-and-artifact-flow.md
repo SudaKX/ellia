@@ -24,9 +24,10 @@ lifespan startup
   -> FileIdCodec、ObjectStore、Database
   -> StaticAssetPublisher 物化 Files/Hints 静态源
   -> RegistryBundle.freeze(file_ids)
-  -> PlayerLoader、checkpoint hook、EndpointCommandExecutor、TaskCommandExecutor、LifecycleDispatcher
+  -> PlayerLoader、checkpoint hook、共享 PipelinedTransaction、TaskService、RequestCache、ServiceContainer、三个 CommandExecutor、EventDispatcher
   -> ArtifactReconciliationRunner
   -> AccountReconciliationRunner
+  -> TaskReconciliationRunner
   -> ApplicationRuntime 挂载到 app.state.runtime
   -> yield，应用 ready
 ```
@@ -51,11 +52,14 @@ lifespan startup
 Progress nodes
   -> File tree manifest and static FileReference/StaticNodeSpec
   -> Hint definitions and Hint sources
-  -> VirtualAccountTemplate
-  -> Construct lifecycle handler
+  -> Guest VirtualAccountTemplate
+  -> AchievementDefinition entries
+  -> Administrator VirtualAccountTemplate
+  -> PlayerConstructedEvent listeners
+  -> Task definition
   -> ArtifactTemplate
   -> ArtifactNodeTemplate
-  -> Script
+  -> Script entries
   -> ValidationAttempt
 ```
 
@@ -98,7 +102,9 @@ scripts     -> ScriptCatalog
 validations -> ValidationCatalog
 accounts    -> VirtualAccountCatalog
 hints       -> HintCatalog
-lifecycle   -> LifecycleCatalog
+events       -> EventCatalog
+tasks       -> TaskCatalog
+achievements -> AchievementCatalog
 ```
 
 返回的 `RuntimeCatalogs` 是应用运行期使用的 Catalog 集合。Registry 在 freeze 后拒绝继续注册；Catalog 中的映射由构造时复制，运行期不再接受新的注册项。
@@ -109,23 +115,24 @@ Registry freeze 后继续创建：
 
 1. `PlayerLoader`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
 2. `LocalCheckpointStore` 和 `ProgressCheckpointHook`。
-3. `EndpointCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
-4. `PlayerLifecycleDispatcher`。
+3. 共享 `PipelinedTransaction`、`TaskService`、`RequestCache` 和 `ServiceContainer`。
+4. `EndpointCommandExecutor`、`AchievementCommandExecutor`、`TaskCommandExecutor` 和 `EventDispatcher`。
 
 然后按顺序执行：
 
 1. `ArtifactReconciliationRunner`：根据 Artifact Catalog 快照刷新玩家 Artifact/Node。
 2. `AccountReconciliationRunner`：根据 VirtualAccount Catalog 快照清理已退休账号类型。
+3. `TaskReconciliationRunner`：根据 TaskCatalog 清理 SQL 中已不再注册的任务状态，并在 Catalog 变化时写入 Task Snapshot。
 
-两个 reconciliation 成功后才写入对应的本地 Catalog snapshot。任何 reconciliation 异常都会阻止 lifespan 进入 `yield`。
+三项 reconciliation 成功后才写入对应的本地 Catalog snapshot。任何 reconciliation 异常都会阻止 lifespan 进入 `yield`。
 
-最后创建 `ServiceContainer`，把静态 FileTree、启动期共享的 MergedFileTree、HintCatalog、ProgressGraph、ScriptCatalog、ValidationCatalog 和对象存储等注入全局 Service，并将完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
+将已创建的完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
 
 应用退出时，lifespan 的 `finally` 释放 Database。Catalog、Service 和 PlayerLoader 的生命周期属于当前应用进程。
 
 ## 二、Registry 数据模型初始化顺序
 
-### 1. RegistryBundle 中的八个 Registry
+### 1. RegistryBundle 中的十个 Registry
 
 `RegistryBundle.__init__()` 创建以下空 Registry：
 
@@ -138,7 +145,9 @@ Registry freeze 后继续创建：
 | 5 | `artifacts` | `ArtifactTemplate`、`ArtifactNodeTemplate` | `ArtifactCatalog` |
 | 6 | `accounts` | `VirtualAccountTemplate` | `VirtualAccountCatalog` |
 | 7 | `hints` | `Hint`、Hint source | `HintCatalog` |
-| 8 | `lifecycle` | lifecycle handler、event、priority、registration sequence | `LifecycleCatalog` |
+| 8 | `events` | Event type、listener、priority、registration sequence | `EventCatalog` |
+| 9 | `tasks` | Task definition | `TaskCatalog` |
+| 10 | `achievements` | Achievement definition、fallback | `AchievementCatalog` |
 
 Registry 的字段填写顺序是“先完成注册声明，再完成 freeze 期解析”。注册期声明不会提前填写由对象内容、Catalog 或玩家状态决定的运行时版本。
 
@@ -318,18 +327,18 @@ metadata
 
 构造时先校验 metadata 可 JSON 序列化，再复制为只读映射。`version` 使用 `vat1_`；Catalog snapshot 按 entry 生成 `vac1_`。
 
-#### Lifecycle
+#### EventBus
 
-注册 lifecycle handler 时填写：
+注册 EventBus listener 时填写：
 
 ```text
-event
-handler
+event type
+listener
 priority
 registration sequence
 ```
 
-freeze 时按 `(priority, registration sequence)` 排序，形成 Construct 和 Deconstruct listener tuple。handler 不在 freeze 时执行。
+freeze 时按 `(priority, registration sequence)` 排序，形成每个精确 Event type 的 listener tuple 与依赖并集。listener 不在 freeze 时执行。
 
 ## 三、Version、Catalog Version 与 Content-token
 

@@ -16,6 +16,7 @@ from mythos.commands import RequestInProgressError, RequestReplayForbiddenError,
 from mythos.core.dependencies import get_runtime, get_session
 from mythos.core.runtime import ApplicationRuntime
 from mythos.core.problems import ApiProblem, ProblemType, validation_errors
+from mythos.eventbus import EventContext, VirtualAccountLoggedInEvent
 from mythos.players.context import CommandContext
 from mythos.players.loader import PlayerNotFoundError
 from mythos.services.accounts.schemas import AccountLoginRequest
@@ -56,7 +57,7 @@ async def login(
         session,
         identity,
         request_id,
-        lambda context: _login_response(runtime.services.accounts, context, payload),
+        lambda context: _login_response(runtime, context, payload),
     )
 
 
@@ -110,11 +111,25 @@ async def _execute(
 
 
 async def _login_response(
-    service: AccountService,
+    runtime: ApplicationRuntime,
     context: CommandContext,
     payload: AccountLoginRequest,
 ) -> ResponseSpec:
-    snapshot = await service.login(context.player, payload.username, payload.password)
+    snapshot = await runtime.services.accounts.login(context.player, payload.username, payload.password)
+    account = snapshot.current_account
+    if account is None:
+        raise RuntimeError("Virtual account login completed without a current account.")
+    await runtime.event_dispatcher.publish(
+        EventContext(
+            player=context.player,
+            event=VirtualAccountLoggedInEvent(
+                player_id=context.player.id,
+                occurred_at=account.last_logged_in_at,
+                account_id=account.account_id,
+            ),
+            scope=context.scope,
+        )
+    )
     return ResponseSpec(status_code=status.HTTP_200_OK, body=snapshot.body(), headers={})
 
 

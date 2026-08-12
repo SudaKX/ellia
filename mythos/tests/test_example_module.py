@@ -12,6 +12,9 @@ from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
+from mythos.persistence.models import PlayerCredits
+from mythos.players.interfaces import PlayerInterfaces
+from puzzles.example import ADMIN_ACCOUNT_ID, ADMIN_PASSWORD, ADMIN_USERNAME
 
 
 def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None:
@@ -50,6 +53,42 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert initial_credits.json()["version"] == 1
                 assert initial_credits.headers["cache-control"] == "no-store"
                 assert "Authorization" in initial_credits.headers["vary"]
+
+                administrator_registration = await client.post(
+                    "/api/v1/auth/register",
+                    json={"username": "administrator-only-player", "password": "correct-horse-battery"},
+                )
+                assert administrator_registration.status_code == 201
+                administrator_token = administrator_registration.json()["access_token"]
+                administrator_headers = {"Authorization": f"Bearer {administrator_token}"}
+                administrator_player_id = decode_access_token(administrator_token, settings).player_id
+                async with app.state.database.session_factory() as session:
+                    async with session.begin():
+                        administrator_player = await app.state.runtime.player_loader.load_writable(
+                            session,
+                            administrator_player_id,
+                            interfaces=PlayerInterfaces.ACCOUNTS,
+                        )
+                        await administrator_player.accounts.issue(
+                            ADMIN_ACCOUNT_ID,
+                            ADMIN_USERNAME,
+                            ADMIN_PASSWORD,
+                        )
+                administrator_first_login = await client.post(
+                    "/api/v1/vac/login",
+                    headers={**administrator_headers, "Request-ID": str(uuid4())},
+                    json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
+                )
+                assert administrator_first_login.status_code == 200
+                assert administrator_first_login.json()["content"]["current_account"]["account_id"] == ADMIN_ACCOUNT_ID
+                administrator_achievements = await client.get("/api/v1/achievement", headers=administrator_headers)
+                guest_login_achievement = next(
+                    item
+                    for item in administrator_achievements.json()["items"]
+                    if item["meta"].get("title") == "Guest 已登录"
+                )
+                assert guest_login_achievement["status"] == "locked"
+                assert (await client.get("/api/v1/credits", headers=administrator_headers)).json()["vtb"] == 10
 
                 initial_hints = await client.get("/api/v1/hints", headers=headers)
                 assert initial_hints.status_code == 200
@@ -93,6 +132,23 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert (await client.get("/api/v1/files/ls", params={"path": "/admin"}, headers=headers)).status_code == 404
                 assert (await client.get("/api/v1/scripts", headers=headers)).json() == {"items": []}
 
+                async with app.state.database.session_factory() as session:
+                    credits = await session.get(PlayerCredits, player_id)
+                    assert credits is not None
+                    credits.vtb = 15
+                    await session.commit()
+                at_threshold = await client.post(
+                    "/api/v1/achievement/check",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                )
+                assert at_threshold.status_code == 200
+                assert at_threshold.json()["content"]["check"]["earned"] == []
+                async with app.state.database.session_factory() as session:
+                    credits = await session.get(PlayerCredits, player_id)
+                    assert credits is not None
+                    credits.vtb = 8
+                    await session.commit()
+
                 rejected_before_guest_login = await client.post(
                     "/api/v1/validations/example-answer/attempts",
                     headers={**headers, "Request-ID": str(uuid4())},
@@ -107,6 +163,58 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert guest_login.status_code == 200
                 assert guest_login.json()["content"]["current_account"]["account_id"] == "example.guest"
+                assert guest_login.json()["followups"] == [
+                    {
+                        "action": "achievement-earned",
+                        "data": {
+                            "achievement_id": "example.guest-login",
+                            "immediate": True,
+                            "vtb_reward": 10,
+                        },
+                    }
+                ]
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 18
+                guest_achievements = await client.get("/api/v1/achievement", headers=headers)
+                assert guest_achievements.status_code == 200
+                achievements_by_title = {
+                    item["meta"]["title"]: item for item in guest_achievements.json()["items"]
+                }
+                guest_achievement = achievements_by_title["Guest 已登录"]
+                threshold_achievement = achievements_by_title["VTB 储备"]
+                assert guest_achievement["immediate"] is True
+                assert guest_achievement["status"] == "claimed"
+                assert guest_achievement["earned_at"]
+                assert guest_achievement["claimed_at"]
+                assert threshold_achievement["immediate"] is False
+                assert threshold_achievement["status"] == "locked"
+
+                threshold_check = await client.post(
+                    "/api/v1/achievement/check",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                )
+                assert threshold_check.status_code == 200
+                assert threshold_check.json()["content"]["check"]["earned"] == [threshold_achievement["public_id"]]
+                threshold_available = (await client.get("/api/v1/achievement", headers=headers)).json()["items"]
+                threshold_achievement = next(
+                    item for item in threshold_available if item["public_id"] == threshold_achievement["public_id"]
+                )
+                assert threshold_achievement["status"] == "available"
+                threshold_claim = await client.post(
+                    f"/api/v1/achievement/claim/{threshold_achievement['public_id']}",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                )
+                assert threshold_claim.status_code == 200
+                assert threshold_claim.json()["content"]["achievement"]["status"] == "claimed"
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 28
+
+                repeated_guest_login = await client.post(
+                    "/api/v1/vac/login",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                    json={"username": "guest", "password": "guest-echo-7"},
+                )
+                assert repeated_guest_login.status_code == 200
+                assert repeated_guest_login.json()["followups"] == []
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 28
 
                 guest_dynamic_version = await client.get("/api/v1/files/d/version", headers=headers)
                 assert guest_dynamic_version.status_code == 200
@@ -149,7 +257,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert gated_purchase.status_code == 200
                 assert gated_purchase.json()["content"]["hint"]["disclosed"] is True
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 3
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 23
 
                 admin_file_id = app.state.runtime.catalogs.files.file_id_for_stable_id("example.admin-control")
                 assert (await client.get(f"/api/v1/files/{admin_file_id}", headers=headers)).status_code == 403
@@ -180,6 +288,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert administrator_login.status_code == 200
                 assert administrator_login.json()["content"]["current_account"]["account_id"] == "example.admin"
+                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 23
 
                 admin_tree = await client.get("/api/v1/files/tree", headers=headers)
                 assert [directory["path"] for directory in admin_tree.json()["directories"]] == ["/public", "/admin"]

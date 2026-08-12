@@ -11,7 +11,6 @@ from mythos.auth.tokens import PlayerIdentity
 from mythos.core.exceptions import CommandRejected, ValidationRejected
 from mythos.core.followups import ContextScope, Followup
 from mythos.players.player import Player
-from mythos.registry.lifecycle.definitions import PlayerLifecycleEvent
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -148,20 +147,6 @@ class TaskContext(Context):
 
     def _meta_value(self) -> dict[str, object]:
         return deepcopy(self._meta)
-
-
-@dataclass(frozen=True, slots=True, eq=False)
-class PlayerLifecycleContext(Context):
-    event: PlayerLifecycleEvent
-
-    @classmethod
-    def from_context(
-        cls,
-        context: Context,
-        *,
-        event: PlayerLifecycleEvent,
-    ) -> PlayerLifecycleContext:
-        return cls(player=context.player, event=event, scope=context.scope)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
