@@ -52,7 +52,7 @@ Request-ID: <UUID>
 }
 ```
 
-可识别的 Handler 错误会在任务报告中返回 `failure`，并增加该任务的 `exception`；Task Handler 可以通过 `TaskContext.follow(Followup(action, data))` 发出结构化通知，成功响应会按产生顺序放入 `followups`。任务 Handler 失败时，其检查点之后的 Followup 会被回滚。任务阶段的数据库、Hook、序列化或提交错误直接返回 Problem Details，并且不会执行 Operation transaction。
+Handler 抛出普通 `Exception` 时，整个任务 batch 回滚，服务端随后仅持久化该任务的 `exception + 1`，并返回 `500 internal-error` Problem Details；不会返回部分任务报告或 `failure` 状态。Task Handler 可以通过 `TaskContext.follow(Followup(action, data))` 发出结构化通知；失败 batch 中该检查点之后的 Followup 会被回滚。任务阶段的 Hook、数据库、JSON、保存点或提交错误同样直接返回 Problem Details，且不会执行 Operation transaction。
 
 Request-ID 遵循现有命令契约：同一玩家重放已完成 ID 返回完全相同的缓存响应，执行中的 ID 返回 `409`，其他玩家使用该 ID 也返回 `409`。系统不提供通过任务身份直接调用 Handler 的通用接口。
 

@@ -10,6 +10,7 @@
 | [文件](files.md) | 静态/动态树、metadata、预签名 URL |
 | [脚本](scripts.md) | 可见脚本 DTO |
 | [验证](validations.md) | 模块 validation 提交 |
+| [Credits 与 Hint](hints.md) | VTB、Hint disclosure 与内容 URL |
 | [VirtualAccount](virtual-accounts.md) | 玩家虚拟账号登录和登出 |
 | [任务](tasks.md) | 玩家任务状态读取和显式惰性处理 |
 | [成就](achievements.md) | 成就查询、check、claim、fallback 和 warning |

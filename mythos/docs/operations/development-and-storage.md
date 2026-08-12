@@ -140,4 +140,4 @@ Mythos wheel 不包含 `puzzles/`。启动前必须确保 `puzzles/__init__.py` 
 - 框架 wheel 和外部 `puzzles/` 插件目录的独立交付，并将服务 working directory 设置为 `mythos/`。
 - `/console/`、`/api/v1/` 等同源路由策略。
 
-当前 SQLite、checkpoint 文件、Artifact/VirtualAccount Catalog 快照和进程内 Request-ID cache 只适合单实例运行，不能直接水平扩容。
+当前 SQLite、checkpoint 文件、Artifact、VirtualAccount 和 Task Catalog 快照以及进程内 Request-ID cache 只适合单实例运行，不能直接水平扩容。

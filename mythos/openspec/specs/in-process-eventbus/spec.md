@@ -51,7 +51,7 @@
 
 ### Requirement: Built-in player and virtual account events have defined timing
 
-系统 SHALL 提供 `PlayerConstructedEvent`、`PlayerDeconstructingEvent` 和 `VirtualAccountLoggedInEvent`。Construct event SHALL 在玩家 Construct 标记已取得、初始化聚合已加载后且所在 Auth transaction 提交前派发；Deconstructing event SHALL 在删除 Player 数据前派发；VirtualAccountLoggedIn event SHALL 在有效虚拟账号成为当前账号后、所在普通 Operation transaction 提交前派发。各事件 SHALL 包含 player_id 和 occurred_at；Construct event SHALL 包含 `registration` 或 `first_login` trigger，Deconstructing event SHALL 包含 `deletion` trigger，虚拟账号登录事件 SHALL 包含 account_id。
+系统 SHALL 提供 `PlayerConstructedEvent`、`PlayerDeconstructingEvent` 和 `VirtualAccountLoggedInEvent`。Construct event SHALL 在玩家 Construct 标记已取得、初始化聚合已加载后且所在 Auth transaction 提交前派发；当前没有玩家删除 workflow 或公开删除 Router，`PlayerDeconstructingEvent` 仅为未来删除 workflow 预留，且尚未派发；VirtualAccountLoggedIn event SHALL 在有效虚拟账号成为当前账号后、所在普通 Operation transaction 提交前派发。各事件 SHALL 包含 player_id 和 occurred_at；Construct event SHALL 包含 `registration` 或 `first_login` trigger，Deconstructing event 预留 `deletion` trigger，虚拟账号登录事件 SHALL 包含 account_id。
 
 #### Scenario: Construct listener replaces lifecycle construct handler
 

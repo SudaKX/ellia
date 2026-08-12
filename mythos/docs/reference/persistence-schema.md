@@ -1,6 +1,6 @@
 # 持久化总览
 
-SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节，本地文件系统保存 checkpoint 与 Catalog 快照 JSON。当前 migration head 为 `0011_player_tasks`，共有十五张表。对象存储 bucket versioning 已停用，VersionId 不进入 Mythos 持久化模型。
+SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节，本地文件系统保存 checkpoint 与 Catalog 快照 JSON。当前 migration head 为 `0012_player_achievements`，共有十六张表。对象存储 bucket versioning 已停用，VersionId 不进入 Mythos 持久化模型。
 
 | 表 | ORM Model | 所属系统 | 关键关系 |
 | --- | --- | --- | --- |
@@ -18,6 +18,7 @@ SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节
 | `player_virtual_account_states` | `PlayerVirtualAccountState` | VirtualAccount | 当前账号及版本；复合外键保证当前账号属于玩家 |
 | `player_credits` | `PlayerCredits` | Credits | 玩家 VTB、版本与更新时间；VTB 不可为负 |
 | `player_hint_disclosures` | `PlayerHintDisclosure` | Hint | `(player_id, hint_stable_id)` 主键，保存已购买资格与时间 |
+| `player_achievement_states` | `PlayerAchievementState` | Achievement | `(player_id, achievement_stable_id)` 主键；保存 earned/claimed 时间与审计时间 |
 | `player_task_states` | `PlayerTaskState` | LazyTask | `(player_id, task_id)` 主键，保存任务时间、错误次数和 JSON meta |
 
 ## 非 SQL 状态
@@ -32,4 +33,4 @@ SQLite 是玩家和发布登记的权威数据源；RustFS/S3 保存文件字节
 
 `0004_static_file_registrations` 和 `0005_player_artifacts` 中仍能看到 `source_mtime_ns`、`object_version_id` 等历史列，因为 migration 文件必须保留历史 schema 定义。`0010_content_versions` 的 upgrade 已删除这些列；由于 provider VersionId 已被丢弃，该 migration 明确不可逆，downgrade 会立即失败。migration head 和当前 ORM 均不再使用这些列。
 
-迁移顺序：`0001_initial_auth`、`0002_player_graph_progress`、`0003_remove_legacy_progress_fields`、`0004_static_file_registrations`、`0005_player_artifacts`、`0006_artifact_template_versions`、`0007_virtual_accounts`、`0008_player_lifecycle`、`0009_player_credits_and_hints`、`0010_content_versions`、`0011_player_tasks`。运行迁移时从 `mythos/` 使用 `python -m alembic -c alembic.ini upgrade head`。
+迁移顺序：`0001_initial_auth`、`0002_player_graph_progress`、`0003_remove_legacy_progress_fields`、`0004_static_file_registrations`、`0005_player_artifacts`、`0006_artifact_template_versions`、`0007_virtual_accounts`、`0008_player_lifecycle`、`0009_player_credits_and_hints`、`0010_content_versions`、`0011_player_tasks`、`0012_player_achievements`。运行迁移时从 `mythos/` 使用 `python -m alembic -c alembic.ini upgrade head`。

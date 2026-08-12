@@ -24,9 +24,10 @@ lifespan startup
   -> FileIdCodec、ObjectStore、Database
   -> StaticAssetPublisher 物化 Files/Hints 静态源
   -> RegistryBundle.freeze(file_ids)
-  -> PlayerLoader、checkpoint hook、AchievementService、EndpointCommandExecutor、AchievementCommandExecutor、TaskCommandExecutor、EventDispatcher
+  -> PlayerLoader、checkpoint hook、共享 PipelinedTransaction、TaskService、RequestCache、ServiceContainer、三个 CommandExecutor、EventDispatcher
   -> ArtifactReconciliationRunner
   -> AccountReconciliationRunner
+  -> TaskReconciliationRunner
   -> ApplicationRuntime 挂载到 app.state.runtime
   -> yield，应用 ready
 ```
@@ -51,13 +52,15 @@ lifespan startup
 Progress nodes
   -> File tree manifest and static FileReference/StaticNodeSpec
   -> Hint definitions and Hint sources
-  -> VirtualAccountTemplate
-   -> PlayerConstructedEvent listener
+  -> Guest VirtualAccountTemplate
+  -> AchievementDefinition entries
+  -> Administrator VirtualAccountTemplate
+  -> PlayerConstructedEvent listeners
+  -> Task definition
   -> ArtifactTemplate
   -> ArtifactNodeTemplate
-  -> Script
+  -> Script entries
   -> ValidationAttempt
-  -> AchievementDefinition
 ```
 
 跨 Registry 的注册顺序由模块代码决定；RegistryBundle 不要求模块必须按照上述顺序注册。但 ArtifactNodeTemplate 必须指向已经注册的 ArtifactTemplate，当前 `ArtifactRegistry.register_node()` 会立即检查这一点。
@@ -112,17 +115,18 @@ Registry freeze 后继续创建：
 
 1. `PlayerLoader`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
 2. `LocalCheckpointStore` 和 `ProgressCheckpointHook`。
-3. `AchievementService`、`EndpointCommandExecutor`、`AchievementCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
-4. `EventDispatcher`。
+3. 共享 `PipelinedTransaction`、`TaskService`、`RequestCache` 和 `ServiceContainer`。
+4. `EndpointCommandExecutor`、`AchievementCommandExecutor`、`TaskCommandExecutor` 和 `EventDispatcher`。
 
 然后按顺序执行：
 
 1. `ArtifactReconciliationRunner`：根据 Artifact Catalog 快照刷新玩家 Artifact/Node。
 2. `AccountReconciliationRunner`：根据 VirtualAccount Catalog 快照清理已退休账号类型。
+3. `TaskReconciliationRunner`：根据 TaskCatalog 清理 SQL 中已不再注册的任务状态，并在 Catalog 变化时写入 Task Snapshot。
 
-两个 reconciliation 成功后才写入对应的本地 Catalog snapshot。任何 reconciliation 异常都会阻止 lifespan 进入 `yield`。
+三项 reconciliation 成功后才写入对应的本地 Catalog snapshot。任何 reconciliation 异常都会阻止 lifespan 进入 `yield`。
 
-最后创建 `ServiceContainer`，把静态 FileTree、启动期共享的 MergedFileTree、HintCatalog、ProgressGraph、ScriptCatalog、ValidationCatalog 和对象存储等注入全局 Service，并将完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
+将已创建的完整 `ApplicationRuntime` 保存到 `app.state.runtime`。
 
 应用退出时，lifespan 的 `finally` 释放 Database。Catalog、Service 和 PlayerLoader 的生命周期属于当前应用进程。
 
