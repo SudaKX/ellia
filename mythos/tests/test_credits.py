@@ -81,8 +81,8 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                 )
                 assert gated_purchase.status_code == 200
                 assert (await client.get("/api/v1/credits", headers=headers)).json() == {
-                    "vtb": 0,
-                    "version": 5,
+                    "vtb": 10,
+                    "version": 6,
                 }
 
     asyncio.run(scenario())

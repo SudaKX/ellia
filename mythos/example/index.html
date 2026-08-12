@@ -85,7 +85,7 @@
 
             <section class="section hints-section">
               <div class="panel-header"><h2 class="panel-title">提示与 VTB</h2><span id="credits-balance" class="credit-balance">VTB --</span></div>
-              <div class="vtb-recovery" aria-labelledby="vtb-recovery-title">
+               <div class="vtb-recovery" aria-labelledby="vtb-recovery-title">
                 <div class="vtb-recovery-header">
                   <div>
                     <h3 id="vtb-recovery-title" class="recovery-title">自动恢复</h3>
@@ -102,9 +102,14 @@
                   <div><dt>异常次数</dt><dd id="task-exception">--</dd></div>
                 </dl>
                 <p id="task-message" class="notice" aria-live="polite"></p>
-                <p id="task-report" class="task-report" aria-live="polite"></p>
-              </div>
-              <div id="hint-list" class="hint-list"><p class="notice">认证后加载提示。</p></div>
+                 <p id="task-report" class="task-report" aria-live="polite"></p>
+               </div>
+                <div class="achievement-section" aria-labelledby="achievement-title">
+                  <div class="panel-header"><h3 id="achievement-title" class="recovery-title">成就</h3><button id="check-achievements-button" type="button" disabled>检查成就</button></div>
+                 <div id="achievement-list" class="achievement-list"><p class="notice">认证后加载成就。</p></div>
+                 <p id="achievement-message" class="notice" aria-live="polite"></p>
+               </div>
+               <div id="hint-list" class="hint-list"><p class="notice">认证后加载提示。</p></div>
               <p id="hint-message" class="notice" aria-live="polite"></p>
               <div class="hint-preview">
                 <div class="hint-preview-bar"><span id="hint-preview-name" class="preview-name">未选择提示</span></div>
@@ -119,8 +124,12 @@
                 <span id="answer-meta" class="answer-meta"></span>
                 <div class="actions"><button id="answer-submit" class="primary" type="submit">提交</button><button id="retry-answer" type="button" hidden>重试请求</button></div>
               </form>
-              <p id="answer-message" class="notice" aria-live="polite">暂无答案验证器。</p>
-            </section>
+               <p id="answer-message" class="notice" aria-live="polite">暂无答案验证器。</p>
+               <div class="followup-section" aria-labelledby="followup-title">
+                 <div class="panel-header"><h3 id="followup-title" class="recovery-title">命令活动</h3></div>
+                 <ol id="followup-list" class="followup-list"><li class="muted">暂无领域活动</li></ol>
+               </div>
+             </section>
           </div>
         </aside>
       </main>

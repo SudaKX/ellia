@@ -1,6 +1,7 @@
 const API_BASE = "/api/v1";
 const VTB_TASK_ID = "example.vtb-allowance";
 const VTB_TASK_CAP = 10;
+const FOLLOWUP_ACTIVITY_LIMIT = 12;
 const state = {
   authMode: "register",
   username: "",
@@ -13,6 +14,11 @@ const state = {
   scripts: [],
   selectedFile: null,
   credits: null,
+  achievements: [],
+  achievementChecking: false,
+  achievementPending: new Set(),
+  achievementMessage: "",
+  achievementMessageTone: "",
   tasks: [],
   taskProcessing: false,
   taskMessage: "",
@@ -25,6 +31,7 @@ const state = {
   hintPending: new Set(),
   lastAttempt: null,
   events: [],
+  followupActivity: [],
 };
 
 const elements = {
@@ -41,12 +48,16 @@ const elements = {
   answerMessage: document.querySelector("#answer-message"),
   answerMeta: document.querySelector("#answer-meta"),
   answerSubmit: document.querySelector("#answer-submit"),
+  achievementList: document.querySelector("#achievement-list"),
+  achievementMessage: document.querySelector("#achievement-message"),
+  checkAchievementsButton: document.querySelector("#check-achievements-button"),
   authForm: document.querySelector("#auth-form"),
   authMessage: document.querySelector("#auth-message"),
   authSubmit: document.querySelector("#auth-submit"),
   creditsBalance: document.querySelector("#credits-balance"),
   eventList: document.querySelector("#event-list"),
   fileTree: document.querySelector("#file-tree"),
+  followupList: document.querySelector("#followup-list"),
   hintList: document.querySelector("#hint-list"),
   hintMessage: document.querySelector("#hint-message"),
   hintPreviewContent: document.querySelector("#hint-preview-content"),
@@ -83,7 +94,7 @@ function setNotice(element, message, tone = "") {
   element.className = `notice${tone ? ` ${tone}` : ""}`;
 }
 
-function clearWorkspaceData() {
+function clearWorkspaceData({ keepFollowupActivity = false } = {}) {
   stopTaskCountdown();
   state.progress = null;
   state.tree = null;
@@ -92,6 +103,11 @@ function clearWorkspaceData() {
   state.scripts = [];
   state.selectedFile = null;
   state.credits = null;
+  state.achievements = [];
+  state.achievementChecking = false;
+  state.achievementPending = new Set();
+  state.achievementMessage = "";
+  state.achievementMessageTone = "";
   state.tasks = [];
   state.taskProcessing = false;
   state.taskMessage = "";
@@ -102,6 +118,9 @@ function clearWorkspaceData() {
   state.hintPreview = null;
   state.hintPending = new Set();
   state.lastAttempt = null;
+  if (!keepFollowupActivity) {
+    state.followupActivity = [];
+  }
 }
 
 function setAuthenticated(token, username) {
@@ -201,7 +220,22 @@ async function readJson(response) {
     error.problemType = payload && typeof payload.type === "string" ? payload.type : "";
     throw error;
   }
+  captureFollowups(payload);
   return payload;
+}
+
+function captureFollowups(payload) {
+  if (!payload || !Array.isArray(payload.followups)) {
+    return;
+  }
+  const followups = payload.followups.filter(
+    (followup) => followup && typeof followup.action === "string",
+  );
+  if (!followups.length) {
+    return;
+  }
+  state.followupActivity = [...followups, ...state.followupActivity].slice(0, FOLLOWUP_ACTIVITY_LIMIT);
+  renderFollowupActivity();
 }
 
 function displayErrorMessage(error) {
@@ -264,13 +298,14 @@ async function loadWorkspace({ forceTree = false } = {}) {
   }
   elements.refreshButton.disabled = true;
   try {
-    const [progress, version, scripts, credits, hints, tasks] = await Promise.all([
+    const [progress, version, scripts, credits, hints, tasks, achievements] = await Promise.all([
       callApi("/progress").then(readJson),
       fetchTreeVersion(forceTree),
       callApi("/scripts").then(readJson),
       callApi("/credits").then(readJson),
       callApi("/hints").then(readJson),
       callApi("/tasks").then(readJson),
+      callApi("/achievement").then(readJson),
     ]);
 
     const shouldLoadTree = forceTree || !version.unchanged || !state.tree;
@@ -289,6 +324,7 @@ async function loadWorkspace({ forceTree = false } = {}) {
     }
     state.scripts = scripts.items;
     state.credits = credits;
+    state.achievements = Array.isArray(achievements.items) ? achievements.items : [];
     state.hints = hints.hints;
     state.tasks = Array.isArray(tasks.tasks) ? tasks.tasks : [];
     if (state.selectedHint) {
@@ -312,6 +348,7 @@ function renderWorkspace() {
   elements.treeVersion.textContent = state.treeVersion || "--";
   renderCredits();
   renderTaskRecovery();
+  renderAchievements();
   renderProgress();
   renderScripts();
   renderHints();
@@ -319,6 +356,7 @@ function renderWorkspace() {
   renderPreview();
   renderHintPreview();
   renderAnswerForm();
+  renderFollowupActivity();
 }
 
 function renderCredits() {
@@ -491,6 +529,118 @@ function renderTaskRecovery() {
   } else {
     elements.taskReport.className = "task-report";
     elements.taskReport.textContent = "";
+  }
+}
+
+function formatAchievementDate(value) {
+  return formatTaskDate(value, "--");
+}
+
+function achievementStatusText(status) {
+  return {
+    locked: "未达成",
+    available: "可领取",
+    claimed: "已领取",
+    deleted: "已删除",
+    "missing-fallback": "历史记录不可用",
+  }[status] || "状态未知";
+}
+
+function renderAchievements() {
+  elements.achievementList.replaceChildren();
+  elements.checkAchievementsButton.disabled = !state.token || state.achievementChecking;
+  elements.checkAchievementsButton.textContent = state.achievementChecking ? "正在检查..." : "检查成就";
+  setNotice(elements.achievementMessage, state.achievementMessage, state.achievementMessageTone);
+  if (!state.token) {
+    const notice = document.createElement("p");
+    notice.className = "notice";
+    notice.textContent = "认证后加载成就。";
+    elements.achievementList.append(notice);
+    return;
+  }
+  if (!state.achievements.length) {
+    const notice = document.createElement("p");
+    notice.className = "notice";
+    notice.textContent = "当前没有成就。";
+    elements.achievementList.append(notice);
+    return;
+  }
+  for (const achievement of state.achievements) {
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("strong");
+    const status = document.createElement("span");
+    const description = document.createElement("p");
+    const meta = document.createElement("div");
+    const actions = document.createElement("div");
+    const pending = state.achievementPending.has(achievement.public_id);
+    const titleText = achievement.meta && typeof achievement.meta.title === "string"
+      ? achievement.meta.title
+      : achievement.public_id;
+
+    card.className = "achievement-card";
+    header.className = "achievement-card-header";
+    title.className = "achievement-title";
+    status.className = `achievement-status ${achievement.status || ""}`;
+    description.className = "hint-teaser";
+    meta.className = "achievement-meta";
+    actions.className = "achievement-actions";
+    title.textContent = titleText;
+    status.textContent = pending ? "正在领取..." : achievementStatusText(achievement.status);
+    description.textContent = achievement.meta && typeof achievement.meta.description === "string"
+      ? achievement.meta.description
+      : "没有额外说明。";
+    meta.textContent = [
+      achievement.immediate ? "立即奖励" : "手动领取",
+      `达成：${formatAchievementDate(achievement.earned_at)}`,
+      `领取：${formatAchievementDate(achievement.claimed_at)}`,
+    ].join(" · ");
+    header.append(title, status);
+    card.append(header, description, meta, actions);
+
+    if (achievement.status === "available") {
+      const claim = document.createElement("button");
+      claim.type = "button";
+      claim.className = "primary";
+      claim.disabled = pending;
+      claim.textContent = pending ? "正在领取..." : "领取奖励";
+      claim.addEventListener("click", () => claimAchievement(achievement));
+      actions.append(claim);
+    }
+    elements.achievementList.append(card);
+  }
+}
+
+function formatFollowupData(data) {
+  if (data === undefined) {
+    return "{}";
+  }
+  try {
+    return JSON.stringify(data);
+  } catch (_) {
+    return "[无法显示的数据]";
+  }
+}
+
+function renderFollowupActivity() {
+  elements.followupList.replaceChildren();
+  if (!state.followupActivity.length) {
+    const item = document.createElement("li");
+    item.className = "muted";
+    item.textContent = "暂无领域活动";
+    elements.followupList.append(item);
+    return;
+  }
+  for (const followup of state.followupActivity) {
+    const item = document.createElement("li");
+    const action = document.createElement("strong");
+    const data = document.createElement("span");
+    action.className = "followup-action";
+    data.className = "followup-data";
+    action.textContent = followup.action;
+    data.textContent = formatFollowupData(followup.data);
+    item.append(action, data);
+    elements.followupList.append(item);
   }
 }
 
@@ -796,6 +946,72 @@ async function processAllowanceTask() {
   }
 }
 
+function achievementErrorMessage(error) {
+  if (error.problemType && error.problemType.endsWith("/achievement-unavailable")) {
+    return "该成就当前不可领取，请刷新后重试。";
+  }
+  if (error.problemType && error.problemType.endsWith("/achievement-deleted")) {
+    return "该成就已删除，无法领取。";
+  }
+  return displayErrorMessage(error);
+}
+
+async function claimAchievement(achievement) {
+  if (!state.token || achievement.status !== "available" || state.achievementPending.has(achievement.public_id)) {
+    return;
+  }
+  state.achievementPending.add(achievement.public_id);
+  state.achievementMessage = "正在领取成就奖励...";
+  state.achievementMessageTone = "";
+  renderAchievements();
+  try {
+    await callApi(`/achievement/claim/${encodeURIComponent(achievement.public_id)}`, {
+      method: "POST",
+      headers: { "Request-ID": crypto.randomUUID() },
+    }).then(readJson);
+    const refreshed = await loadWorkspace();
+    if (!refreshed) {
+      throw new Error("成就领取结果已返回，但状态刷新失败。");
+    }
+    state.achievementMessage = "成就状态已刷新。";
+    state.achievementMessageTone = "success";
+  } catch (error) {
+    state.achievementMessage = achievementErrorMessage(error);
+    state.achievementMessageTone = "error";
+  } finally {
+    state.achievementPending.delete(achievement.public_id);
+    renderAchievements();
+  }
+}
+
+async function checkAchievements() {
+  if (!state.token || state.achievementChecking) {
+    return;
+  }
+  state.achievementChecking = true;
+  state.achievementMessage = "正在检查成就条件...";
+  state.achievementMessageTone = "";
+  renderAchievements();
+  try {
+    await callApi("/achievement/check", {
+      method: "POST",
+      headers: { "Request-ID": crypto.randomUUID() },
+    }).then(readJson);
+    const refreshed = await loadWorkspace();
+    if (!refreshed) {
+      throw new Error("成就检查结果已返回，但状态刷新失败。");
+    }
+    state.achievementMessage = "成就状态已刷新。";
+    state.achievementMessageTone = "success";
+  } catch (error) {
+    state.achievementMessage = achievementErrorMessage(error);
+    state.achievementMessageTone = "error";
+  } finally {
+    state.achievementChecking = false;
+    renderAchievements();
+  }
+}
+
 function hintErrorMessage(error) {
   if (error.problemType && error.problemType.endsWith("/insufficient-credits")) {
     return "VTB 余额不足，提示未购买。";
@@ -901,6 +1117,7 @@ function setAuthMode(mode) {
 elements.registerMode.addEventListener("click", () => setAuthMode("register"));
 elements.loginMode.addEventListener("click", () => setAuthMode("login"));
 elements.refreshButton.addEventListener("click", () => loadWorkspace());
+elements.checkAchievementsButton.addEventListener("click", checkAchievements);
 elements.processTaskButton.addEventListener("click", processAllowanceTask);
 elements.openFileButton.addEventListener("click", () => {
   if (state.selectedFile && state.selectedFile.url) {
@@ -953,7 +1170,7 @@ elements.accountForm.addEventListener("submit", async (event) => {
     state.currentAccount = payload.content.current_account;
     elements.accountStatus.textContent = state.currentAccount ? state.currentAccount.display_name : "未选择";
     elements.accountPassword.value = "";
-    clearWorkspaceData();
+    clearWorkspaceData({ keepFollowupActivity: true });
     renderWorkspace();
     setNotice(elements.accountMessage, "账号已激活。", "success");
     await loadWorkspace({ forceTree: true });
