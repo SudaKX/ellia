@@ -18,7 +18,7 @@
 
 `PlayerInterfaces` 位图为 `PROGRESS`、`ARTIFACTS`、`ACCOUNTS`、`CREDITS`、`HINTS`、`TASKS` 和 `ALL`。所有实际执行上下文都继承统一 `Context`，直接持有 `player` 和本次逻辑执行的 `ContextScope`。`ContextScope` 只包含 Followup sink，不包含 Player；HTTP Executor 创建 collecting scope，Auth、reconciliation 和其他非 HTTP Workflow 使用 silent scope。
 
-`get_context()` 创建只读 `RequestContext`，文件动态端点加载全部 Interface，但 `pft4_` 只采集 Artifact 和文件 access_rule 声明的状态版本。`RequestContext` 保存 identity、Player 和共享 scope；`CommandContext` 增加 UUID `request_id` 与普通命令 reject；`TaskContext` 提供任务时间、异常、meta 状态和 `follow(Followup)`；`PlayerLifecycleContext` 和 `ValidationContext` 复用同一 Context/Followup 模型。子 Context 通过显式传递 scope 共享 Followup 顺序，不各自创建 collector。
+`get_context()` 创建只读 `RequestContext`，文件动态端点加载全部 Interface，但 `pft4_` 只采集 Artifact 和文件 access_rule 声明的状态版本。`RequestContext` 保存 identity、Player 和共享 scope；`CommandContext` 增加 UUID `request_id` 与普通命令 reject；`TaskContext` 提供任务时间、异常、meta 状态和 `follow(Followup)`；`ValidationContext` 复用同一 Context/Followup 模型。`EventContext` 直接持有调用方提供的 Player、Event 和 scope。子 Context 通过显式传递 scope 共享 Followup 顺序，不各自创建 collector。
 
 它们没有独立 Router、Registry 或 HTTP 端点；由认证依赖、文件/进度/脚本读取路由和命令执行器使用。相关 API 行为见 [命令契约](../api/commands.md)。
 

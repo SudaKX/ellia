@@ -24,7 +24,7 @@ lifespan startup
   -> FileIdCodec、ObjectStore、Database
   -> StaticAssetPublisher 物化 Files/Hints 静态源
   -> RegistryBundle.freeze(file_ids)
-  -> PlayerLoader、checkpoint hook、AchievementService、EndpointCommandExecutor、AchievementCommandExecutor、TaskCommandExecutor、LifecycleDispatcher
+  -> PlayerLoader、checkpoint hook、AchievementService、EndpointCommandExecutor、AchievementCommandExecutor、TaskCommandExecutor、EventDispatcher
   -> ArtifactReconciliationRunner
   -> AccountReconciliationRunner
   -> ApplicationRuntime 挂载到 app.state.runtime
@@ -52,7 +52,7 @@ Progress nodes
   -> File tree manifest and static FileReference/StaticNodeSpec
   -> Hint definitions and Hint sources
   -> VirtualAccountTemplate
-  -> Construct lifecycle handler
+   -> PlayerConstructedEvent listener
   -> ArtifactTemplate
   -> ArtifactNodeTemplate
   -> Script
@@ -99,7 +99,7 @@ scripts     -> ScriptCatalog
 validations -> ValidationCatalog
 accounts    -> VirtualAccountCatalog
 hints       -> HintCatalog
-lifecycle   -> LifecycleCatalog
+events       -> EventCatalog
 tasks       -> TaskCatalog
 achievements -> AchievementCatalog
 ```
@@ -113,7 +113,7 @@ Registry freeze 后继续创建：
 1. `PlayerLoader`：把 RuntimeCatalogs、ObjectStore 和 FileIdCodec 组合为 Player loader。
 2. `LocalCheckpointStore` 和 `ProgressCheckpointHook`。
 3. `AchievementService`、`EndpointCommandExecutor`、`AchievementCommandExecutor`、`TaskCommandExecutor` 和 Request-ID cache。
-4. `PlayerLifecycleDispatcher`。
+4. `EventDispatcher`。
 
 然后按顺序执行：
 
@@ -128,7 +128,7 @@ Registry freeze 后继续创建：
 
 ## 二、Registry 数据模型初始化顺序
 
-### 1. RegistryBundle 中的八个 Registry
+### 1. RegistryBundle 中的十个 Registry
 
 `RegistryBundle.__init__()` 创建以下空 Registry：
 
@@ -141,7 +141,9 @@ Registry freeze 后继续创建：
 | 5 | `artifacts` | `ArtifactTemplate`、`ArtifactNodeTemplate` | `ArtifactCatalog` |
 | 6 | `accounts` | `VirtualAccountTemplate` | `VirtualAccountCatalog` |
 | 7 | `hints` | `Hint`、Hint source | `HintCatalog` |
-| 8 | `lifecycle` | lifecycle handler、event、priority、registration sequence | `LifecycleCatalog` |
+| 8 | `events` | Event type、listener、priority、registration sequence | `EventCatalog` |
+| 9 | `tasks` | Task definition | `TaskCatalog` |
+| 10 | `achievements` | Achievement definition、fallback | `AchievementCatalog` |
 
 Registry 的字段填写顺序是“先完成注册声明，再完成 freeze 期解析”。注册期声明不会提前填写由对象内容、Catalog 或玩家状态决定的运行时版本。
 
@@ -321,18 +323,18 @@ metadata
 
 构造时先校验 metadata 可 JSON 序列化，再复制为只读映射。`version` 使用 `vat1_`；Catalog snapshot 按 entry 生成 `vac1_`。
 
-#### Lifecycle
+#### EventBus
 
-注册 lifecycle handler 时填写：
+注册 EventBus listener 时填写：
 
 ```text
-event
-handler
+event type
+listener
 priority
 registration sequence
 ```
 
-freeze 时按 `(priority, registration sequence)` 排序，形成 Construct 和 Deconstruct listener tuple。handler 不在 freeze 时执行。
+freeze 时按 `(priority, registration sequence)` 排序，形成每个精确 Event type 的 listener tuple 与依赖并集。listener 不在 freeze 时执行。
 
 ## 三、Version、Catalog Version 与 Content-token
 

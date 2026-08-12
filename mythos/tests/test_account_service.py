@@ -9,14 +9,17 @@ from sqlalchemy import select
 from mythos.auth.tokens import decode_access_token
 from mythos.core.config import Settings
 from mythos.core.problems import ProblemType
+from mythos.eventbus import EventContext, VirtualAccountLoggedInEvent
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerVirtualAccount, PlayerVirtualAccountState
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.callbacks import module_handler
+from mythos.players.interfaces import PlayerInterfaces
 
 
-def _registries(*account_ids: str) -> RegistryBundle:
+def _registries(*account_ids: str, events: list[VirtualAccountLoggedInEvent] | None = None) -> RegistryBundle:
     registries = RegistryBundle()
     for index, account_id in enumerate(account_ids):
         registries.accounts.register_template(
@@ -27,6 +30,11 @@ def _registries(*account_ids: str) -> RegistryBundle:
                 metadata={"index": index},
             )
         )
+    if events is not None:
+        @registries.events.on(VirtualAccountLoggedInEvent)
+        @module_handler("test.accounts")(1, dependencies=PlayerInterfaces.NONE)
+        async def record_login(context: EventContext) -> None:
+            events.append(context.event)
     return registries
 
 
@@ -54,8 +62,9 @@ async def _issue(app, player_id, account_id: str, username: str, password: str, 
 
 @pytest.mark.anyio
 async def test_vac_routes_log_in_and_log_out_module_issued_account(tmp_path) -> None:
+    events: list[VirtualAccountLoggedInEvent] = []
     settings = _settings(tmp_path)
-    app = create_app(settings, registries=_registries("test.operator"))
+    app = create_app(settings, registries=_registries("test.operator", events=events))
 
     async with app.router.lifespan_context(app):
         async with app.state.database.engine.begin() as connection:
@@ -89,6 +98,7 @@ async def test_vac_routes_log_in_and_log_out_module_issued_account(tmp_path) -> 
                 "instance": invalid_problem["instance"],
             }
             assert invalid_problem["instance"].startswith("urn:uuid:")
+            assert events == []
 
             malformed = await client.post(
                 "/api/v1/vac/login",
@@ -112,6 +122,7 @@ async def test_vac_routes_log_in_and_log_out_module_issued_account(tmp_path) -> 
             assert current["permission"] == -1
             assert current["metadata"] == {"index": 0}
             assert current["login_count"] == 1
+            assert [(event.player_id, event.account_id) for event in events] == [(player_id, "test.operator")]
 
             logged_out = await client.post(
                 "/api/v1/vac/logout",

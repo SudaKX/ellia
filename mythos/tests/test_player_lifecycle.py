@@ -8,13 +8,14 @@ from sqlalchemy import select, update
 from mythos.core.config import Settings
 from mythos.core.problems import ProblemType
 from mythos.core.database import Database
+from mythos.eventbus import EventContext, PlayerConstructedEvent
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerProgress, PlayerProgressCheckpoint, PlayerRecord, PlayerVirtualAccount
-from mythos.players.context import PlayerLifecycleContext
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.bundle import RegistryBundle
-from mythos.registry.lifecycle import PlayerConstructEvent
+from mythos.registry.callbacks import module_handler
 from mythos.registry.progress import NormalProgressNode
 
 
@@ -30,16 +31,17 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-def _registries(events: list[PlayerConstructEvent], *, advance_progress: bool = False) -> RegistryBundle:
+def _registries(events: list[PlayerConstructedEvent], *, advance_progress: bool = False) -> RegistryBundle:
     registries = RegistryBundle()
     registries.accounts.register_template(VirtualAccountTemplate("test.guest", "Guest", permission=1))
     if advance_progress:
         registries.progress.register(NormalProgressNode("start", ("complete",), is_entry=True))
         registries.progress.register(NormalProgressNode("complete", (), triggers_checkpoint=True))
 
-    @registries.lifecycle.on_construct
-    async def _construct(context: PlayerLifecycleContext) -> None:
-        assert isinstance(context.event, PlayerConstructEvent)
+    @registries.events.on(PlayerConstructedEvent)
+    @module_handler("test.lifecycle")(1, dependencies=PlayerInterfaces.ALL)
+    async def _construct(context: EventContext) -> None:
+        assert isinstance(context.event, PlayerConstructedEvent)
         events.append(context.event)
         await context.player.accounts.issue("test.guest", "guest", "guest-password")
         if advance_progress:
@@ -51,7 +53,7 @@ def _registries(events: list[PlayerConstructEvent], *, advance_progress: bool = 
 def test_registration_constructs_once_and_runs_pre_commit_hooks(tmp_path: Path) -> None:
     async def scenario() -> None:
         settings = _settings(tmp_path)
-        events: list[PlayerConstructEvent] = []
+        events: list[PlayerConstructedEvent] = []
         database = Database(settings.database_url)
         async with database.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
@@ -110,7 +112,7 @@ def test_first_login_constructs_a_legacy_player_without_a_marker(tmp_path: Path)
             async with session.begin():
                 await session.execute(update(PlayerRecord).values(constructed_at=None))
 
-        events: list[PlayerConstructEvent] = []
+        events: list[PlayerConstructedEvent] = []
         upgraded = create_app(settings, registries=_registries(events))
         async with upgraded.router.lifespan_context(upgraded):
             transport = httpx.ASGITransport(app=upgraded)
@@ -136,8 +138,9 @@ def test_failed_construct_rolls_back_registration(tmp_path: Path) -> None:
         settings = _settings(tmp_path)
         registries = RegistryBundle()
 
-        @registries.lifecycle.on_construct
-        async def _fail(_context: PlayerLifecycleContext) -> None:
+        @registries.events.on(PlayerConstructedEvent)
+        @module_handler("test.lifecycle")(2, dependencies=PlayerInterfaces.NONE)
+        async def _fail(_context: EventContext) -> None:
             raise RuntimeError("construction failed")
 
         database = Database(settings.database_url)

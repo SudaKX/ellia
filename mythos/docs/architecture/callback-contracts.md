@@ -9,7 +9,7 @@
 | 回调 | 注册位置 | 合同 | 要求 | 调用边界 |
 | --- | --- | --- | --- | --- |
 | Validation attempt handler | `ValidationAttempt.handler` | `(ValidationContext, Mapping[str, Any]) -> Awaitable[ValidationResult]` | 必须异步；可调用领域 `reject(reason, details)` 和 `follow(Followup)` | `ValidationService` 在调用方 transaction 内执行；HTTP Endpoint 将 `ValidationRejected` 固定映射为 `409` |
-| Player lifecycle handler | `LifecycleRegistry.register_lifecycle()`、`on_construct`、`on_deconstruct` | `(PlayerLifecycleContext) -> Awaitable[None]` | 必须异步 | Construct/Deconstruct 分发事务内；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续回调 |
+| Event listener | `EventRegistry.on(EventType, priority=...)` | `(EventContext) -> Awaitable[None]` | 必须异步、必须使用 `module_handler` 声明 Player Interface 依赖 | 当前进程、当前 transaction 内同步派发；按 `EARLY`、`DEFAULT`、`LATE` 和注册顺序调用，首个异常中止后续 listener |
 | Artifact generator | `ArtifactTemplate.generator` | `(Player) -> Awaitable[RawArtifact]` | 必须异步、恰好一个位置参数 | 由 Artifact Interface 在命令或重建流程中调用；对象存储写入发生在 SQL 提交前 |
 | Artifact node generator | `ArtifactNodeTemplate.node_generator` | `(Player, Mapping[str, Any], ArtifactNode) -> Awaitable[ArtifactNode]` | 必须异步、恰好三个位置参数 | 由 Artifact Interface 调用；meta 来自 Artifact generator |
 | 静态文件 access rule | `StaticNodeSpec`、文件 manifest | `(Player) -> bool` | 必须同步、纯读取、恰好一个位置参数、带 callback ID；当前静态文件路由只加载 `PROGRESS | ACCOUNTS` | FileService 在静态目录遍历、文件路径链和下载授权时直接求值 |
@@ -20,9 +20,9 @@
 
 ### 异步回调
 
-Validation、Lifecycle 和 Artifact 回调的调用点均直接使用 `await`。它们可读取或修改当前事务中的 Player 状态；不得自行创建事务、提交 Session，或持有请求结束后的 Session。Validation 和 Lifecycle Context 的 Followup 进入调用方的 per-call scope；非 HTTP Workflow 使用 silent sink。
+Validation、EventBus 和 Artifact 回调的调用点均直接使用 `await`。它们可读取或修改当前事务中的 Player 状态；不得自行创建事务、提交 Session，或持有请求结束后的 Session。Validation 和 EventContext 的 Followup sink 来自调用方的 per-call scope；非 HTTP Workflow 使用 silent sink。
 
-Lifecycle Construct 在注册和既有玩家首次真实登录时触发。Lifecycle 回调失败会使 Construct 标记与同一事务中的状态修改一并回滚。
+`PlayerConstructedEvent` 在注册和既有玩家首次真实登录时触发。listener 失败会使 Construct 标记与同一事务中的状态修改一并回滚。
 
 Artifact generator 与 node generator 必须以 `module_handler(module)(revision)` 标记。静态文件和 Artifact Node access_rule 必须使用 `module_handler(module)(revision, dependencies=...)` 显式声明依赖；静态文件当前只支持由静态路由预加载的 `PROGRESS | ACCOUNTS`，Artifact Node 的动态路由使用 `PlayerInterfaces.ALL`。未声明依赖的文件规则在注册或 freeze 阶段拒绝。callback ID 使用 schema 2 和新的固定 UUID namespace，依赖 mask 的变化会触发对应资源版本变化。
 

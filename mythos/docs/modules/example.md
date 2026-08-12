@@ -12,7 +12,7 @@ Example 是当前唯一由 `puzzles.register_all()` 注册的模块，用于验�
 | files | 平台认证后无需 VirtualAccount 登录即可见的 `/public`；仅 Administrator 可见的 `/admin/CONTROL.txt` |
 | hints | 两个认证后可见的 Hint（2、3 VTB）；一个完成 Echo 后可见的 Hint（5 VTB） |
 | accounts | Guest 与 Administrator 模板；Construct 时发放 Guest |
-| lifecycle | `on_construct` 发放固定 Guest 账号；development/test 演示模式发放一次性 5 VTB；晚优先级 Construct 激活 VTB allowance 任务 |
+| events | `PlayerConstructedEvent` listener 发放固定 Guest 账号；development/test 演示模式发放一次性 5 VTB；晚优先级 listener 激活 VTB allowance 任务 |
 | tasks | `example.vtb-allowance`：首次有效处理最多发放 5 VTB，按 60 秒周期惰性补发，任务发放后的余额不超过 10 VTB |
 | artifacts | `example.admin-access` 与仅 Guest 完成谜题后可见的 `/archive/ADMIN_ACCESS.txt` 节点 |
 | scripts | Guest Echo 脚本、完成提示和 Administrator notice |

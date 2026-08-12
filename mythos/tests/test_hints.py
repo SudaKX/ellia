@@ -10,10 +10,13 @@ from _helpers.object_store import FakeObjectStore
 from mythos.auth.tokens import decode_access_token
 from mythos.core.config import Settings
 from mythos.core.database import Database
+from mythos.eventbus import EventContext, PlayerConstructedEvent
 from mythos.main import create_app
 from mythos.persistence.base import Base
 from mythos.persistence.models import PlayerCredits, PlayerHintDisclosure
+from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.callbacks import module_handler
 from mythos.registry.files import FileReference
 from mythos.registry.hints import Hint, HintDisplayParams
 from mythos.registry.progress import NormalProgressNode
@@ -40,8 +43,9 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
                 )
             )
 
-        @registries.lifecycle.on_construct
-        async def grant_initial_vtb(context) -> None:
+        @registries.events.on(PlayerConstructedEvent)
+        @module_handler("test.hints")(1, dependencies=PlayerInterfaces.CREDITS)
+        async def grant_initial_vtb(context: EventContext) -> None:
             await context.player.credits.grant_vtb(3)
 
         settings = Settings(

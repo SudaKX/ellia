@@ -4,7 +4,8 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from mythos.players.context import PlayerLifecycleContext, TaskContext, ValidationContext
+from mythos.eventbus import EventContext, EventPriority, PlayerConstructedEvent
+from mythos.players.context import TaskContext, ValidationContext
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import Player
 from mythos.registry.artifacts import (
@@ -18,7 +19,6 @@ from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.files import FileReference, NodeDisplayParams
 from mythos.registry.hints import Hint, HintDisplayParams
-from mythos.registry.lifecycle import LifecyclePriority
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.scripts import Script
 from mythos.registry.validations import ValidationAttempt, ValidationResult
@@ -116,8 +116,9 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
         )
     )
 
-    @registries.lifecycle.on_construct
-    async def _issue_guest(context: PlayerLifecycleContext) -> None:
+    @registries.events.on(PlayerConstructedEvent)
+    @_handler(1, dependencies=PlayerInterfaces.ACCOUNTS)
+    async def _issue_guest(context: EventContext) -> None:
         await context.player.accounts.issue(
             GUEST_ACCOUNT_ID,
             GUEST_USERNAME,
@@ -125,8 +126,9 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
         )
 
     if initial_vtb:
-        @registries.lifecycle.on_construct
-        async def _grant_initial_vtb(context: PlayerLifecycleContext) -> None:
+        @registries.events.on(PlayerConstructedEvent)
+        @_handler(1, dependencies=PlayerInterfaces.CREDITS)
+        async def _grant_initial_vtb(context: EventContext) -> None:
             await context.player.credits.grant_vtb(initial_vtb)
 
     @registries.tasks.task(VTB_TASK_ID, dependencies=PlayerInterfaces.CREDITS)
@@ -198,8 +200,9 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             }
         )
 
-    @registries.lifecycle.on_construct(priority=LifecyclePriority.LATE)
-    async def _activate_vtb_allowance(context: PlayerLifecycleContext) -> None:
+    @registries.events.on(PlayerConstructedEvent, priority=EventPriority.LATE)
+    @_handler(1, dependencies=PlayerInterfaces.TASKS)
+    async def _activate_vtb_allowance(context: EventContext) -> None:
         await context.player.tasks.add_task(VTB_TASK_ID)
 
     registries.artifacts.register_template(

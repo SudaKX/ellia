@@ -19,6 +19,7 @@ from mythos.commands import (
     RequestCache,
     TaskCommandExecutor,
 )
+from mythos.eventbus import EventDispatcher
 from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
 from mythos.registry.bundle import RegistryBundle
 from mythos.players.loader import PlayerLoader
@@ -32,7 +33,6 @@ from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunne
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
-from mythos.services.lifecycle import PlayerLifecycleDispatcher
 from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
 from mythos.endpoints import router as endpoint_router
 from mythos.core.problems import (
@@ -127,7 +127,7 @@ def create_app(
             request_cache,
             pipelined_transaction,
         )
-        lifecycle_dispatcher = PlayerLifecycleDispatcher(catalogs.lifecycle)
+        event_dispatcher = EventDispatcher(catalogs.events)
         await ArtifactReconciliationRunner(
             database.session_factory,
             player_loader,
@@ -161,7 +161,7 @@ def create_app(
             achievement_command_executor=achievement_command_executor,
             task_command_executor=task_command_executor,
             pipelined_transaction=pipelined_transaction,
-            lifecycle_dispatcher=lifecycle_dispatcher,
+            event_dispatcher=event_dispatcher,
         )
         try:
             yield

@@ -11,12 +11,12 @@ Settings + RegistryBundle
   -> puzzles.register_all()
   -> StaticAssetPublisher.materialize()
   -> RegistryBundle.freeze(FileIdCodec)
-  -> PlayerLoader + checkpoint hook + AchievementService + TaskService + EndpointCommandExecutor + AchievementCommandExecutor + TaskCommandExecutor + shared PipelinedTransaction + PlayerLifecycleDispatcher
+  -> PlayerLoader + checkpoint hook + AchievementService + TaskService + EndpointCommandExecutor + AchievementCommandExecutor + TaskCommandExecutor + shared PipelinedTransaction + EventDispatcher
   -> ArtifactReconciliationRunner + AccountReconciliationRunner + TaskReconciliationRunner
   -> ServiceContainer + ApplicationRuntime
 ```
 
-`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`lifecycle`、`tasks`、`achievements` 十个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog、Achievement Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 通过 `ServiceContainer.tasks` 和 `ServiceContainer.achievements` 暴露全局领域 Service，同时保存其他全局 Service、Catalog、对象存储、命令执行器、共享 `PipelinedTransaction` 和生命周期 Dispatcher；请求级 `ContextScope` 不进入 Runtime。
+`RegistryBundle` 包含 `files`、`progress`、`scripts`、`validations`、`artifacts`、`accounts`、`hints`、`events`、`tasks`、`achievements` 十个 Registry；`freeze()` 返回静态 `FileTree`、Artifact Catalog、EventCatalog、Achievement Catalog 和启动期共享的 `MergedFileTree`。freeze 同时检查静态文件节点与 Artifact 节点的 `stable_id` 不冲突及路径 Slot 冲突。`ApplicationRuntime` 通过 `ServiceContainer.tasks` 和 `ServiceContainer.achievements` 暴露全局领域 Service，同时保存 Catalog、对象存储、命令执行器、共享 `PipelinedTransaction` 和 EventDispatcher；请求级 `ContextScope` 不进入 Runtime。
 
 ## 服务和 HTTP
 
@@ -35,7 +35,7 @@ Settings + RegistryBundle
 
 Artifact 没有生成 Router 或 `ServiceContainer` 成员；它由可写 `Player.artifacts` 在命令内生成。启动期 `ArtifactReconciliationRunner` 是生命周期组件，不是全局请求 Service；它使用本地快照和执行器事务同步变更模板的玩家记录。开发环境额外挂载静态交互页面 `/example/`。
 
-`PlayerLifecycleDispatcher` 同样没有 Router。注册时和既有玩家首次真实登录时，它在认证事务中顺序分发 Construct 回调；Deconstruct 回调预留给未来框架拥有的玩家删除服务。
+`EventDispatcher` 不属于 ServiceContainer，也没有 Router。它在调用方持有的 transaction 内同步分发精确类型的 Event listener；注册与既有玩家首次真实登录会派发 `PlayerConstructedEvent`，虚拟账号登录会派发 `VirtualAccountLoggedInEvent`。`PlayerDeconstructingEvent` 预留给未来框架拥有的玩家删除服务。
 
 ## 数据对象与 Example
 

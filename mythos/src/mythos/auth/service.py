@@ -23,6 +23,7 @@ from mythos.auth.passwords import password_hasher
 from mythos.commands.pipeline import PipelinedTransaction
 from mythos.core.config import Settings
 from mythos.core.followups import ContextScope
+from mythos.eventbus import EventContext, EventDispatcher, PlayerConstructedEvent
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
     PlayerCredits,
@@ -34,10 +35,7 @@ from mythos.persistence.models import (
     PlayerVirtualAccountState,
 )
 from mythos.registry.progress import ProgressGraph
-from mythos.registry.lifecycle import PlayerConstructEvent
-from mythos.services.lifecycle import PlayerLifecycleDispatcher
 from mythos.players.loader import PlayerLoader
-from mythos.players.context import PlayerLifecycleContext
 from mythos.players.interfaces import PlayerInterfaces
 
 class UsernameAlreadyExistsError(Exception):
@@ -78,14 +76,14 @@ class AuthService:
         settings: Settings,
         progress_graph: ProgressGraph,
         player_loader: PlayerLoader,
-        lifecycle_dispatcher: PlayerLifecycleDispatcher,
+        event_dispatcher: EventDispatcher,
         pipelined_transaction: PipelinedTransaction,
     ) -> None:
         self.session = session
         self.settings = settings
         self.progress_graph = progress_graph
         self.player_loader = player_loader
-        self.lifecycle_dispatcher = lifecycle_dispatcher
+        self.event_dispatcher = event_dispatcher
         self.pipelined_transaction = pipelined_transaction
 
     async def register(self, username: str, password: str) -> AuthenticationResult:
@@ -259,7 +257,7 @@ class AuthService:
             await self.session.refresh(player, attribute_names=["constructed_at"])
             return
         player.constructed_at = constructed_at
-        event = PlayerConstructEvent(
+        event = PlayerConstructedEvent(
             player_id=player.id,
             occurred_at=constructed_at,
             trigger=trigger,
@@ -267,15 +265,11 @@ class AuthService:
         aggregate = await self.player_loader.load_writable(
             self.session,
             player.id,
-            interfaces=PlayerInterfaces.ALL,
+            interfaces=PlayerInterfaces.ALL | self.event_dispatcher.dependencies_for(event),
         )
         async def publish(_session, player) -> None:
-            await self.lifecycle_dispatcher.publish(
-                PlayerLifecycleContext(
-                    player=player,
-                    event=event,
-                    scope=scope or ContextScope.silent(),
-                )
+            await self.event_dispatcher.publish(
+                EventContext(player=player, event=event, scope=scope or ContextScope.silent())
             )
 
         await self.pipelined_transaction.run(self.session, aggregate, publish)
