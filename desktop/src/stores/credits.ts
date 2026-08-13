@@ -55,6 +55,10 @@ export const useCreditsStore = defineStore('credits', () => {
   /** 本地已有数据时立即可用，无需等待网络 */
   const isLoaded = ref(true)
   const error = ref<string | null>(null)
+  /** 最近一次余额变化的增量（正=入账，负=支出；null=无变化） */
+  const lastDelta = ref<number | null>(null)
+  /** 余额变化动画触发序号，每次变化 +1 */
+  const changeSequence = ref(0)
 
   const vtb = computed(() => balances.value.vtb)
 
@@ -99,6 +103,8 @@ export const useCreditsStore = defineStore('credits', () => {
     version.value += 1
     isLoaded.value = true
     writeStoredVtb(balances.value.vtb)
+    lastDelta.value = amount
+    changeSequence.value += 1
     return balances.value.vtb
   }
 
@@ -109,7 +115,21 @@ export const useCreditsStore = defineStore('credits', () => {
     isLoading.value = false
     isLoaded.value = true
     error.value = null
+    lastDelta.value = null
+    changeSequence.value = 0
   }
 
-  return { balances, version, vtb, isLoading, isLoaded, error, fetchBalances, grantVtb, reset }
+  return {
+    balances,
+    version,
+    vtb,
+    isLoading,
+    isLoaded,
+    error,
+    lastDelta,
+    changeSequence,
+    fetchBalances,
+    grantVtb,
+    reset,
+  }
 })

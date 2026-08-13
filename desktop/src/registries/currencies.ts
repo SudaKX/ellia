@@ -52,6 +52,15 @@ export function formatTokenNumber(amount: number, locale: SupportedLocale | stri
   return new Intl.NumberFormat(numberLocale, { maximumFractionDigits: 0 }).format(amount)
 }
 
+/** 大数字紧凑格式，如 1.2万 / 1.2M（用于状态栏胶囊，避免余额过大时溢出） */
+export function formatTokenNumberCompact(amount: number, locale: SupportedLocale | string): string {
+  const numberLocale = NUMBER_LOCALES[locale as SupportedLocale] ?? 'en-US'
+  return new Intl.NumberFormat(numberLocale, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount)
+}
+
 /** 将代币余额格式化为"符号 + 千分位数字"，如 ¥1,234 / ₿128 */
 export function formatTokenAmount(amount: number, locale: SupportedLocale | string): string {
   return `${getCurrency(locale).symbol}${formatTokenNumber(amount, locale)}`

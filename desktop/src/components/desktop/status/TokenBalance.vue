@@ -9,11 +9,16 @@
  * 交互与 StatusMenuButton 一致：点击外部区域关闭。
  */
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RefreshCw, Wallet } from 'lucide-vue-next'
 
-import { formatTokenAmount, formatTokenNumber, getCurrency } from '@/registries/currencies'
+import {
+  formatTokenAmount,
+  formatTokenNumber,
+  formatTokenNumberCompact,
+  getCurrency,
+} from '@/registries/currencies'
 import { useCreditsStore } from '@/stores/credits'
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -21,6 +26,9 @@ const credits = useCreditsStore()
 
 const isOpen = ref(false)
 const rootRef = ref<HTMLDivElement | null>(null)
+/** 浮动展示的余额变化增量（如 +198） */
+const floatingDelta = ref<number | null>(null)
+let floatTimer: ReturnType<typeof setTimeout> | null = null
 
 const currency = computed(() => getCurrency(locale.value))
 
@@ -28,7 +36,10 @@ const currency = computed(() => getCurrency(locale.value))
 const displayBalance = computed(() => {
   if (credits.isLoading && !credits.isLoaded) return '···'
   if (!credits.isLoaded) return credits.error ? '—' : '···'
-  return formatTokenNumber(credits.vtb, locale.value)
+  // 大余额用紧凑格式（1.2万 / 1.2M），小余额保持完整数字
+  return credits.vtb >= 10_000
+    ? formatTokenNumberCompact(credits.vtb, locale.value)
+    : formatTokenNumber(credits.vtb, locale.value)
 })
 
 function toggle() {
@@ -49,12 +60,27 @@ async function refresh() {
   await credits.fetchBalances()
 }
 
+/** 余额变化时，在胶囊上方播放一次浮动动画 */
+watch(
+  () => credits.changeSequence,
+  () => {
+    if (credits.lastDelta === null) return
+    floatingDelta.value = credits.lastDelta
+    if (floatTimer !== null) clearTimeout(floatTimer)
+    floatTimer = setTimeout(() => {
+      floatingDelta.value = null
+      floatTimer = null
+    }, 1700)
+  },
+)
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (floatTimer !== null) clearTimeout(floatTimer)
 })
 </script>
 
@@ -71,6 +97,14 @@ onBeforeUnmount(() => {
     >
       <span class="token-balance__symbol">{{ currency.symbol }}</span>
       <span class="token-balance__amount">{{ displayBalance }}</span>
+      <span
+        v-if="floatingDelta !== null"
+        :key="credits.changeSequence"
+        class="token-balance__delta"
+        aria-hidden="true"
+      >
+        {{ floatingDelta > 0 ? '+' : '' }}{{ formatTokenNumber(floatingDelta, locale) }}
+      </span>
     </button>
 
     <div
@@ -120,6 +154,7 @@ onBeforeUnmount(() => {
 }
 
 .token-balance__trigger {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -148,6 +183,35 @@ onBeforeUnmount(() => {
 
 .token-balance__amount {
   font-weight: 600;
+}
+
+.token-balance__delta {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  z-index: 50;
+  pointer-events: none;
+  color: var(--signal-mint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(77, 214, 173, 0.45);
+  animation: token-float-down 1.7s ease-out both;
+}
+
+@keyframes token-float-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(16px) scale(1);
+  }
 }
 
 .token-balance__panel {

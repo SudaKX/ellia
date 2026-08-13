@@ -39,22 +39,16 @@ const filterService = useFilterService()
 const desktop = useDesktopStore()
 const credits = useCreditsStore()
 
-/** 彩蛋网址注册表：命中即发放 VTB（每个站点每浏览器只发一次） */
+/** 彩蛋网址注册表：命中即发放 VTB（重复访问可反复领取） */
 interface RewardSite {
-  /** 唯一 id，用于领取标记 localStorage key */
-  id: string
   /** 奖励 VTB 数量 */
   amount: number
   /** 判断当前 URL 是否命中该站点 */
   matches(url: URL): boolean
 }
 
-/** 彩蛋领取标记 key 前缀 */
-const GRANT_STORAGE_PREFIX = 'ellia.vtb.grant.'
-
 const REWARD_SITES: RewardSite[] = [
   {
-    id: 'bilibili-9034870',
     amount: 198,
     matches: (url) => {
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
@@ -66,7 +60,6 @@ const REWARD_SITES: RewardSite[] = [
     },
   },
   {
-    id: 'youtube-uc5cwaml1eigy8h02uzw7u8a',
     amount: 198,
     matches: (url) => {
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
@@ -78,7 +71,6 @@ const REWARD_SITES: RewardSite[] = [
     },
   },
   {
-    id: 'twitcasting-suisei-hosimati',
     amount: 198,
     matches: (url) => {
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
@@ -87,7 +79,6 @@ const REWARD_SITES: RewardSite[] = [
     },
   },
   {
-    id: 'tiktok-suisei-hosimati-hololive',
     amount: 198,
     matches: (url) => {
       const host = url.hostname.toLowerCase().replace(/^www\./, '')
@@ -97,23 +88,11 @@ const REWARD_SITES: RewardSite[] = [
   },
 ]
 
-/** 已领取过彩蛋的站点 id 集合（从 localStorage 恢复） */
-const claimedSiteIds = ref<Set<string>>(readClaimedSiteIds())
 /** 是否展示"奖励到账"横幅 */
 const rewardBannerVisible = ref(false)
 /** 最近一次奖励金额（用于横幅文案） */
 const rewardAmount = ref(0)
 let rewardBannerTimer: ReturnType<typeof setTimeout> | null = null
-
-/** 读取已领取站点 id 集合 */
-function readClaimedSiteIds(): Set<string> {
-  if (typeof window === 'undefined') return new Set()
-  return new Set(
-    REWARD_SITES
-      .filter((site) => window.localStorage.getItem(GRANT_STORAGE_PREFIX + site.id) === 'claimed')
-      .map((site) => site.id),
-  )
-}
 
 /** 展示"奖励到账"横幅，5 秒后自动消失 */
 function showRewardBanner() {
@@ -125,7 +104,7 @@ function showRewardBanner() {
   }, 5000)
 }
 
-/** 命中彩蛋网址：首次访问自动发放 VTB 并写入本地数据 */
+/** 命中彩蛋网址：每次访问自动发放 VTB 并写入本地余额 */
 function grantSiteReward(raw: string) {
   let url: URL
   try {
@@ -134,12 +113,8 @@ function grantSiteReward(raw: string) {
     return
   }
   const site = REWARD_SITES.find((entry) => entry.matches(url))
-  if (!site || claimedSiteIds.value.has(site.id)) return
+  if (!site) return
   credits.grantVtb(site.amount)
-  claimedSiteIds.value.add(site.id)
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(GRANT_STORAGE_PREFIX + site.id, 'claimed')
-  }
   rewardAmount.value = site.amount
   showRewardBanner()
 }
