@@ -27,7 +27,7 @@ Example SHALL 注册活动成就 `example.guest-login`，其 `condition=None`、
 
 ### Requirement: Example 注册可领取的 VTB 阈值成就
 
-Example SHALL 注册活动成就 `example.vtb-over-15`，其 condition 声明 `PlayerInterfaces.CREDITS`，并且仅在 `player.credits.vtb > 15` 时返回 true。该成就 SHALL 为非 immediate，其异步 claim effect SHALL 声明 `PlayerInterfaces.CREDITS` 并授予 10 VTB。
+Example SHALL 注册活动成就 `example.vtb-over-15`，其 condition 声明 `PlayerInterfaces.CREDITS`，并且仅在 `player.credits.balance("vtb") > 15` 时返回 true。该成就 SHALL 为非 immediate，其异步 claim effect SHALL 声明 `PlayerInterfaces.CREDITS` 并授予 10 VTB。
 
 #### Scenario: VTB 阈值成就变为可领取
 

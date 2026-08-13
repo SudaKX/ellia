@@ -4,7 +4,7 @@
 
 定义认证玩家读取全部 Credit 余额与聚合状态的只读 API 契约，包括事务提交后的可见性、认证边界和避免个性化响应被共享缓存复用的响应头要求。
 
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: API SHALL expose the authenticated player's credit balances
 
