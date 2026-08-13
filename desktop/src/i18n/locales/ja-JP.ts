@@ -1,0 +1,301 @@
+import type { LocaleMessages } from './en-US'
+
+export const jaJP = {
+  common: {
+    close: '閉じる',
+    locked: 'ロック済み',
+    permissionDenied: 'アクセス拒否',
+  },
+  launchpad: {
+    allApplications: 'すべてのアプリケーション',
+    close: 'ランチパッドを閉じる',
+  },
+  applicationGroups: {
+    system: 'システム',
+    restricted: '制限付き',
+    creative: 'クリエイティブ',
+  },
+  applications: {
+    files: {
+      title: 'ファイルエクスプローラー',
+      description: '承認済みシステムボリュームを検査します。',
+      previewTitle: 'ファイルプレビュー',
+      cannotOpen: 'このファイルを開けません。',
+      emptyDir: '空のディレクトリ',
+    },
+    archive: {
+      title: 'アーカイブビューア',
+      description: '復旧されたセッション資料を読み取ります。',
+    },
+    terminal: {
+      title: 'コマンドターミナル',
+      description: 'ローカルコンソールユーティリティを実行します。',
+    },
+    sandbox: {
+      title: 'サンドボックス制御',
+      description: '制限付き管理環境。',
+    },
+    settings: {
+      title: '設定',
+      description: 'デスクトップ設定を構成します。',
+    },
+    ascii: {
+      title: 'ASCII フロー',
+      description: '可変タイポグラフィテキストリフロービジュアライザ。',
+    },
+    browser: {
+      title: 'ブラウザ',
+      description: 'オープンウェブを閲覧します。',
+    },
+  },
+  /** ブラウザアプリ */
+  browser: {
+    addressPlaceholder: 'URL を入力',
+    go: '移動',
+    deniedTitle: 'アクセス拒否',
+  },
+  /** テキストエディタ */
+  textEditor: {
+    title: 'テキストエディタ',
+    save: '保存',
+    readMode: '閲覧',
+    editMode: '編集',
+    editArea: 'テキストエディタの内容',
+    modified: '変更済み',
+    decreaseFont: '文字サイズを小さく',
+    increaseFont: '文字サイズを大きく',
+    savePromptTitle: '変更を保存しますか？',
+    savePromptMessage: '「{name}」への変更を保存しますか？',
+    savePromptSave: '保存',
+    savePromptDiscard: '保存しない',
+    savePromptCancel: 'キャンセル',
+    permissionTitle: 'アクセス権限がありません',
+  },
+  /** ストーリーダイアログ（E ↔ プレイヤー） */
+  story: {
+    dialog: {
+      title: 'メッセージ',
+      continue: 'クリックして続行',
+      submit: '決定',
+    },
+  },
+  settings: {
+    label: 'デスクトップ設定',
+    language: '言語',
+    languageDescription: 'デスクトップインターフェースの表示言語を選択します。',
+    languageOptions: {
+      enUS: 'English(US)',
+      zhCN: '中文（简体）',
+      deDE: 'Deutsch',
+      jaJP: '日本語',
+      zhTW: '中文（繁體）',
+      binary: 'Binary',
+    },
+    theme: 'テーマ',
+    themeDescription: 'デスクトップのビジュアルテーマを選択。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日中',
+      deepBlue: '深青',
+      parchment: '羊皮紙',
+      rose: '薔薇',
+    },
+  },
+  network: {
+    status: {
+      ariaLabel: 'ネットワーク状態',
+      connected: '接続済み',
+      disconnect: '切断',
+      ipAssignment: 'IP 割り当て',
+      dnsAssignment: 'DNS サーバー割り当て',
+      automaticDhcp: '自動 (DHCP)',
+      edit: '編集',
+    },
+    dialogs: {
+      disconnect: 'ネットワークを切断',
+      editIp: 'IP 割り当て',
+      editDns: 'DNS サーバー割り当て',
+    },
+  },
+  sound: {
+    title: 'サウンド',
+    mute: 'ミュート',
+    unmute: 'ミュート解除',
+    unavailable: 'このブラウザではオーディオは利用できません。',
+    master: 'マスター',
+    interface: 'インターフェース',
+    system: 'システム',
+    masterVolume: 'マスター音量',
+    interfaceVolume: 'インターフェース音量',
+    systemVolume: 'システム音量',
+    spectrumLabel: 'オーディオ出力周波数スペクトル',
+  },
+  /** ログインページ */
+  login: {
+    windowTitle: 'FakeOS ログイン',
+    openButton: 'ログインウィンドウを開く',
+    username: 'ユーザー名',
+    usernamePlaceholder: 'ユーザー名を入力',
+    password: 'パスワード',
+    passwordPlaceholder: 'パスワードを入力',
+    submit: 'ログイン',
+    tokenSubmit: 'キーログイン',
+    errorUsername: 'ユーザー名を入力してください',
+    errorPassword: 'パスワードを入力してください',
+    adminLabel: '管理者',
+    adminSubmit: 'JDK トリガーログイン',
+    sessionFound: '保存されたセッションを検出 — 「キーログイン」をクリックして続行',
+  },
+  /** 認証ゲート */
+  authGate: {
+    failed: '認証に失敗しました',
+    redirecting: 'ログインにリダイレクト中... ({seconds})',
+    skipButton: '今すぐ移動',
+  },
+  /** AI アシスタント浮動ウィンドウ */
+  aiAssistant: {
+    title: 'AI アシスタント',
+    errorTitle: 'AI アシスタントを閉じる',
+    closeButton: 'AI アシスタントを閉じる',
+    lines: {
+      0: 'く、くすぐったくなんかないんだから！',
+      1: 'このくらいのくすぐったさじゃ……',
+      2: 'んん〜！ くらえ、こちょこちょ攻撃！！',
+    },
+    /** Xボタンクリック時の台詞（ランダム） */
+    closeLines: {
+      0: '覚えてなさい！',
+      1: 'よくも！',
+      2: '本当に退屈ね',
+    },
+  },
+  /** Live2D アシスタント */
+  live2d: {
+    title: 'Live2D アシスタント',
+    loading: 'Live2D 読み込み中...',
+    containerError: 'Live2D コンテナの初期化に失敗',
+    loadFailed: '読み込み失敗',
+    motionFailed: 'モーション再生に失敗',
+    motionPlaying: 'モーション再生中',
+    idle: '待機中',
+    mainMotion: 'メインモーション {n}',
+    touchBody: '体をタッチ',
+    touchHead: '頭をタッチ',
+  },
+  /** 対話型コマンドターミナル */
+  terminal: {
+    boot: {
+      line1: 'FakeOS Kernel 1.0.0 — 使用可能なコマンドは "help" と入力してください。',
+      line2: '',
+    },
+    prompt: '>',
+    inputLabel: 'ターミナル入力',
+    notFound: '{cmd}: コマンドが見つかりません',
+    permissionDenied: '{cmd}: アクセス拒否',
+    internalError: '{cmd}: 内部エラー',
+    commands: {
+      help: { description: '使用可能なコマンドを一覧表示します。' },
+      whoami: { description: '現在のユーザーIDを表示します。' },
+      clear: { description: 'ターミナル画面をクリアします。' },
+      echo: { description: 'テキストをターミナルに出力します。' },
+      date: { description: 'システムの日付と時刻を表示します。' },
+      ls: { description: 'ディレクトリの内容を一覧表示します。' },
+      cat: { description: 'ファイルの内容を読み取ります。' },
+      pwd: { description: '現在の作業ディレクトリを表示します。' },
+      uname: { description: 'システム情報を表示します。' },
+      calc: { description: '算術式を評価します。' },
+      ellia: { description: 'ElLInA に連絡します。' },
+      sil: { description: 'ID でパズルを開きます。' },
+      sudo: { description: '昇格された権限でコマンドを実行します。' },
+      cd: { description: '現在の作業ディレクトリを変更します。', usage: 'cd [ディレクトリ]' },
+      exit: { description: 'ターミナルウィンドウを閉じます。' },
+      man: {
+        description: 'コマンドマニュアルを表示します。',
+        usage: 'man <コマンド名>',
+        noArg: 'man: コマンド名を指定してください。',
+      },
+    },
+    ellia: {
+      line0: '  [ElLInA] こんにちは、{user}。',
+      line1: '  [ElLInA] システムは正常に動作しています。お手伝いしましょうか？',
+      line2: '  [ElLInA] いくつかのファイルは…まだ見るべきではありません。',
+      line3: '  [ElLInA] あなたを見守っていますよ。',
+      line4: '  [ElLInA] 今日も静かな一日ですね。',
+      line5: '  [ElLInA] そのディレクトリには触れないで。…本気です。',
+    },
+    sudo: {
+      denied: 'sudo: アクセス拒否 — 管理者権限が必要です',
+    },
+  },
+  /** プレイヤーアーカイブビューア */
+  archive: {
+    label: '復旧データ',
+    loading: 'プレイヤーアーカイブを読み込み中...',
+    error: 'アーカイブデータの読み込みに失敗しました。',
+    retry: '再試行',
+    profile: 'プロフィール',
+    userId: 'ユーザー ID',
+    privilege: '権限レベル',
+    registered: '登録日',
+    lastLogin: '最終ログイン',
+    loginCount: '総ログイン回数',
+    playtime: 'プレイ時間',
+    playtimeMinutes: '{minutes} 分',
+    playtimeHours: '{hours} 時間 {minutes} 分',
+    stats: '統計',
+    puzzlesCompleted: '解決済みパズル',
+    puzzlesCompletedText: '{count} 個のパズルを解決しました。',
+    noPuzzles: 'まだパズルを解決していません。',
+    puzzleRecord: '· "{id}" — {attempts} 回の試行で解決、{hints} 個のヒントを使用。',
+    achievements: '実績',
+    achievementsUnlocked: '{unlocked}/{total} 解除済み',
+    noAchievements: 'まだ実績がありません。',
+    locked: 'ロック中',
+    unlockedAt: '{date} に解除',
+    toastTitle: '実績！',
+    /** 実績定義 */
+    achievementList: {
+      firstLogin: {
+        name: 'ファーストコンタクト',
+        description: '初めてシステムにログインする。',
+      },
+      firstPuzzle: {
+        name: 'コードブレイカー',
+        description: '最初のパズルを解決する。',
+      },
+      threeLogins: {
+        name: '常連',
+        description: '3 回ログインする。',
+      },
+      persistent: {
+        name: '継続は力なり',
+        description: '5 つのパズルを解決する。頑張って！',
+      },
+      firstContact: {
+        name: '初めて',
+        description: 'ようこそ、ようこそ......',
+      },
+    },
+  },
+  /** パズルウィンドウ */
+  puzzles: {
+    label: 'パズル',
+    submit: '送信',
+    hint: 'ヒント',
+    solved: 'パズル解決！',
+    solvedIcon: '✓',
+    notFound: '問題が見つかりません。',
+    imageUnavailable: '画像を読み込めません。',
+    fillLabel: '空欄',
+    wrongAnswer: '不正解です。もう一度お試しください。',
+    caesarCipher: {
+      title: 'シーザー暗号',
+      description: '以下の暗号文を解読してください。各文字はアルファベット内で固定数だけシフトされています。',
+      cipherLabel: '暗号文:',
+      placeholder: '解読テキストを入力...',
+      hint1: 'ヒント 1: 各文字は同じ量だけ前方にシフトされています。"k" が "h" になる — シフト量は？',
+      hint2: 'ヒント 2: シフトは後方に 3 ポジションです。"khoor" → "hello"。残りを完成させてみてください。',
+    },
+    noPuzzles: '利用可能なパズルはありません。',
+  },
+} as const satisfies LocaleMessages

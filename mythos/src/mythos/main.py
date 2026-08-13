@@ -1,0 +1,233 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from mythos.core.config import PROJECT_ROOT, Settings, get_settings
+from mythos.core.database import Database
+from mythos.core.file_ids import FileIdCodec
+from mythos.core.runtime import ApplicationRuntime
+from mythos.commands import (
+    AchievementCommandExecutor,
+    EndpointCommandExecutor,
+    PipelinedTransaction,
+    RequestCache,
+    TaskCommandExecutor,
+)
+from mythos.eventbus import EventDispatcher
+from mythos.core.puzzle_loader import PuzzlePluginError, load_puzzle_register_all
+from mythos.registry.bundle import RegistryBundle
+from mythos.players.loader import PlayerLoader
+from mythos.players.interfaces import PlayerInterfaces
+from mythos.services.container import ServiceContainer
+from mythos.services.object_store.service import create_object_store
+from mythos.services.object_store.service import ObjectStore
+from mythos.services.progress import LocalCheckpointStore, ProgressCheckpointHook
+from mythos.services.files.static_assets import StaticAssetPublisher
+from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunner
+from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
+from mythos.services.accounts.reconciliation import AccountReconciliationRunner
+from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
+from mythos.services.credits import CreditReconciliationRunner, CreditTemplateSnapshotStore
+from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
+from mythos.endpoints import router as endpoint_router
+from mythos.core.problems import (
+    ApiProblem,
+    PROBLEM_MEDIA_TYPE,
+    PROBLEM_STATUS_CODES,
+    ProblemDetails,
+    api_problem_handler,
+    http_exception_handler,
+    request_validation_exception_handler,
+    unhandled_exception_handler,
+)
+
+
+def create_app(
+    settings: Settings | None = None,
+    registries: RegistryBundle | None = None,
+    object_store: ObjectStore | None = None,
+) -> FastAPI:
+    resolved_settings = settings or get_settings()
+    if registries is None:
+        try:
+            register_all = load_puzzle_register_all(resolved_settings.puzzle_root)
+        except PuzzlePluginError as error:
+            raise PuzzlePluginError(
+                "Could not assemble the puzzle plugin "
+                f"(PROJECT_ROOT={PROJECT_ROOT}, puzzle_root={resolved_settings.puzzle_root}): {error}"
+            ) from error
+        registered_content = RegistryBundle(resolved_settings.puzzle_root)
+        register_all(registered_content, environment=resolved_settings.environment)
+    else:
+        registered_content = registries
+    registered_content.configure_puzzle_root(resolved_settings.puzzle_root)
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        file_ids = FileIdCodec(resolved_settings.file_id_secret)
+        resolved_object_store = object_store or create_object_store(resolved_settings)
+        database = Database(resolved_settings.database_url)
+        await registered_content.materialize_static_files(
+            StaticAssetPublisher(
+                database.session_factory,
+                resolved_object_store,
+                resolved_settings.puzzle_root,
+            )
+        )
+        catalogs = registered_content.freeze(file_ids)
+        player_loader = PlayerLoader(catalogs, resolved_object_store, file_ids)
+        checkpoint_store = LocalCheckpointStore(resolved_settings.checkpoint_directory)
+        checkpoint_hook = ProgressCheckpointHook(checkpoint_store)
+        pipelined_transaction = PipelinedTransaction(pre_commit_hooks=(checkpoint_hook,))
+        task_service = TaskService(
+            catalogs.tasks,
+            pre_commit_interfaces=PlayerInterfaces.PROGRESS,
+        )
+        request_cache = RequestCache(
+            maxsize=resolved_settings.request_cache_maxsize,
+            ttl_seconds=resolved_settings.request_cache_ttl_seconds,
+        )
+        services = ServiceContainer.create(
+            catalogs.files,
+            catalogs.merged_files,
+            catalogs.hints,
+            catalogs.progress,
+            catalogs.scripts,
+            catalogs.validations,
+            resolved_object_store,
+            resolved_settings.file_content_url_ttl_seconds,
+            resolved_settings.file_content_cache_max_age_seconds,
+            resolved_settings.file_download_url_ttl_seconds,
+            checkpoint_store,
+            file_ids,
+            task_service,
+            catalogs.achievements,
+        )
+        endpoint_executor = EndpointCommandExecutor(
+            player_loader,
+            request_cache,
+            pipelined_transaction,
+            task_service=task_service,
+            achievement_service=services.achievements,
+        )
+        task_command_executor = TaskCommandExecutor(
+            player_loader,
+            task_service,
+            request_cache,
+            pipelined_transaction,
+        )
+        achievement_command_executor = AchievementCommandExecutor(
+            player_loader,
+            services.achievements,
+            request_cache,
+            pipelined_transaction,
+        )
+        event_dispatcher = EventDispatcher(catalogs.events)
+        await ArtifactReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.artifacts,
+            ArtifactTemplateSnapshotStore(resolved_settings.artifact_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await AccountReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.accounts,
+            VirtualAccountTemplateSnapshotStore(resolved_settings.virtual_account_snapshot_path),
+            allow_empty_catalog=resolved_settings.allow_empty_virtual_account_catalog_reconciliation,
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await TaskReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.tasks,
+            TaskSnapshotStore(resolved_settings.task_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await CreditReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.credits,
+            CreditTemplateSnapshotStore(resolved_settings.credit_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        application.state.settings = resolved_settings
+        application.state.database = database
+        application.state.runtime = ApplicationRuntime(
+            catalogs=catalogs,
+            player_loader=player_loader,
+            services=services,
+            object_store=resolved_object_store,
+            endpoint_executor=endpoint_executor,
+            achievement_command_executor=achievement_command_executor,
+            task_command_executor=task_command_executor,
+            pipelined_transaction=pipelined_transaction,
+            event_dispatcher=event_dispatcher,
+        )
+        try:
+            yield
+        finally:
+            await database.dispose()
+
+    application = FastAPI(
+        title="Ellia Mythos API",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
+    application.state.settings = resolved_settings
+    application.add_exception_handler(ApiProblem, api_problem_handler)
+    application.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    application.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    application.add_exception_handler(Exception, unhandled_exception_handler)
+    application.openapi = lambda: _openapi_with_problem_details(application)
+    if resolved_settings.environment == "development":
+        application.mount(
+            "/example",
+            StaticFiles(directory=PROJECT_ROOT / "example", html=True),
+            name="example",
+        )
+    application.include_router(endpoint_router, prefix="/api/v1")
+
+    @application.get("/health", tags=["system"])
+    async def healthcheck() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return application
+
+app = create_app()
+
+
+def _openapi_with_problem_details(application: FastAPI) -> dict[str, object]:
+    if application.openapi_schema is not None:
+        return application.openapi_schema
+    schema = get_openapi(
+        title=application.title,
+        version=application.version,
+        routes=application.routes,
+    )
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    components["ProblemDetails"] = ProblemDetails.model_json_schema()
+    problem_response = {
+        "description": "RFC 9457 Problem Details response.",
+        "content": {
+            PROBLEM_MEDIA_TYPE: {
+                "schema": {"$ref": "#/components/schemas/ProblemDetails"},
+            }
+        },
+    }
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            for status_code in PROBLEM_STATUS_CODES:
+                responses[str(status_code)] = problem_response
+    application.openapi_schema = schema
+    return schema

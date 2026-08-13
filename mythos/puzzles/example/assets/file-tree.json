@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "module": "example",
+  "children": [
+    {
+      "kind": "directory",
+      "stable_id": "example.public",
+      "name": "public",
+      "display": {
+        "label": "Public",
+        "description": "Recovery materials",
+        "icon": "folder",
+        "sort_order": 0
+      },
+      "children": [
+        {
+          "kind": "file",
+          "stable_id": "example.readme",
+          "name": "README.txt",
+          "display": {
+            "label": "README.txt",
+            "description": "Recovery instructions",
+            "icon": "document",
+            "sort_order": 0
+          },
+          "source": {
+            "relative_path": "assets/public/README.txt",
+            "media_type": "text/plain; charset=utf-8"
+          },
+          "download_name": "README.txt"
+        },
+        {
+          "kind": "file",
+          "stable_id": "example.guest-access",
+          "name": "GUEST_ACCESS.txt",
+          "display": {
+            "label": "GUEST_ACCESS.txt",
+            "description": "Guest credentials",
+            "icon": "document",
+            "sort_order": 1
+          },
+          "source": {
+            "relative_path": "assets/public/GUEST_ACCESS.txt",
+            "media_type": "text/plain; charset=utf-8"
+          },
+          "download_name": "GUEST_ACCESS.txt"
+        }
+      ]
+    },
+    {
+      "kind": "directory",
+      "stable_id": "example.admin",
+      "name": "admin",
+      "display": {
+        "label": "Admin",
+        "description": "Administrator controls",
+        "icon": "folder",
+        "sort_order": 1
+      },
+      "access_rule": "admin",
+      "children": [
+        {
+          "kind": "file",
+          "stable_id": "example.admin-control",
+          "name": "CONTROL.txt",
+          "display": {
+            "label": "CONTROL.txt",
+            "description": "Administrator control document",
+            "icon": "document",
+            "sort_order": 0
+          },
+          "source": {
+            "relative_path": "assets/admin/CONTROL.txt",
+            "media_type": "text/plain; charset=utf-8"
+          },
+          "download_name": "CONTROL.txt"
+        }
+      ]
+    }
+  ]
+}

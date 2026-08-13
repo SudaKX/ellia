@@ -1,0 +1,301 @@
+import type { LocaleMessages } from './en-US'
+
+export const zhTW = {
+  common: {
+    close: '關閉',
+    locked: '已鎖定',
+    permissionDenied: '拒絕存取',
+  },
+  launchpad: {
+    allApplications: '所有應用程式',
+    close: '關閉啟動台',
+  },
+  applicationGroups: {
+    system: '系統',
+    restricted: '受限',
+    creative: '創意',
+  },
+  applications: {
+    files: {
+      title: '檔案瀏覽器',
+      description: '檢視已授權的系統磁碟區。',
+      previewTitle: '檔案預覽',
+      cannotOpen: '無法開啟此檔案。',
+      emptyDir: '空目錄',
+    },
+    archive: {
+      title: '歸檔檢視器',
+      description: '讀取已復原的會話資料。',
+    },
+    terminal: {
+      title: '命令終端機',
+      description: '執行本機控制台命令。',
+    },
+    sandbox: {
+      title: '沙盒控制',
+      description: '受 LIMITED 權限限制的管理環境。',
+    },
+    settings: {
+      title: '設定',
+      description: '設定桌面偏好。',
+    },
+    ascii: {
+      title: 'ASCII 流',
+      description: '可變字型文字回流視覺化工具。',
+    },
+    browser: {
+      title: '瀏覽器',
+      description: '瀏覽開放網路。',
+    },
+  },
+  /** 瀏覽器應用 */
+  browser: {
+    addressPlaceholder: '輸入網址',
+    go: '前往',
+    deniedTitle: '禁止訪問',
+  },
+  /** 文字編輯器 */
+  textEditor: {
+    title: '文字編輯器',
+    save: '儲存',
+    readMode: '閱讀',
+    editMode: '編輯',
+    editArea: '文字編輯器內容',
+    modified: '已修改',
+    decreaseFont: '縮小字型',
+    increaseFont: '放大字型',
+    savePromptTitle: '是否儲存變更？',
+    savePromptMessage: '是否儲存對「{name}」的變更？',
+    savePromptSave: '儲存',
+    savePromptDiscard: '不儲存',
+    savePromptCancel: '取消',
+    permissionTitle: '權限不足',
+  },
+  /** 劇情對話 */
+  story: {
+    dialog: {
+      title: '訊息',
+      continue: '點擊繼續',
+      submit: '確認',
+    },
+  },
+  settings: {
+    label: '桌面偏好',
+    language: '語言',
+    languageDescription: '選擇桌面介面的顯示語言。',
+    languageOptions: {
+      enUS: 'English(US)',
+      zhCN: '中文（简体）',
+      deDE: 'Deutsch',
+      jaJP: '日本語',
+      zhTW: '中文（繁體）',
+      binary: 'Binary',
+    },
+    theme: '主題',
+    themeDescription: '選擇桌面視覺主題。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日間',
+      deepBlue: '深藍',
+      parchment: '羊皮紙',
+      rose: '雍容華麗',
+    },
+  },
+  network: {
+    status: {
+      ariaLabel: '網路狀態',
+      connected: '已連線',
+      disconnect: '中斷連線',
+      ipAssignment: 'IP 指派',
+      dnsAssignment: 'DNS 伺服器指派',
+      automaticDhcp: '自動指派 (DHCP)',
+      edit: '編輯',
+    },
+    dialogs: {
+      disconnect: '中斷網路連線',
+      editIp: 'IP 指派',
+      editDns: 'DNS 伺服器指派',
+    },
+  },
+  sound: {
+    title: '聲音',
+    mute: '靜音',
+    unmute: '取消靜音',
+    unavailable: '此瀏覽器不支援音訊。',
+    master: '主音量',
+    interface: '介面',
+    system: '系統',
+    masterVolume: '主音量',
+    interfaceVolume: '介面音量',
+    systemVolume: '系統音量',
+    spectrumLabel: '音訊輸出頻率頻譜',
+  },
+  /** 登入頁面 */
+  login: {
+    windowTitle: 'FakeOS 登入',
+    openButton: '開啟登入視窗',
+    username: '使用者名稱',
+    usernamePlaceholder: '輸入使用者名稱',
+    password: '密碼',
+    passwordPlaceholder: '輸入密碼',
+    submit: '登入',
+    tokenSubmit: '金鑰登入',
+    errorUsername: '請輸入使用者名稱',
+    errorPassword: '請輸入密碼',
+    adminLabel: '管理員',
+    adminSubmit: 'JDK 觸發登入',
+    sessionFound: '偵測到已儲存的會話，點選「金鑰登入」進入桌面',
+  },
+  /** 鑑權閘道 */
+  authGate: {
+    failed: '身分驗證失敗',
+    redirecting: '即將重新導向至登入頁面... ({seconds})',
+    skipButton: '立即跳轉',
+  },
+  /** AI 助手浮動視窗 */
+  aiAssistant: {
+    title: 'AI 助手',
+    errorTitle: '關閉 AI 助手',
+    closeButton: '關閉 AI 助手',
+    lines: {
+      0: '我、我才不會覺得癢什麼的！',
+      1: '癢這種程度的，才不會……',
+      2: '唔嗯~！看招，搔癢攻擊！！',
+    },
+    /** 點擊 X 關閉按鈕時的台詞（隨機） */
+    closeLines: {
+      0: '給我等著瞧！',
+      1: '竟敢！',
+      2: '真是無聊呢',
+    },
+  },
+  /** Live2D 助手 */
+  live2d: {
+    title: 'Live2D 助手',
+    loading: 'Live2D 載入中...',
+    containerError: 'Live2D 容器初始化失敗',
+    loadFailed: '載入失敗',
+    motionFailed: '動作播放失敗',
+    motionPlaying: '動作播放中',
+    idle: '待機中',
+    mainMotion: '主動作 {n}',
+    touchBody: '摸身體',
+    touchHead: '摸頭',
+  },
+  /** 互動式命令終端機 */
+  terminal: {
+    boot: {
+      line1: 'FakeOS Kernel 1.0.0 — 輸入 "help" 檢視可用命令。',
+      line2: '',
+    },
+    prompt: '>',
+    inputLabel: '終端機輸入',
+    notFound: '{cmd}: 命令找不到',
+    permissionDenied: '{cmd}: 權限不足',
+    internalError: '{cmd}: 內部錯誤',
+    commands: {
+      help: { description: '列出可用命令。' },
+      whoami: { description: '顯示目前使用者身分。' },
+      clear: { description: '清除終端機畫面。' },
+      echo: { description: '將文字輸出到終端機。' },
+      date: { description: '顯示系統日期與時間。' },
+      ls: { description: '列出目錄內容。' },
+      cat: { description: '讀取檔案內容。' },
+      pwd: { description: '顯示目前工作目錄。' },
+      uname: { description: '顯示系統資訊。' },
+      calc: { description: '計算算術運算式。' },
+      ellia: { description: '呼叫 ElLInA。' },
+      sil: { description: '按 ID 開啟謎題。' },
+      sudo: { description: '以提升的權限執行命令。' },
+      cd: { description: '切換目前工作目錄。', usage: 'cd [目錄]' },
+      exit: { description: '關閉終端機視窗。' },
+      man: {
+        description: '檢視命令手冊。',
+        usage: 'man <命令名稱>',
+        noArg: 'man: 請指定命令名稱。',
+      },
+    },
+    ellia: {
+      line0: '  [ElLInA] 你好，{user}。',
+      line1: '  [ElLInA] 系統運作正常。需要幫忙嗎？',
+      line2: '  [ElLInA] 有些檔案……不是你現在該看的。',
+      line3: '  [ElLInA] 我在看著你喔。',
+      line4: '  [ElLInA] 今天也是平靜的一天呢。',
+      line5: '  [ElLInA] 不要碰那個目錄。……我是認真的。',
+    },
+    sudo: {
+      denied: 'sudo: 權限不足 — 需要管理員權限',
+    },
+  },
+  /** 玩家檔案檢視器 */
+  archive: {
+    label: '已復原資料',
+    loading: '正在載入玩家檔案...',
+    error: '檔案資料載入失敗。',
+    retry: '重試',
+    profile: '檔案資訊',
+    userId: '使用者 ID',
+    privilege: '權限等級',
+    registered: '註冊時間',
+    lastLogin: '最後登入',
+    loginCount: '登入次數',
+    playtime: '遊玩時間',
+    playtimeMinutes: '{minutes} 分鐘',
+    playtimeHours: '{hours} 小時 {minutes} 分鐘',
+    stats: '統計資料',
+    puzzlesCompleted: '已完成謎題',
+    puzzlesCompletedText: '你已完成 {count} 個謎題。',
+    noPuzzles: '尚未完成任何謎題。',
+    puzzleRecord: '· "{id}" — {attempts} 次嘗試後解出，使用了 {hints} 個提示。',
+    achievements: '成就',
+    achievementsUnlocked: '{unlocked}/{total} 已解鎖',
+    noAchievements: '暫未獲得成就。',
+    locked: '未解鎖',
+    unlockedAt: '解鎖於 {date}',
+    toastTitle: '成就！',
+    /** 成就定義 */
+    achievementList: {
+      firstLogin: {
+        name: '初次接觸',
+        description: '首次登入系統。',
+      },
+      firstPuzzle: {
+        name: '密碼破解者',
+        description: '解決第一個謎題。',
+      },
+      threeLogins: {
+        name: '常客',
+        description: '登入 3 次。',
+      },
+      persistent: {
+        name: '持之以恆',
+        description: '解決 5 個謎題。繼續加油！',
+      },
+      firstContact: {
+        name: '第一次',
+        description: '歡迎歡迎......',
+      },
+    },
+  },
+  /** 謎題視窗 */
+  puzzles: {
+    label: '謎題',
+    submit: '提交',
+    hint: '提示',
+    solved: '謎題已解決！',
+    solvedIcon: '✓',
+    notFound: '題目不存在。',
+    imageUnavailable: '圖片載入失敗。',
+    fillLabel: '填空',
+    wrongAnswer: '答案不正確，請重試。',
+    caesarCipher: {
+      title: '凱撒密碼',
+      description: '解密下方的密文。每個字母在字母表中被偏移了固定位數。',
+      cipherLabel: '密文：',
+      placeholder: '輸入解密文字...',
+      hint1: '提示 1：每個字母都被向前偏移了相同位數。"k" 變成了 "h"——偏移了多少？',
+      hint2: '提示 2：偏移量是向後 3 位。"khoor" → "hello"。試試補完剩餘部分。',
+    },
+    noPuzzles: '暫無可用謎題。',
+  },
+} as const satisfies LocaleMessages

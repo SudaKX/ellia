@@ -1,0 +1,301 @@
+import type { LocaleMessages } from './en-US'
+
+export const zhCN = {
+  common: {
+    close: '关闭',
+    locked: '已锁定',
+    permissionDenied: '拒绝访问',
+  },
+  launchpad: {
+    allApplications: '所有应用',
+    close: '关闭启动台',
+  },
+  applicationGroups: {
+    system: '系统',
+    restricted: '受限',
+    creative: '创意',
+  },
+  applications: {
+    files: {
+      title: '文件浏览器',
+      description: '查看已授权的系统卷。',
+      previewTitle: '文件预览',
+      cannotOpen: '无法打开此文件。',
+      emptyDir: '空目录',
+    },
+    archive: {
+      title: '归档查看器',
+      description: '读取已恢复的会话资料。',
+    },
+    terminal: {
+      title: '命令终端',
+      description: '执行本地控制台命令。',
+    },
+    sandbox: {
+      title: '沙盒控制',
+      description: '受 LIMITED 权限限制的管理环境。',
+    },
+    settings: {
+      title: '设置',
+      description: '配置桌面偏好。',
+    },
+    ascii: {
+      title: 'ASCII 流',
+      description: '可变字体文本回流可视化工具。',
+    },
+    browser: {
+      title: '浏览器',
+      description: '浏览开放网络。',
+    },
+  },
+  /** 浏览器应用 */
+  browser: {
+    addressPlaceholder: '输入网址',
+    go: '前往',
+    deniedTitle: '禁止访问',
+  },
+  /** 文本编辑器 */
+  textEditor: {
+    title: '文本编辑器',
+    save: '保存',
+    readMode: '阅读',
+    editMode: '编辑',
+    editArea: '文本编辑器内容',
+    modified: '已修改',
+    decreaseFont: '减小字号',
+    increaseFont: '增大字号',
+    savePromptTitle: '是否保存更改？',
+    savePromptMessage: '是否保存对 "{name}" 的更改？',
+    savePromptSave: '保存',
+    savePromptDiscard: '不保存',
+    savePromptCancel: '取消',
+    permissionTitle: '权限不足',
+  },
+  /** 剧情对话 */
+  story: {
+    dialog: {
+      title: '消息',
+      continue: '点击继续',
+      submit: '确认',
+    },
+  },
+  settings: {
+    label: '桌面偏好',
+    language: '语言',
+    languageDescription: '选择桌面界面的显示语言。',
+    languageOptions: {
+      enUS: 'English(US)',
+      zhCN: '中文（简体）',
+      deDE: 'Deutsch',
+      jaJP: '日本語',
+      zhTW: '中文（繁體）',
+      binary: 'Binary',
+    },
+    theme: '主题',
+    themeDescription: '选择桌面视觉主题。',
+    themeOptions: {
+      night: '暗夜',
+      day: '日间',
+      deepBlue: '深蓝',
+      parchment: '羊皮纸',
+      rose: '雍容华丽',
+    },
+  },
+  network: {
+    status: {
+      ariaLabel: '网络状态',
+      connected: '已连接',
+      disconnect: '断开连接',
+      ipAssignment: 'IP 分配',
+      dnsAssignment: 'DNS 服务器分配',
+      automaticDhcp: '自动分配 (DHCP)',
+      edit: '编辑',
+    },
+    dialogs: {
+      disconnect: '断开网络连接',
+      editIp: 'IP 分配',
+      editDns: 'DNS 服务器分配',
+    },
+  },
+  sound: {
+    title: '声音',
+    mute: '静音',
+    unmute: '取消静音',
+    unavailable: '此浏览器不支持音频。',
+    master: '主音量',
+    interface: '界面',
+    system: '系统',
+    masterVolume: '主音量',
+    interfaceVolume: '界面音量',
+    systemVolume: '系统音量',
+    spectrumLabel: '音频输出频率频谱',
+  },
+  /** 登录页面 */
+  login: {
+    windowTitle: 'FakeOS 登录',
+    openButton: '打开登录窗口',
+    username: '用户名',
+    usernamePlaceholder: '输入用户名',
+    password: '密码',
+    passwordPlaceholder: '输入密码',
+    submit: '登录',
+    tokenSubmit: '密钥登录',
+    errorUsername: '请输入用户名',
+    errorPassword: '请输入密码',
+    adminLabel: '管理员',
+    adminSubmit: 'JDK 触发登录',
+    sessionFound: '检测到已保存的会话，点击"密钥登录"进入桌面',
+  },
+  /** 鉴权网关 */
+  authGate: {
+    failed: '身份验证失败',
+    redirecting: '即将跳转至登录页面... ({seconds})',
+    skipButton: '立即跳转',
+  },
+  /** AI 助手浮动窗口 */
+  aiAssistant: {
+    title: 'AI 助手',
+    errorTitle: '关闭 AI 助手',
+    closeButton: '关闭 AI 助手',
+    lines: {
+      0: '我，我才不会觉得痒什么的！',
+      1: '痒这种程度的，才不会……',
+      2: '唔嗯~！看招，挠痒痒攻击！！',
+    },
+    /** 点击 X 关闭按钮时的台词（随机） */
+    closeLines: {
+      0: '给我等着瞧！',
+      1: '竟敢！',
+      2: '真是无聊呢',
+    },
+  },
+  /** Live2D 助手 */
+  live2d: {
+    title: 'Live2D 助手',
+    loading: 'Live2D 加载中...',
+    containerError: 'Live2D 容器初始化失败',
+    loadFailed: '加载失败',
+    motionFailed: '动作播放失败',
+    motionPlaying: '动作播放中',
+    idle: '待机中',
+    mainMotion: '主动作 {n}',
+    touchBody: '摸身体',
+    touchHead: '摸头',
+  },
+  /** 交互式命令终端 */
+  terminal: {
+    boot: {
+      line1: 'FakeOS Kernel 1.0.0 — 输入 "help" 查看可用命令。',
+      line2: '',
+    },
+    prompt: '>',
+    inputLabel: '终端输入',
+    notFound: '{cmd}: 命令未找到',
+    permissionDenied: '{cmd}: 权限不足',
+    internalError: '{cmd}: 内部错误',
+    commands: {
+      help: { description: '列出可用命令。' },
+      whoami: { description: '显示当前用户身份。' },
+      clear: { description: '清空终端屏幕。' },
+      echo: { description: '将文本打印到终端。' },
+      date: { description: '显示系统日期和时间。' },
+      ls: { description: '列出目录内容。' },
+      cat: { description: '读取文件内容。' },
+      pwd: { description: '打印当前工作目录。' },
+      uname: { description: '显示系统信息。' },
+      calc: { description: '计算算术表达式。' },
+      ellia: { description: '呼叫 ElLInA。' },
+      sil: { description: '按 ID 打开谜题。' },
+      sudo: { description: '以提升的权限执行命令。' },
+      cd: { description: '切换当前工作目录。', usage: 'cd [目录]' },
+      exit: { description: '关闭终端窗口。' },
+      man: {
+        description: '查看命令手册。',
+        usage: 'man <命令名>',
+        noArg: 'man: 请指定命令名。',
+      },
+    },
+    ellia: {
+      line0: '  [ElLInA] 你好，{user}。',
+      line1: '  [ElLInA] 系统运行正常。需要帮助吗？',
+      line2: '  [ElLInA] 有些文件……不是你现在该看的。',
+      line3: '  [ElLInA] 我在看着你哦。',
+      line4: '  [ElLInA] 今天也是平静的一天呢。',
+      line5: '  [ElLInA] 不要碰那个目录。……我是认真的。',
+    },
+    sudo: {
+      denied: 'sudo: 权限不足 — 需要管理员权限',
+    },
+  },
+  /** 玩家档案查看器 */
+  archive: {
+    label: '已恢复数据',
+    loading: '正在加载玩家档案...',
+    error: '档案数据加载失败。',
+    retry: '重试',
+    profile: '档案信息',
+    userId: '用户 ID',
+    privilege: '权限等级',
+    registered: '注册时间',
+    lastLogin: '最后登录',
+    loginCount: '登录次数',
+    playtime: '游玩时间',
+    playtimeMinutes: '{minutes} 分钟',
+    playtimeHours: '{hours} 小时 {minutes} 分钟',
+    stats: '统计数据',
+    puzzlesCompleted: '已完成谜题',
+    puzzlesCompletedText: '你已完成 {count} 个谜题。',
+    noPuzzles: '尚未完成任何谜题。',
+    puzzleRecord: '· "{id}" — {attempts} 次尝试后解出，使用了 {hints} 个提示。',
+    achievements: '成就',
+    achievementsUnlocked: '{unlocked}/{total} 已解锁',
+    noAchievements: '暂未获得成就。',
+    locked: '未解锁',
+    unlockedAt: '解锁于 {date}',
+    toastTitle: '成就！',
+    /** 成就定义 */
+    achievementList: {
+      firstLogin: {
+        name: '初次接触',
+        description: '首次登录系统。',
+      },
+      firstPuzzle: {
+        name: '密码破解者',
+        description: '解决第一个谜题。',
+      },
+      threeLogins: {
+        name: '常客',
+        description: '登录 3 次。',
+      },
+      persistent: {
+        name: '持之以恒',
+        description: '解决 5 个谜题。继续加油！',
+      },
+      firstContact: {
+        name: '第一次',
+        description: '欢迎欢迎......',
+      },
+    },
+  },
+  /** 谜题窗口 */
+  puzzles: {
+    label: '谜题',
+    submit: '提交',
+    hint: '提示',
+    solved: '谜题已解决！',
+    solvedIcon: '✓',
+    notFound: '题目不存在。',
+    imageUnavailable: '图片加载失败。',
+    fillLabel: '填空',
+    wrongAnswer: '答案不正确，请重试。',
+    caesarCipher: {
+      title: '凯撒密码',
+      description: '解密下面的密文。每个字母在字母表中被偏移了固定位数。',
+      cipherLabel: '密文：',
+      placeholder: '输入解密文本...',
+      hint1: '提示 1：每个字母都被向前偏移了相同位数。"k" 变成了 "h"——偏移了多少？',
+      hint2: '提示 2：偏移量是向后 3 位。"khoor" → "hello"。试试补全剩余部分。',
+    },
+    noPuzzles: '暂无可用谜题。',
+  },
+} as const satisfies LocaleMessages

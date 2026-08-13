@@ -1,0 +1,1 @@
+"""Ellia puzzle platform backend."""

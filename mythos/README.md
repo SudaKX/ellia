@@ -1,0 +1,52 @@
+# Mythos
+
+Mythos 是 Ellia 在线解谜活动的 FastAPI 后端。它负责平台玩家认证、进度、虚拟文件、谜题验证、虚拟账号、VTB/Hint、惰性任务和成就；前端不持有这些领域的权威状态。
+
+后端按“框架 + 谜题模块”组织：框架提供请求级 Player Interface、全局 Service、动态内容注册器和固定 API 端点；运行根目录下的外部 `puzzles/` 插件提供文件、演出脚本、验证规则、checkpoint、统计项和端点回调。当前设计见 [docs/architecture/runtime-and-composition.md](docs/architecture/runtime-and-composition.md)。
+
+## 当前进度
+
+已完成：
+
+- 建立 `src/mythos` 包结构与领域目录。
+- 声明 FastAPI、SQLAlchemy、Alembic、认证和测试基础依赖。
+- 提供 FastAPI 应用、`GET /health` 健康检查和固定 `/api/v1` Router。
+- 建立异步 SQLite 数据库基础设施、初始 Alembic 迁移与玩家认证模型。
+- 实现平台注册、登录、JWT 刷新、Refresh Cookie 轮换和登出端点。
+- 实现请求级 `Player`、Progress、Account、Artifact、Credits、Hints、Tasks 和 Achievements Interface，以及命令事务和 followup。
+- 实现模块注册器、进程内同步 EventBus、冻结 Catalog 和固定语义化端点。
+- 提供默认装配的 Example 模块，覆盖静态线索、虚拟账号、答案校验、进度 checkpoint、Artifact、Hint、惰性任务和成就。
+- 将 Example 作为运行根目录下的外部 `puzzles` 插件装配；该插件不进入 Mythos wheel。
+
+尚未实现：
+
+- ElLInA 演出状态、统计、审计和活动管理 API。
+
+## 本地开发
+
+完整的启动步骤、路径约束和 RustFS 前置条件见 [docs/operations/development-and-storage.md](docs/operations/development-and-storage.md)。后端文档索引见 [docs/README.md](docs/README.md)。以下命令从 `mythos/` 目录执行。
+
+项目使用 `mythos/.venv` 虚拟环境。以下命令从 `mythos/` 目录执行。安装开发依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --editable ".[dev]"
+```
+
+运行测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests
+```
+
+启动开发服务器：
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
+.\.venv\Scripts\python.exe -m mythos --reload
+```
+
+开发模式下可通过 `/example/` 打开 Example 交互测试页面。
+
+首次运行前，将 `.env.example` 复制为 `.env` 并替换认证密钥和对象存储配置。
+
+应用必须从 `mythos/` 目录启动。框架 wheel 与 `puzzles/` 插件目录分别交付；插件默认位于 `PROJECT_ROOT/puzzles`，也可以通过 `MYTHOS_PUZZLE_ROOT` 指定受信任的绝对目录。
