@@ -298,4 +298,12 @@ export const deDE = {
     },
     noPuzzles: 'Keine Rätsel verfügbar.',
   },
+  /** Token-Geldbörse (Statusleiste) */
+  tokens: {
+    label: 'Geldbörse',
+    balance: 'Guthaben',
+    vtb: 'VTB-Guthaben',
+    refresh: 'Aktualisieren',
+    error: 'Guthaben nicht verfügbar',
+  },
 } as const satisfies LocaleMessages

@@ -296,6 +296,14 @@ export const enUS = {
     },
     noPuzzles: 'No puzzles available.',
   },
+  /** Token wallet (status bar) */
+  tokens: {
+    label: 'Wallet',
+    balance: 'Balance',
+    vtb: 'VTB Credits',
+    refresh: 'Refresh',
+    error: 'Balance unavailable',
+  },
 } as const
 
 type DeepString<T> = {

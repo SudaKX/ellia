@@ -298,4 +298,12 @@ export const jaJP = {
     },
     noPuzzles: '利用可能なパズルはありません。',
   },
+  /** トークンウォレット（ステータスバー） */
+  tokens: {
+    label: 'ウォレット',
+    balance: '残高',
+    vtb: 'VTB クレジット',
+    refresh: '更新',
+    error: '残高を取得できません',
+  },
 } as const satisfies LocaleMessages

@@ -298,4 +298,12 @@ export const zhTW = {
     },
     noPuzzles: '暫無可用謎題。',
   },
+  /** 代幣錢包（狀態列） */
+  tokens: {
+    label: '錢包',
+    balance: '餘額',
+    vtb: 'VTB 積分',
+    refresh: '重新整理',
+    error: '餘額取得失敗',
+  },
 } as const satisfies LocaleMessages

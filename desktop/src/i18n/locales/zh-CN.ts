@@ -298,4 +298,12 @@ export const zhCN = {
     },
     noPuzzles: '暂无可用谜题。',
   },
+  /** 代币钱包（状态栏） */
+  tokens: {
+    label: '钱包',
+    balance: '余额',
+    vtb: 'VTB 积分',
+    refresh: '刷新',
+    error: '余额获取失败',
+  },
 } as const satisfies LocaleMessages
