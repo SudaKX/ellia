@@ -51,6 +51,7 @@ export const enUS = {
     addressPlaceholder: 'Enter URL',
     go: 'Go',
     deniedTitle: 'ACCESS DENIED',
+    vtbReward: 'Mysterious site found! +{amount} VTB credited to your balance.',
   },
   /** Text editor (FakeOS Notepad) */
   textEditor: {

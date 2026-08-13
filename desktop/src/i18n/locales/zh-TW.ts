@@ -53,6 +53,7 @@ export const zhTW = {
     addressPlaceholder: '輸入網址',
     go: '前往',
     deniedTitle: '禁止訪問',
+    vtbReward: '發現神秘網址彩蛋！已為你增加 {amount} VTB。',
   },
   /** 文字編輯器 */
   textEditor: {

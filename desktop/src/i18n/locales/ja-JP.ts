@@ -53,6 +53,7 @@ export const jaJP = {
     addressPlaceholder: 'URL を入力',
     go: '移動',
     deniedTitle: 'アクセス拒否',
+    vtbReward: '謎のサイトを発見！{amount} VTB を追加しました。',
   },
   /** テキストエディタ */
   textEditor: {

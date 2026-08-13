@@ -53,6 +53,7 @@ export const deDE = {
     addressPlaceholder: 'URL eingeben',
     go: 'Los',
     deniedTitle: 'ZUGRIFF VERWEIGERT',
+    vtbReward: 'Geheimnisvolle Seite gefunden! {amount} VTB wurden gutgeschrieben.',
   },
   /** Texteditor */
   textEditor: {

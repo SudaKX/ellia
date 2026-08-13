@@ -53,6 +53,7 @@ export const zhCN = {
     addressPlaceholder: '输入网址',
     go: '前往',
     deniedTitle: '禁止访问',
+    vtbReward: '发现神秘网址彩蛋！已为你增加 {amount} VTB。',
   },
   /** 文本编辑器 */
   textEditor: {
