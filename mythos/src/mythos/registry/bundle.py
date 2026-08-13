@@ -9,6 +9,7 @@ from mythos.eventbus import EventCatalog, EventRegistry
 from mythos.registry.accounts import VirtualAccountCatalog, VirtualAccountRegistry
 from mythos.registry.achievements import AchievementCatalog, AchievementRegistry
 from mythos.registry.artifacts import ArtifactCatalog, ArtifactRegistry
+from mythos.registry.credits import CreditCatalog, CreditRegistry
 from mythos.registry.errors import DuplicateStableIdError, RegistryError
 from mythos.registry.files import FileRegistry, FileTree, MergedFileTree
 from mythos.registry.hints import HintCatalog, HintRegistry
@@ -30,6 +31,7 @@ class RuntimeCatalogs:
     validations: ValidationCatalog
     artifacts: ArtifactCatalog
     accounts: VirtualAccountCatalog
+    credits: CreditCatalog
     hints: HintCatalog
     events: EventCatalog
     tasks: TaskCatalog
@@ -44,6 +46,7 @@ class RegistryBundle:
         self.validations = ValidationRegistry()
         self.artifacts = ArtifactRegistry()
         self.accounts = VirtualAccountRegistry()
+        self.credits = CreditRegistry()
         self.hints = HintRegistry()
         self.events = EventRegistry()
         self.tasks = TaskRegistry()
@@ -65,6 +68,10 @@ class RegistryBundle:
             raise DuplicateStableIdError(next(iter(sorted(duplicates))))
         files = self.files.freeze(file_ids)
         artifacts = self.artifacts.freeze()
+        self.credits.ensure_builtin_vtb()
+        credits = self.credits.freeze()
+        hints = self.hints.freeze(file_ids)
+        _ensure_hint_credits_registered(hints, credits)
         self._catalogs = RuntimeCatalogs(
             files=files,
             merged_files=MergedFileTree.build(files, artifacts, file_ids),
@@ -73,7 +80,8 @@ class RegistryBundle:
             validations=self.validations.freeze(),
             artifacts=artifacts,
             accounts=self.accounts.freeze(),
-            hints=self.hints.freeze(file_ids),
+            credits=credits,
+            hints=hints,
             events=self.events.freeze(),
             tasks=self.tasks.freeze(),
             achievements=self.achievements.freeze(file_ids),
@@ -101,6 +109,14 @@ class RegistryBundle:
                 for source in self.hints.sources
             }
         )
+
+
+def _ensure_hint_credits_registered(hints: HintCatalog, credits: CreditCatalog) -> None:
+    for hint in hints.hints:
+        if hint.credit_id not in credits.credit_ids:
+            raise RegistryError(
+                f"Hint {hint.stable_id!r} references unregistered credit {hint.credit_id!r}."
+            )
 
 
 def _merge_static_sources(*source_groups):

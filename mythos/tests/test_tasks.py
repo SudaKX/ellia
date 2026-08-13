@@ -19,8 +19,9 @@ from mythos.core.followups import ContextScope, Followup
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.persistence.base import Base
 from mythos.persistence.models import (
-    PlayerCredits,
     PlayerAuth,
+    PlayerCreditBalance,
+    PlayerCreditState,
     PlayerProgress,
     PlayerProgressCheckpoint,
     PlayerProgressFrontierNode,
@@ -32,6 +33,7 @@ from mythos.players.loader import PlayerLoader
 from mythos.players.interfaces import ReadOnlyTaskError, TaskMetaError
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.credits import CREDIT_VTB_ID
 from mythos.registry.progress import NormalProgressNode
 from mythos.registry.tasks import TaskRegistry, TaskSnapshot
 from mythos.registry.errors import RegistryError
@@ -78,12 +80,21 @@ async def _seed_player(session, *, task_ids: tuple[str, ...]) -> tuple[object, o
         [
             PlayerRecord(id=player_id, username="task-player", username_normalized="task-player"),
             progress,
-            PlayerCredits(player_id=player_id, vtb=0, version=0),
+            PlayerCreditState(player_id=player_id, version=0),
             *[PlayerTaskState(player_id=player_id, task_id=task_id, meta="{}") for task_id in task_ids],
         ]
     )
     await session.commit()
     return player_id, progress
+
+
+async def _vtb_balance(session, player_id):
+    return await session.scalar(
+        select(PlayerCreditBalance).where(
+            PlayerCreditBalance.player_id == player_id,
+            PlayerCreditBalance.credit_id == CREDIT_VTB_ID,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -277,7 +288,7 @@ async def test_task_handler_error_rolls_back_batch_and_records_exception(session
 
 async def test_task_executor_updates_context_state_and_time(session) -> None:
     async def handler(context) -> None:
-        await context.player.credits.grant_vtb(3)
+        await context.player.credits.grant(CREDIT_VTB_ID, 3)
         context.set_extra_time(context.now)
         context.update_meta({"runs": 1})
 
@@ -289,22 +300,22 @@ async def test_task_executor_updates_context_state_and_time(session) -> None:
         report = await executor.run_itx(session, player_id)
 
     state = await session.get(PlayerTaskState, (player_id, "test.task"))
-    credits = await session.get(PlayerCredits, player_id)
+    credits = await _vtb_balance(session, player_id)
     assert report.body() == {
         "tasks": [{"task_id": "test.task", "status": "success", "exception": 0}]
     }
     assert state is not None and state.time_1 is not None and state.time_2 is not None
     assert state.meta == '{"runs":1}'
-    assert credits is not None and credits.vtb == 3
+    assert credits is not None and credits.balance == 3
 
 
 async def test_handler_error_rolls_back_entire_batch_and_stops(session) -> None:
     async def failing(context) -> None:
-        await context.player.credits.grant_vtb(10)
+        await context.player.credits.grant(CREDIT_VTB_ID, 10)
         raise RuntimeError("unexpected Handler failure")
 
     async def succeeding(context) -> None:
-        await context.player.credits.grant_vtb(2)
+        await context.player.credits.grant(CREDIT_VTB_ID, 2)
 
     registries = _registries(("test.failed", failing), ("test.success", succeeding))
     player_id, _ = await _seed_player(session, task_ids=("test.failed", "test.success"))
@@ -317,11 +328,11 @@ async def test_handler_error_rolls_back_entire_batch_and_stops(session) -> None:
         state.task_id: state
         for state in (await session.scalars(select(PlayerTaskState).where(PlayerTaskState.player_id == player_id))).all()
     }
-    credits = await session.get(PlayerCredits, player_id)
+    credits = await _vtb_balance(session, player_id)
     assert states["test.failed"].exception == 1
     assert states["test.failed"].time_1 is None
     assert states["test.success"].time_1 is None
-    assert credits is not None and credits.vtb == 0
+    assert credits is None or credits.balance == 0
 
 
 async def test_defer_preserves_time_1(session) -> None:
@@ -392,7 +403,7 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
         nonlocal calls
         calls += 1
         context.follow(Followup(action="task", data={}))
-        await context.player.credits.grant_vtb(1)
+        await context.player.credits.grant(CREDIT_VTB_ID, 1)
 
     registries = _registries(("test.task", handler))
     player_id, _ = await _seed_player(session, task_ids=("test.task",))
@@ -413,10 +424,10 @@ async def test_task_and_operation_transactions_are_independent(session) -> None:
     with pytest.raises(RuntimeError, match="operation failed"):
         await executor.execute(session, identity, uuid4(), operation)
 
-    credits = await session.get(PlayerCredits, player_id)
+    credits = await _vtb_balance(session, player_id)
     state = await session.get(PlayerTaskState, (player_id, "test.task"))
     assert calls == 1
-    assert credits is not None and credits.vtb == 1
+    assert credits is not None and credits.balance == 1
     assert state is not None and state.time_1 is not None
 
 
@@ -466,7 +477,7 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
             nonlocal calls
             calls += 1
             _context.follow(Followup(action="task-processed", data={}))
-            await _context.player.credits.grant_vtb(4)
+            await _context.player.credits.grant(CREDIT_VTB_ID, 4)
 
         settings = Settings(
             environment="test",
@@ -530,8 +541,8 @@ def test_task_http_endpoints_process_and_replay(tmp_path) -> None:
                 assert replay.json() == processed.json()
 
             async with app.state.database.session_factory() as session:
-                credits = await session.get(PlayerCredits, player_id)
-                assert credits is not None and credits.vtb == 4
+                credits = await _vtb_balance(session, player_id)
+                assert credits is not None and credits.balance == 4
                 assert calls == 1
 
     import asyncio
@@ -824,7 +835,7 @@ async def test_task_executor_runs_checkpoint_hook_inside_task_transaction(tmp_pa
                     unlocked_nodes=[PlayerProgressUnlockedNode(node_id=entry_id)],
                     frontier_nodes=[PlayerProgressFrontierNode(node_id=entry_id)],
                 ),
-                PlayerCredits(player_id=player_id),
+                PlayerCreditState(player_id=player_id),
                 PlayerTaskState(player_id=player_id, task_id="test.checkpoint", meta="{}"),
             ]
         )

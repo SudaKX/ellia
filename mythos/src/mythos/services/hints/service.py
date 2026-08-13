@@ -30,7 +30,8 @@ class HintAccessRuleError(Exception):
 class HintSummary:
     hint_id: str
     display: dict[str, str | int | None]
-    vtb_cost: int
+    credit_id: str
+    credit_amount: int
     media_type: str
     size_bytes: int
     disclosed: bool
@@ -40,7 +41,8 @@ class HintSummary:
         body: dict[str, object] = {
             "hint_id": self.hint_id,
             "display": self.display,
-            "vtb_cost": self.vtb_cost,
+            "credit_id": self.credit_id,
+            "credit_amount": self.credit_amount,
             "media_type": self.media_type,
             "size_bytes": self.size_bytes,
             "disclosed": self.disclosed,
@@ -81,7 +83,7 @@ class HintService:
         self._ensure_available(player, hint)
         claim = await player.hints.claim(hint.stable_id)
         if claim.created:
-            await player.credits.try_spend_vtb(hint.vtb_cost)
+            await player.credits.try_spend(hint.credit_id, hint.credit_amount)
         return self._summary(player, hint)
 
     async def issue_content_url(
@@ -112,7 +114,8 @@ class HintService:
         return HintSummary(
             hint_id=self._catalog.public_id_for(hint.stable_id),
             display=hint.display.as_dict(),
-            vtb_cost=hint.vtb_cost,
+            credit_id=hint.credit_id,
+            credit_amount=hint.credit_amount,
             media_type=content.object_ref.media_type,
             size_bytes=content.object_ref.size_bytes,
             disclosed=disclosure is not None,

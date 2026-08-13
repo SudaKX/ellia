@@ -360,7 +360,20 @@ function renderWorkspace() {
 }
 
 function renderCredits() {
-  elements.creditsBalance.textContent = state.credits ? `VTB ${state.credits.vtb}` : "VTB --";
+  if (!state.credits || !Array.isArray(state.credits.credits)) {
+    elements.creditsBalance.textContent = "余额 --";
+    return;
+  }
+  const parts = state.credits.credits.map((entry) => `${entry.credit_id} ${entry.balance}`);
+  elements.creditsBalance.textContent = parts.length ? parts.join(" · ") : "余额 --";
+}
+
+function creditBalance(creditId) {
+  if (!state.credits || !Array.isArray(state.credits.credits)) {
+    return null;
+  }
+  const entry = state.credits.credits.find((item) => item.credit_id === creditId);
+  return entry && Number.isInteger(entry.balance) ? entry.balance : null;
 }
 
 function getAllowanceTask() {
@@ -435,7 +448,7 @@ function taskPresentation(task) {
 
   const meta = task.meta && typeof task.meta === "object" ? task.meta : {};
   const dueAt = parseTaskDate(task.time_2);
-  const currentVtb = state.credits && Number.isInteger(state.credits.vtb) ? state.credits.vtb : null;
+  const currentVtb = creditBalance("vtb");
   const atCap = currentVtb !== null && currentVtb >= VTB_TASK_CAP;
   const initialized = hasInitializedTaskMeta(meta);
   let status = "等待首次处理";
@@ -728,7 +741,7 @@ function renderHints() {
     actions.className = "hint-actions";
 
     title.textContent = hint.display.title;
-    price.textContent = `${hint.vtb_cost} VTB`;
+    price.textContent = `${hint.credit_amount} ${hint.credit_id}`;
     teaser.textContent = hint.display.teaser || "没有额外说明。";
     meta.textContent = `${hint.media_type} · ${formatBytes(hint.size_bytes)}`;
     status.textContent = pending ? "正在处理..." : hint.disclosed ? "已购买" : "尚未购买";
@@ -1014,7 +1027,7 @@ async function checkAchievements() {
 
 function hintErrorMessage(error) {
   if (error.problemType && error.problemType.endsWith("/insufficient-credits")) {
-    return "VTB 余额不足，提示未购买。";
+    return "余额不足，提示未购买。";
   }
   if (error.problemType && error.problemType.endsWith("/hint-unavailable")) {
     return "该提示当前不可用。";

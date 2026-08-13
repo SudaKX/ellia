@@ -14,6 +14,7 @@ from mythos.players.loader import PlayerLoader, PlayerNotFoundError
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.players.player import PlayerInterfaceNotLoadedError, PlayerInterfaceVersionError
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.credits import CREDIT_VTB_ID
 from mythos.registry.progress import NormalProgressNode
 
 
@@ -152,7 +153,7 @@ async def test_player_load_credits_and_hints_creates_empty_interfaces(session) -
     hints = await player.load_hints()
     assert player.credits is credits
     assert player.hints is hints
-    assert credits.vtb == 0
+    assert credits.balance(CREDIT_VTB_ID) == 0
     assert hints.disclosures == ()
 
 
@@ -185,7 +186,7 @@ async def test_player_loader_load_initializes_both_interfaces(session) -> None:
     assert player.progress.version == 1
     assert player.artifacts.tree_nodes() == ()
     assert player.accounts.accounts == ()
-    assert player.credits.vtb == 0
+    assert player.credits.balance(CREDIT_VTB_ID) == 0
     assert player.hints.disclosures == ()
 
 
@@ -226,7 +227,7 @@ async def test_player_owns_file_tree_cache_and_mutations_invalidate_it(session) 
     first = player.get_file_tree(_CATALOGS.merged_files, "pft4_first")
     assert player.get_file_tree(_CATALOGS.merged_files, "pft4_second") is first
 
-    await player.credits.grant_vtb(1)
+    await player.credits.grant(CREDIT_VTB_ID, 1)
     second = player.get_file_tree(_CATALOGS.merged_files, "pft4_third")
     assert second is not first
 
@@ -246,7 +247,7 @@ async def test_unrelated_credits_do_not_change_file_tree_version(session) -> Non
         _CATALOGS.merged_files.resource_version,
         player.state_versions(PlayerInterfaces.ARTIFACTS),
     )
-    await player.credits.grant_vtb(1)
+    await player.credits.grant(CREDIT_VTB_ID, 1)
     version_after = _FILE_IDS.encode_player_tree_version(
         _CATALOGS.merged_files.resource_version,
         player.state_versions(PlayerInterfaces.ARTIFACTS),

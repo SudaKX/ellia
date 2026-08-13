@@ -18,6 +18,7 @@ from mythos.registry.errors import (
     RegistryFrozenError,
 )
 from mythos.registry.bundle import RegistryBundle
+from mythos.registry.credits import CREDIT_VTB_ID
 from mythos.registry.files import (
     NodeDisplayParams,
     FileReference,
@@ -70,7 +71,8 @@ def _hint(stable_id: str, source: FileReference, *, access_rule=None) -> Hint:
         source=source,
         download_name="hint.txt",
         display=HintDisplayParams(title="Hint"),
-        vtb_cost=1,
+        credit_id=CREDIT_VTB_ID,
+        credit_amount=1,
         access_rule=access_rule,
     )
 

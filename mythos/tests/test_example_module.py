@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import httpx
 from pydantic import SecretStr
+from sqlalchemy import select
 
 from _helpers.object_store import FakeObjectStore
 from mythos.auth.tokens import decode_access_token
@@ -12,9 +13,13 @@ from mythos.core.config import Settings
 from mythos.core.database import Database
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerCredits
+from mythos.persistence.models import PlayerCreditBalance
 from mythos.players.interfaces import PlayerInterfaces
 from puzzles.example import ADMIN_ACCOUNT_ID, ADMIN_PASSWORD, ADMIN_USERNAME
+
+
+def _balance(body: dict, credit_id: str) -> int:
+    return next(entry["balance"] for entry in body["credits"] if entry["credit_id"] == credit_id)
 
 
 def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None:
@@ -49,8 +54,9 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
 
                 initial_credits = await client.get("/api/v1/credits", headers=headers)
                 assert initial_credits.status_code == 200
-                assert initial_credits.json()["vtb"] == 5
-                assert initial_credits.json()["version"] == 1
+                assert _balance(initial_credits.json(), "vtb") == 5
+                assert _balance(initial_credits.json(), "example.moonstones") == 5
+                assert initial_credits.json()["version"] == 2
                 assert initial_credits.headers["cache-control"] == "no-store"
                 assert "Authorization" in initial_credits.headers["vary"]
 
@@ -88,15 +94,16 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                     if item["meta"].get("title") == "Guest 已登录"
                 )
                 assert guest_login_achievement["status"] == "locked"
-                assert (await client.get("/api/v1/credits", headers=administrator_headers)).json()["vtb"] == 10
+                assert _balance((await client.get("/api/v1/credits", headers=administrator_headers)).json(), "vtb") == 10
 
                 initial_hints = await client.get("/api/v1/hints", headers=headers)
                 assert initial_hints.status_code == 200
                 public_hints = initial_hints.json()["hints"]
                 assert len(public_hints) == 2
-                assert sorted(hint["vtb_cost"] for hint in public_hints) == [2, 3]
+                assert sorted(hint["credit_amount"] for hint in public_hints) == [2, 3]
+                assert all(hint["credit_id"] == "vtb" for hint in public_hints)
                 assert all(not hint["disclosed"] and "content_token" not in hint for hint in public_hints)
-                purchased_hint = next(hint for hint in public_hints if hint["vtb_cost"] == 2)
+                purchased_hint = next(hint for hint in public_hints if hint["credit_amount"] == 2)
                 purchase = await client.post(
                     f"/api/v1/hints/{purchased_hint['hint_id']}/disclose",
                     headers={**headers, "Request-ID": str(uuid4())},
@@ -110,7 +117,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
                 assert repeated_purchase.status_code == 200
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 8
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 8
 
                 hint_content_url = await client.get(
                     f"/api/v1/hints/{purchased_hint['hint_id']}/{purchased_content_token}/content-url",
@@ -133,9 +140,14 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert (await client.get("/api/v1/scripts", headers=headers)).json() == {"items": []}
 
                 async with app.state.database.session_factory() as session:
-                    credits = await session.get(PlayerCredits, player_id)
-                    assert credits is not None
-                    credits.vtb = 15
+                    vtb_row = await session.scalar(
+                        select(PlayerCreditBalance).where(
+                            PlayerCreditBalance.player_id == player_id,
+                            PlayerCreditBalance.credit_id == "vtb",
+                        )
+                    )
+                    assert vtb_row is not None
+                    vtb_row.balance = 15
                     await session.commit()
                 at_threshold = await client.post(
                     "/api/v1/achievement/check",
@@ -144,9 +156,14 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert at_threshold.status_code == 200
                 assert at_threshold.json()["content"]["check"]["earned"] == []
                 async with app.state.database.session_factory() as session:
-                    credits = await session.get(PlayerCredits, player_id)
-                    assert credits is not None
-                    credits.vtb = 8
+                    vtb_row = await session.scalar(
+                        select(PlayerCreditBalance).where(
+                            PlayerCreditBalance.player_id == player_id,
+                            PlayerCreditBalance.credit_id == "vtb",
+                        )
+                    )
+                    assert vtb_row is not None
+                    vtb_row.balance = 8
                     await session.commit()
 
                 rejected_before_guest_login = await client.post(
@@ -173,7 +190,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                         },
                     }
                 ]
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 18
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 18
                 guest_achievements = await client.get("/api/v1/achievement", headers=headers)
                 assert guest_achievements.status_code == 200
                 achievements_by_title = {
@@ -205,7 +222,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert threshold_claim.status_code == 200
                 assert threshold_claim.json()["content"]["achievement"]["status"] == "claimed"
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 28
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 28
 
                 repeated_guest_login = await client.post(
                     "/api/v1/vac/login",
@@ -214,7 +231,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert repeated_guest_login.status_code == 200
                 assert repeated_guest_login.json()["followups"] == []
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 28
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 28
 
                 guest_dynamic_version = await client.get("/api/v1/files/d/version", headers=headers)
                 assert guest_dynamic_version.status_code == 200
@@ -247,9 +264,11 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 assert completed_dynamic_version.json()["tree_version"] != guest_dynamic_version.json()["tree_version"]
 
                 completed_hints = await client.get("/api/v1/hints", headers=headers)
-                assert len(completed_hints.json()["hints"]) == 3
+                assert len(completed_hints.json()["hints"]) == 4
                 gated_hint = next(
-                    hint for hint in completed_hints.json()["hints"] if hint["vtb_cost"] == 5
+                    hint
+                    for hint in completed_hints.json()["hints"]
+                    if hint["credit_id"] == "vtb" and hint["credit_amount"] == 5
                 )
                 gated_purchase = await client.post(
                     f"/api/v1/hints/{gated_hint['hint_id']}/disclose",
@@ -257,7 +276,21 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert gated_purchase.status_code == 200
                 assert gated_purchase.json()["content"]["hint"]["disclosed"] is True
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 23
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 23
+
+                moonstone_hint = next(
+                    hint
+                    for hint in completed_hints.json()["hints"]
+                    if hint["credit_id"] == "example.moonstones"
+                )
+                moonstone_purchase = await client.post(
+                    f"/api/v1/hints/{moonstone_hint['hint_id']}/disclose",
+                    headers={**headers, "Request-ID": str(uuid4())},
+                )
+                assert moonstone_purchase.status_code == 200
+                moonstone_body = (await client.get("/api/v1/credits", headers=headers)).json()
+                assert _balance(moonstone_body, "example.moonstones") == 2
+                assert _balance(moonstone_body, "vtb") == 23
 
                 admin_file_id = app.state.runtime.catalogs.files.file_id_for_stable_id("example.admin-control")
                 assert (await client.get(f"/api/v1/files/{admin_file_id}", headers=headers)).status_code == 403
@@ -288,7 +321,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 )
                 assert administrator_login.status_code == 200
                 assert administrator_login.json()["content"]["current_account"]["account_id"] == "example.admin"
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 23
+                assert _balance((await client.get("/api/v1/credits", headers=headers)).json(), "vtb") == 23
 
                 admin_tree = await client.get("/api/v1/files/tree", headers=headers)
                 assert [directory["path"] for directory in admin_tree.json()["directories"]] == ["/public", "/admin"]
@@ -313,6 +346,7 @@ def test_example_module_runs_guest_to_administrator_flow(tmp_path: Path) -> None
                 "static/example/assets/hints/echo-clue.txt",
                 "static/example/assets/hints/archive-clue.txt",
                 "static/example/assets/hints/final-clue.txt",
+                "static/example/assets/hints/moonstone-clue.txt",
                 artifact_key,
             ]
 

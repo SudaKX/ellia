@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     artifact_template_snapshot_path: Path | None = None
     virtual_account_template_snapshot_path: Path | None = None
     task_registry_snapshot_path: Path | None = None
+    credit_template_snapshot_path: Path | None = None
     allow_empty_virtual_account_catalog_reconciliation: bool = False
 
     @model_validator(mode="after")
@@ -69,6 +70,8 @@ class Settings(BaseSettings):
             )
         if self.task_registry_snapshot_path is not None:
             self.task_registry_snapshot_path = resolve_runtime_path(self.task_registry_snapshot_path)
+        if self.credit_template_snapshot_path is not None:
+            self.credit_template_snapshot_path = resolve_runtime_path(self.credit_template_snapshot_path)
         if self.environment == "production":
             if (
                 self.jwt_signing_key is None
@@ -199,6 +202,15 @@ class Settings(BaseSettings):
         if database_path is not None:
             return database_path.parent / "task-registry-catalog.json"
         return PROJECT_ROOT / "data" / "task-registry-catalog.json"
+
+    @property
+    def credit_snapshot_path(self) -> Path:
+        if self.credit_template_snapshot_path is not None:
+            return self.credit_template_snapshot_path
+        database_path = make_database_path(self.database_url)
+        if database_path is not None:
+            return database_path.parent / "credit-template-catalog.json"
+        return PROJECT_ROOT / "data" / "credit-template-catalog.json"
 
 
 def make_database_path(database_url: str) -> Path | None:

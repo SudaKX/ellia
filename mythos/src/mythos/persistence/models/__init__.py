@@ -2,7 +2,7 @@ from mythos.persistence.models.auth import PlayerAuth
 from mythos.persistence.models.achievements import PlayerAchievementState
 from mythos.persistence.models.accounts import PlayerVirtualAccount, PlayerVirtualAccountState
 from mythos.persistence.models.artifacts import PlayerArtifact, PlayerArtifactNode, PlayerArtifactState
-from mythos.persistence.models.credits import PlayerCredits
+from mythos.persistence.models.credits import PlayerCreditBalance, PlayerCreditState
 from mythos.persistence.models.hints import PlayerHintDisclosure
 from mythos.persistence.models.player import PlayerRecord
 from mythos.persistence.models.progress import (
@@ -20,7 +20,8 @@ __all__ = [
     "PlayerArtifactNode",
     "PlayerArtifactState",
     "PlayerAuth",
-    "PlayerCredits",
+    "PlayerCreditBalance",
+    "PlayerCreditState",
     "PlayerHintDisclosure",
     "PlayerVirtualAccount",
     "PlayerVirtualAccountState",
