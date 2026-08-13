@@ -16,7 +16,10 @@ router = APIRouter(prefix="/credits", tags=["credits"])
 async def get_credits(
     context: Annotated[RequestContext, Depends(get_context(PlayerInterfaces.CREDITS))],
     response: Response,
-) -> dict[str, int]:
+) -> dict[str, object]:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Authorization"
-    return {"vtb": context.player.credits.vtb, "version": context.player.credits.version}
+    return {
+        "credits": [balance.body() for balance in context.player.credits.balances],
+        "version": context.player.credits.version,
+    }

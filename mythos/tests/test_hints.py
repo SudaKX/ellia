@@ -13,10 +13,11 @@ from mythos.core.database import Database
 from mythos.eventbus import EventContext, PlayerConstructedEvent
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerCredits, PlayerHintDisclosure
+from mythos.persistence.models import PlayerCreditBalance, PlayerHintDisclosure
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.callbacks import module_handler
+from mythos.registry.credits import CREDIT_VTB_ID
 from mythos.registry.files import FileReference
 from mythos.registry.hints import Hint, HintDisplayParams
 from mythos.registry.progress import NormalProgressNode
@@ -39,14 +40,15 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
                     source=source,
                     download_name="hint.txt",
                     display=HintDisplayParams(title=title, teaser="A small clue", icon="hint"),
-                    vtb_cost=3,
+                    credit_id=CREDIT_VTB_ID,
+                    credit_amount=3,
                 )
             )
 
         @registries.events.on(PlayerConstructedEvent)
         @module_handler("test.hints")(1, dependencies=PlayerInterfaces.CREDITS)
         async def grant_initial_vtb(context: EventContext) -> None:
-            await context.player.credits.grant_vtb(3)
+            await context.player.credits.grant(CREDIT_VTB_ID, 3)
 
         settings = Settings(
             environment="test",
@@ -99,8 +101,13 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
 
                 first_player_id = decode_access_token(first_token, settings).player_id
                 async with app.state.database.session_factory() as session:
-                    credits = await session.get(PlayerCredits, first_player_id)
-                    assert credits is not None and credits.vtb == 0
+                    balance_row = await session.scalar(
+                        select(PlayerCreditBalance).where(
+                            PlayerCreditBalance.player_id == first_player_id,
+                            PlayerCreditBalance.credit_id == CREDIT_VTB_ID,
+                        )
+                    )
+                    assert balance_row is not None and balance_row.balance == 0
                     disclosures = await session.scalar(
                         select(func.count()).select_from(PlayerHintDisclosure).where(
                             PlayerHintDisclosure.player_id == first_player_id
@@ -128,8 +135,13 @@ def test_hints_disclose_static_content_with_atomic_vtb_spending(tmp_path: Path) 
 
                 second_player_id = decode_access_token(second_token, settings).player_id
                 async with app.state.database.session_factory() as session:
-                    credits = await session.get(PlayerCredits, second_player_id)
-                    assert credits is not None and credits.vtb == 0
+                    balance_row = await session.scalar(
+                        select(PlayerCreditBalance).where(
+                            PlayerCreditBalance.player_id == second_player_id,
+                            PlayerCreditBalance.credit_id == CREDIT_VTB_ID,
+                        )
+                    )
+                    assert balance_row is not None and balance_row.balance == 0
                     disclosures = await session.scalar(
                         select(func.count()).select_from(PlayerHintDisclosure).where(
                             PlayerHintDisclosure.player_id == second_player_id

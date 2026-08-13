@@ -33,6 +33,7 @@ from mythos.services.artifacts.reconciliation import ArtifactReconciliationRunne
 from mythos.services.artifacts.snapshot import ArtifactTemplateSnapshotStore
 from mythos.services.accounts.reconciliation import AccountReconciliationRunner
 from mythos.services.accounts.snapshot import VirtualAccountTemplateSnapshotStore
+from mythos.services.credits import CreditReconciliationRunner, CreditTemplateSnapshotStore
 from mythos.services.tasks import TaskReconciliationRunner, TaskService, TaskSnapshotStore
 from mythos.endpoints import router as endpoint_router
 from mythos.core.problems import (
@@ -148,6 +149,13 @@ def create_app(
             player_loader,
             catalogs.tasks,
             TaskSnapshotStore(resolved_settings.task_snapshot_path),
+            allow_missing_tables=resolved_settings.environment == "test",
+        ).run()
+        await CreditReconciliationRunner(
+            database.session_factory,
+            player_loader,
+            catalogs.credits,
+            CreditTemplateSnapshotStore(resolved_settings.credit_snapshot_path),
             allow_missing_tables=resolved_settings.environment == "test",
         ).run()
         application.state.settings = resolved_settings

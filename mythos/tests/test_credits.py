@@ -43,12 +43,18 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                 assert anonymous.status_code == 401
 
                 initial = await client.get("/api/v1/credits", headers=headers)
-                assert initial.json() == {"vtb": 5, "version": 1}
+                assert initial.json() == {
+                    "credits": [
+                        {"credit_id": "example.moonstones", "balance": 5},
+                        {"credit_id": "vtb", "balance": 5},
+                    ],
+                    "version": 2,
+                }
                 assert initial.headers["cache-control"] == "no-store"
                 assert "Authorization" in initial.headers["vary"]
 
                 hints = (await client.get("/api/v1/hints", headers=headers)).json()["hints"]
-                for hint in sorted(hints, key=lambda item: item["vtb_cost"]):
+                for hint in sorted(hints, key=lambda item: item["credit_amount"]):
                     purchase = await client.post(
                         f"/api/v1/hints/{hint['hint_id']}/disclose",
                         headers={**headers, "Request-ID": str(uuid4())},
@@ -56,7 +62,13 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                     assert purchase.status_code == 200
 
                 exhausted = await client.get("/api/v1/credits", headers=headers)
-                assert exhausted.json() == {"vtb": 5, "version": 4}
+                assert exhausted.json() == {
+                    "credits": [
+                        {"credit_id": "example.moonstones", "balance": 5},
+                        {"credit_id": "vtb", "balance": 5},
+                    ],
+                    "version": 5,
+                }
 
                 await client.post(
                     "/api/v1/vac/login",
@@ -73,7 +85,7 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                 gated = next(
                     hint
                     for hint in (await client.get("/api/v1/hints", headers=headers)).json()["hints"]
-                    if hint["vtb_cost"] == 5
+                    if hint["credit_amount"] == 5
                 )
                 gated_purchase = await client.post(
                     f"/api/v1/hints/{gated['hint_id']}/disclose",
@@ -81,8 +93,11 @@ def test_credits_endpoint_tracks_committed_hint_spending(tmp_path: Path) -> None
                 )
                 assert gated_purchase.status_code == 200
                 assert (await client.get("/api/v1/credits", headers=headers)).json() == {
-                    "vtb": 10,
-                    "version": 6,
+                    "credits": [
+                        {"credit_id": "example.moonstones", "balance": 5},
+                        {"credit_id": "vtb", "balance": 10},
+                    ],
+                    "version": 7,
                 }
 
     asyncio.run(scenario())
@@ -121,6 +136,12 @@ def test_production_example_does_not_seed_vtb(tmp_path: Path) -> None:
                 headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
                 credits = await client.get("/api/v1/credits", headers=headers)
                 assert credits.status_code == 200
-                assert credits.json() == {"vtb": 0, "version": 0}
+                assert credits.json() == {
+                    "credits": [
+                        {"credit_id": "example.moonstones", "balance": 5},
+                        {"credit_id": "vtb", "balance": 0},
+                    ],
+                    "version": 1,
+                }
 
     asyncio.run(scenario())

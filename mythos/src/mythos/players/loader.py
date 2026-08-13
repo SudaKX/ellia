@@ -11,7 +11,8 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.persistence.models import (
     PlayerAchievementState,
     PlayerArtifact,
-    PlayerCredits,
+    PlayerCreditBalance,
+    PlayerCreditState,
     PlayerHintDisclosure,
     PlayerProgress,
     PlayerProgressCheckpoint,
@@ -139,13 +140,28 @@ class PlayerLoader:
         writable: bool,
         on_mutation: Callable[[], None] | None = None,
     ) -> CreditInterface:
-        credits = await session.get(PlayerCredits, player_id)
-        if credits is None:
-            credits = PlayerCredits(player_id=player_id, vtb=0, version=0)
+        balances = tuple(
+            (
+                await session.scalars(
+                    select(PlayerCreditBalance).where(PlayerCreditBalance.player_id == player_id)
+                )
+            ).all()
+        )
+        state = await session.get(PlayerCreditState, player_id)
+        if state is None:
+            state = PlayerCreditState(player_id=player_id, version=0)
             if writable:
-                session.add(credits)
+                session.add(state)
                 await session.flush()
-        return CreditInterface(player_id, session, credits, writable=writable, on_mutation=on_mutation)
+        return CreditInterface(
+            player_id,
+            self._catalogs.credits,
+            session,
+            state,
+            balances,
+            writable=writable,
+            on_mutation=on_mutation,
+        )
 
     async def load_hints(
         self,

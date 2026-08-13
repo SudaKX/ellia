@@ -19,6 +19,7 @@ from mythos.registry.artifacts import (
 from mythos.registry.bundle import RegistryBundle
 from mythos.registry.accounts import VirtualAccountTemplate
 from mythos.registry.achievements import AchievementDefinition
+from mythos.registry.credits import CREDIT_VTB_ID, CreditTemplate
 from mythos.registry.files import FileReference, NodeDisplayParams
 from mythos.registry.hints import Hint, HintDisplayParams
 from mythos.registry.progress import NormalProgressNode
@@ -45,6 +46,9 @@ VTB_TASK_META_SCHEMA_VERSION = 1
 GUEST_LOGIN_ACHIEVEMENT_ID = "example.guest-login"
 VTB_OVER_15_ACHIEVEMENT_ID = "example.vtb-over-15"
 ACHIEVEMENT_VTB_REWARD = 10
+MOONSTONE_CREDIT_ID = "example.moonstones"
+MOONSTONE_HINT_ID = "example.hint.moonstone"
+MOONSTONE_INITIAL_GRANT = 5
 _ANSWER = "echo-7"
 _handler = module_handler(MODULE_ID)
 
@@ -72,7 +76,8 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
                 icon="hint",
                 sort_order=0,
             ),
-            vtb_cost=2,
+            credit_id=CREDIT_VTB_ID,
+            credit_amount=2,
         )
     )
     registries.hints.register(
@@ -86,7 +91,8 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
                 icon="archive",
                 sort_order=1,
             ),
-            vtb_cost=3,
+            credit_id=CREDIT_VTB_ID,
+            credit_amount=3,
         )
     )
     registries.hints.register(
@@ -100,8 +106,25 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
                 icon="key",
                 sort_order=2,
             ),
-            vtb_cost=5,
+            credit_id=CREDIT_VTB_ID,
+            credit_amount=5,
             access_rule=_is_guest_completed,
+        )
+    )
+    registries.hints.register(
+        Hint(
+            stable_id=MOONSTONE_HINT_ID,
+            source=FileReference(MODULE_ID, "assets/hints/moonstone-clue.txt", "text/plain; charset=utf-8"),
+            download_name="moonstone-clue.txt",
+            display=HintDisplayParams(
+                title="月石线索",
+                teaser="用月石解锁的额外提示。",
+                icon="key",
+                sort_order=3,
+            ),
+            credit_id=MOONSTONE_CREDIT_ID,
+            credit_amount=3,
+            access_rule=_is_guest,
         )
     )
     registries.accounts.register_template(
@@ -110,6 +133,13 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             "Guest Console",
             permission=10,
             metadata={"tier": "guest"},
+        )
+    )
+    registries.credits.register_template(
+        CreditTemplate(
+            MOONSTONE_CREDIT_ID,
+            "月石",
+            metadata={"tier": "premium"},
         )
     )
     registries.achievements.register(
@@ -173,11 +203,16 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             )
         )
 
+    @registries.events.on(PlayerConstructedEvent)
+    @_handler(1, dependencies=PlayerInterfaces.CREDITS)
+    async def _grant_initial_moonstones(context: EventContext) -> None:
+        await context.player.credits.grant(MOONSTONE_CREDIT_ID, MOONSTONE_INITIAL_GRANT)
+
     if initial_vtb:
         @registries.events.on(PlayerConstructedEvent)
         @_handler(1, dependencies=PlayerInterfaces.CREDITS)
         async def _grant_initial_vtb(context: EventContext) -> None:
-            await context.player.credits.grant_vtb(initial_vtb)
+            await context.player.credits.grant(CREDIT_VTB_ID, initial_vtb)
 
     @registries.tasks.task(VTB_TASK_ID, dependencies=PlayerInterfaces.CREDITS)
     async def _grant_vtb_allowance(context: TaskContext) -> None:
@@ -193,7 +228,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
         total_granted = meta.get("total_granted", 0)
         if isinstance(total_granted, bool) or not isinstance(total_granted, int) or total_granted < 0:
             total_granted = 0
-        current_vtb = context.player.credits.vtb
+        current_vtb = context.player.credits.balance(CREDIT_VTB_ID)
         available = max(0, VTB_TASK_CAP - current_vtb)
 
         if not initial_grant_applied:
@@ -202,7 +237,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
                 context.defer()
                 return
             grant = min(VTB_TASK_INITIAL_GRANT, available)
-            await context.player.credits.grant_vtb(grant)
+            await context.player.credits.grant(CREDIT_VTB_ID, grant)
             context.set_extra_time(now + VTB_TASK_INTERVAL)
             context.update_meta(
                 {
@@ -234,7 +269,7 @@ def register(registries: RegistryBundle, *, initial_vtb: int = 0) -> None:
             return
 
         grant = min(due_periods, available)
-        await context.player.credits.grant_vtb(grant)
+        await context.player.credits.grant(CREDIT_VTB_ID, grant)
         next_due_at = due_at + VTB_TASK_INTERVAL * grant
         if grant < due_periods:
             next_due_at = now + VTB_TASK_INTERVAL
@@ -338,17 +373,17 @@ def _is_admin(player: Player) -> bool:
 
 @_handler(1, dependencies=PlayerInterfaces.CREDITS)
 def _has_vtb_over_15(player: Player) -> bool:
-    return player.credits.vtb > 15
+    return player.credits.balance(CREDIT_VTB_ID) > 15
 
 
 @_handler(1, dependencies=PlayerInterfaces.CREDITS)
 async def _grant_guest_login_achievement_reward(player: Player) -> None:
-    await player.credits.grant_vtb(ACHIEVEMENT_VTB_REWARD)
+    await player.credits.grant(CREDIT_VTB_ID, ACHIEVEMENT_VTB_REWARD)
 
 
 @_handler(1, dependencies=PlayerInterfaces.CREDITS)
 async def _grant_vtb_over_15_achievement_reward(player: Player) -> None:
-    await player.credits.grant_vtb(ACHIEVEMENT_VTB_REWARD)
+    await player.credits.grant(CREDIT_VTB_ID, ACHIEVEMENT_VTB_REWARD)
 
 
 @_handler(1)

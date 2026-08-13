@@ -70,7 +70,7 @@ async def disclose_hint(
     except HintUnavailableError as error:
         raise _problem(ProblemType.HINT_UNAVAILABLE, 409, "Hint unavailable", "The requested hint is not available.") from error
     except InsufficientCreditsError as error:
-        raise _problem(ProblemType.INSUFFICIENT_CREDITS, 409, "Insufficient credits", "There are not enough VTB to disclose this hint.") from error
+        raise _problem(ProblemType.INSUFFICIENT_CREDITS, 409, "Insufficient credits", "There are not enough credits to disclose this hint.") from error
     return JSONResponse(
         status_code=result.response.status_code,
         content=result.response.body,

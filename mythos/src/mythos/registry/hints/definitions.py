@@ -5,6 +5,7 @@ import re
 
 from mythos.registry.callbacks import callback_id
 from mythos.registry.catalog_snapshots import fingerprint
+from mythos.registry.credits import is_canonical_credit_id
 from mythos.registry.files.definitions import FileReference, NodeAccessRule, is_safe_download_name
 
 
@@ -40,7 +41,8 @@ class Hint:
     source: FileReference
     download_name: str
     display: HintDisplayParams
-    vtb_cost: int
+    credit_id: str
+    credit_amount: int
     access_rule: NodeAccessRule | None = None
 
     def __post_init__(self) -> None:
@@ -48,8 +50,10 @@ class Hint:
             raise ValueError("Hints require a stable ID.")
         if not is_safe_download_name(self.download_name):
             raise ValueError("Hint download names must be safe single path segments.")
-        if isinstance(self.vtb_cost, bool) or not isinstance(self.vtb_cost, int) or self.vtb_cost <= 0:
-            raise ValueError("Hint VTB costs must be positive integers.")
+        if not is_canonical_credit_id(self.credit_id):
+            raise ValueError("Hint credit IDs must be lowercase slugs up to 128 characters.")
+        if isinstance(self.credit_amount, bool) or not isinstance(self.credit_amount, int) or self.credit_amount <= 0:
+            raise ValueError("Hint credit amounts must be positive integers.")
         if self.access_rule is not None and not callable(self.access_rule):
             raise ValueError("Hint access rules must be callable.")
 
@@ -65,7 +69,8 @@ def hint_version(hint: Hint, *, source_file_hash: str, source_media_type: str) -
             "source_media_type": source_media_type,
             "download_name": hint.download_name,
             "display": hint.display.as_dict(),
-            "vtb_cost": hint.vtb_cost,
+            "credit_id": hint.credit_id,
+            "credit_amount": hint.credit_amount,
             "access_rule_callback_id": (
                 callback_id(hint.access_rule, field_name="Hint access rule")
                 if hint.access_rule is not None

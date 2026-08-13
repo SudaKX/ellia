@@ -20,8 +20,14 @@ from mythos.core.file_ids import FileIdCodec
 from mythos.players.interfaces import PlayerInterfaces
 from mythos.main import create_app
 from mythos.persistence.base import Base
-from mythos.persistence.models import PlayerCredits, PlayerRecord, PlayerTaskState
+from mythos.persistence.models import (
+    PlayerCreditBalance,
+    PlayerCreditState,
+    PlayerRecord,
+    PlayerTaskState,
+)
 from mythos.players.loader import PlayerLoader
+from mythos.registry.credits import CREDIT_VTB_ID
 from puzzles.example import VTB_TASK_ID, register
 from mythos.registry.bundle import RegistryBundle
 from mythos.services.tasks import TaskService
@@ -48,6 +54,14 @@ def _as_utc(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _vtb_from_response(body: dict) -> int:
+    return next(entry["balance"] for entry in body["credits"] if entry["credit_id"] == CREDIT_VTB_ID)
+
+
+async def _vtb_row(session, player_id):
+    return await session.get(PlayerCreditBalance, (player_id, CREDIT_VTB_ID))
 
 
 @asynccontextmanager
@@ -86,7 +100,8 @@ async def _task_harness(
                     username="example-task-player",
                     username_normalized="example-task-player",
                 ),
-                PlayerCredits(player_id=player_id, vtb=vtb, version=0),
+                PlayerCreditState(player_id=player_id, version=0),
+                PlayerCreditBalance(player_id=player_id, credit_id=CREDIT_VTB_ID, balance=vtb, version=0),
                 PlayerTaskState(
                     player_id=player_id,
                     task_id=VTB_TASK_ID,
@@ -166,7 +181,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
 
                 initial_credit = await client.get("/api/v1/credits", headers=headers)
                 initial_tasks = await client.get("/api/v1/tasks", headers=headers)
-                assert initial_credit.json()["vtb"] == 0
+                assert _vtb_from_response(initial_credit.json()) == 0
                 assert initial_tasks.json()["tasks"][0]["task_id"] == VTB_TASK_ID
                 assert initial_tasks.json()["tasks"][0]["meta"] == {}
                 read_only_credit = initial_credit.json()
@@ -180,7 +195,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                 )
                 assert processed.status_code == 200
                 assert processed.json()["content"]["tasks"][0]["status"] == "success"
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 5
+                assert _vtb_from_response((await client.get("/api/v1/credits", headers=headers)).json()) == 5
                 initial_state = (await client.get("/api/v1/tasks", headers=headers)).json()["tasks"][0]
                 assert initial_state["meta"]["schema_version"] == 1
                 assert initial_state["meta"]["initial_grant_applied"] is True
@@ -198,7 +213,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                         writable=True,
                         interfaces=PlayerInterfaces.CREDITS,
                     )
-                    await player.credits.grant_vtb(3)
+                    await player.credits.grant(CREDIT_VTB_ID, 3)
                     await session.commit()
 
                 clock["now"] += timedelta(seconds=30)
@@ -207,14 +222,14 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
                 before_due = (await client.get("/api/v1/credits", headers=headers)).json()
-                assert before_due["vtb"] == 8
+                assert _vtb_from_response(before_due) == 8
 
                 clock["now"] += timedelta(seconds=210)
                 await client.post(
                     "/api/v1/tasks/process",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 10
+                assert _vtb_from_response((await client.get("/api/v1/credits", headers=headers)).json()) == 10
                 assert (await client.get("/api/v1/tasks", headers=headers)).json()["tasks"][0]["meta"]["total_granted"] == 7
 
                 clock["now"] += timedelta(seconds=60)
@@ -222,14 +237,14 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                     "/api/v1/tasks/process",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 10
+                assert _vtb_from_response((await client.get("/api/v1/credits", headers=headers)).json()) == 10
 
                 clock["now"] += timedelta(seconds=60)
                 await client.post(
                     "/api/v1/tasks/process",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 10
+                assert _vtb_from_response((await client.get("/api/v1/credits", headers=headers)).json()) == 10
 
                 async with app.state.database.session_factory() as session:
                     player = await app.state.runtime.player_loader.load(
@@ -238,7 +253,7 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                         writable=True,
                         interfaces=PlayerInterfaces.CREDITS,
                     )
-                    await player.credits.try_spend_vtb(1)
+                    await player.credits.try_spend(CREDIT_VTB_ID, 1)
                     await session.commit()
 
                 clock["now"] += timedelta(seconds=60)
@@ -246,14 +261,14 @@ def test_example_vtb_task_is_lazy_capped_and_persists_meta(tmp_path: Path, monke
                     "/api/v1/tasks/process",
                     headers={**headers, "Request-ID": str(uuid4())},
                 )
-                assert (await client.get("/api/v1/credits", headers=headers)).json()["vtb"] == 10
+                assert _vtb_from_response((await client.get("/api/v1/credits", headers=headers)).json()) == 10
 
                 async with app.state.database.session_factory() as session:
                     task = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
-                    credits = await session.get(PlayerCredits, player_id)
+                    credits = await _vtb_row(session, player_id)
                     assert task is not None
                     assert json.loads(task.meta)["total_granted"] == 8
-                    assert credits is not None and credits.vtb == 10
+                    assert credits is not None and credits.balance == 10
 
     asyncio.run(scenario())
 
@@ -272,11 +287,11 @@ def test_example_vtb_task_defers_before_due_time(tmp_path: Path, monkeypatch) ->
             clock.advance(seconds=30)
             await _run_task(session, executor, loader, player_id)
             deferred = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
-            credits = await session.get(PlayerCredits, player_id)
+            credits = await _vtb_row(session, player_id)
             assert deferred is not None
             assert deferred.time_1 == first_time_1
             assert deferred.time_2 == first_time_2
-            assert credits is not None and credits.vtb == 5
+            assert credits is not None and credits.balance == 5
 
     asyncio.run(scenario())
 
@@ -293,14 +308,14 @@ def test_example_vtb_task_grants_one_period_and_catches_up_missed_periods(
 
             clock.advance(seconds=60)
             await _run_task(session, executor, loader, player_id)
-            after_one = await session.get(PlayerCredits, player_id)
-            assert after_one is not None and after_one.vtb == 6
+            after_one = await _vtb_row(session, player_id)
+            assert after_one is not None and after_one.balance == 6
 
             clock.advance(seconds=180)
             await _run_task(session, executor, loader, player_id)
-            after_catch_up = await session.get(PlayerCredits, player_id)
+            after_catch_up = await _vtb_row(session, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
-            assert after_catch_up is not None and after_catch_up.vtb == 9
+            assert after_catch_up is not None and after_catch_up.balance == 9
             assert state is not None
             assert _as_utc(state.time_2) == datetime(2026, 8, 9, 12, 5, tzinfo=UTC)
             assert json.loads(state.meta)["total_granted"] == 9
@@ -324,9 +339,9 @@ def test_example_vtb_task_respects_cap_for_initial_execution(
         monkeypatch.setattr(task_service_module, "_utcnow", clock)
         async with _task_harness(tmp_path, vtb=vtb) as (session, executor, loader, player_id):
             await _run_task(session, executor, loader, player_id)
-            credits = await session.get(PlayerCredits, player_id)
+            credits = await _vtb_row(session, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
-            assert credits is not None and credits.vtb == vtb + expected_grant
+            assert credits is not None and credits.balance == vtb + expected_grant
             assert state is not None
             stored_meta = json.loads(state.meta)
             assert _as_utc(state.time_2) == datetime(2026, 8, 9, 12, 1, tzinfo=UTC)
@@ -360,9 +375,9 @@ def test_example_vtb_task_reinitializes_old_meta_without_using_meta_for_cap(
             },
         ) as (session, executor, loader, player_id):
             await _run_task(session, executor, loader, player_id)
-            credits = await session.get(PlayerCredits, player_id)
+            credits = await _vtb_row(session, player_id)
             state = await session.get(PlayerTaskState, (player_id, VTB_TASK_ID))
-            assert credits is not None and credits.vtb == 10
+            assert credits is not None and credits.balance == 10
             assert state is not None
             assert json.loads(state.meta) == {
                 "initial_grant_applied": True,

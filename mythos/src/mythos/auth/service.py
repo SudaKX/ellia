@@ -26,8 +26,8 @@ from mythos.core.followups import ContextScope
 from mythos.eventbus import EventContext, EventDispatcher, PlayerConstructedEvent
 from mythos.persistence.base import utcnow
 from mythos.persistence.models import (
-    PlayerCredits,
     PlayerAuth,
+    PlayerCreditState,
     PlayerProgress,
     PlayerProgressFrontierNode,
     PlayerProgressUnlockedNode,
@@ -116,7 +116,7 @@ class AuthService:
                 scope = ContextScope.silent()
                 self.session.add_all((player, auth, progress))
                 await self.session.flush()
-                self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCredits(player_id=player.id)))
+                self.session.add_all((PlayerVirtualAccountState(player_id=player.id), PlayerCreditState(player_id=player.id)))
                 await self.session.flush()
                 await self._construct(player, "registration", scope=scope)
         except IntegrityError as error:
