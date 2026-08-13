@@ -53,6 +53,7 @@ export const deDE = {
     addressPlaceholder: 'URL eingeben',
     go: 'Los',
     deniedTitle: 'ZUGRIFF VERWEIGERT',
+    vtbReward: 'Geheimnisvolle Seite gefunden! {amount} VTB wurden gutgeschrieben.',
   },
   /** Texteditor */
   textEditor: {
@@ -297,5 +298,13 @@ export const deDE = {
       hint2: 'Hinweis 2: Die Verschiebung beträgt 3 Positionen rückwärts. "khoor" → "hello". Versuchen Sie den Rest zu vervollständigen.',
     },
     noPuzzles: 'Keine Rätsel verfügbar.',
+  },
+  /** Token-Geldbörse (Statusleiste) */
+  tokens: {
+    label: 'Geldbörse',
+    balance: 'Guthaben',
+    vtb: 'VTB-Guthaben',
+    refresh: 'Aktualisieren',
+    error: 'Guthaben nicht verfügbar',
   },
 } as const satisfies LocaleMessages

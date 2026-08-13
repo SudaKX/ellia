@@ -53,6 +53,7 @@ export const zhCN = {
     addressPlaceholder: '输入网址',
     go: '前往',
     deniedTitle: '禁止访问',
+    vtbReward: '发现神秘网址彩蛋！已为你增加 {amount} VTB。',
   },
   /** 文本编辑器 */
   textEditor: {
@@ -297,5 +298,13 @@ export const zhCN = {
       hint2: '提示 2：偏移量是向后 3 位。"khoor" → "hello"。试试补全剩余部分。',
     },
     noPuzzles: '暂无可用谜题。',
+  },
+  /** 代币钱包（状态栏） */
+  tokens: {
+    label: '钱包',
+    balance: '余额',
+    vtb: 'VTB 积分',
+    refresh: '刷新',
+    error: '余额获取失败',
   },
 } as const satisfies LocaleMessages

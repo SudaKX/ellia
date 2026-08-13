@@ -32,10 +32,92 @@ import { useI18n } from 'vue-i18n'
 import { useFilterService } from '@/composables/useFilterService'
 import { evaluateBrowserAddress } from '@/composables/useBrowserPolicy'
 import { useDesktopStore } from '@/stores/desktop'
+import { useCreditsStore } from '@/stores/credits'
 
 const { t } = useI18n({ useScope: 'global' })
 const filterService = useFilterService()
 const desktop = useDesktopStore()
+const credits = useCreditsStore()
+
+/** 彩蛋网址注册表：命中即发放 VTB（重复访问可反复领取） */
+interface RewardSite {
+  /** 奖励 VTB 数量 */
+  amount: number
+  /** 判断当前 URL 是否命中该站点 */
+  matches(url: URL): boolean
+}
+
+const REWARD_SITES: RewardSite[] = [
+  {
+    amount: 198,
+    matches: (url) => {
+      const host = url.hostname.toLowerCase().replace(/^www\./, '')
+      const path = url.pathname.replace(/\/+$/, '')
+      return (
+        (host === 'space.bilibili.com' && path === '/9034870') ||
+        (host === 'bilibili.com' && path === '/space/9034870')
+      )
+    },
+  },
+  {
+    amount: 198,
+    matches: (url) => {
+      const host = url.hostname.toLowerCase().replace(/^www\./, '')
+      const path = url.pathname.replace(/\/+$/, '')
+      return (
+        (host === 'youtube.com' || host === 'm.youtube.com') &&
+        path === '/channel/UC5CwaMl1eIgY8h02uZw7u8A'
+      )
+    },
+  },
+  {
+    amount: 198,
+    matches: (url) => {
+      const host = url.hostname.toLowerCase().replace(/^www\./, '')
+      const path = url.pathname.replace(/\/+$/, '')
+      return host === 'twitcasting.tv' && path === '/suisei_hosimati'
+    },
+  },
+  {
+    amount: 198,
+    matches: (url) => {
+      const host = url.hostname.toLowerCase().replace(/^www\./, '')
+      const path = url.pathname.replace(/\/+$/, '')
+      return host === 'tiktok.com' && path === '/@suisei_hosimati_hololive'
+    },
+  },
+]
+
+/** 是否展示"奖励到账"横幅 */
+const rewardBannerVisible = ref(false)
+/** 最近一次奖励金额（用于横幅文案） */
+const rewardAmount = ref(0)
+let rewardBannerTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 展示"奖励到账"横幅，5 秒后自动消失 */
+function showRewardBanner() {
+  rewardBannerVisible.value = true
+  if (rewardBannerTimer !== null) clearTimeout(rewardBannerTimer)
+  rewardBannerTimer = setTimeout(() => {
+    rewardBannerVisible.value = false
+    rewardBannerTimer = null
+  }, 5000)
+}
+
+/** 命中彩蛋网址：每次访问自动发放 VTB 并写入本地余额 */
+function grantSiteReward(raw: string) {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return
+  }
+  const site = REWARD_SITES.find((entry) => entry.matches(url))
+  if (!site) return
+  credits.grantVtb(site.amount)
+  rewardAmount.value = site.amount
+  showRewardBanner()
+}
 
 /** 地址栏输入值 */
 const address = ref('https://example.com')
@@ -112,6 +194,7 @@ function playDeniedShow(title: string) {
 
 onBeforeUnmount(() => {
   if (deniedTimer !== null) clearInterval(deniedTimer)
+  if (rewardBannerTimer !== null) clearTimeout(rewardBannerTimer)
   if (glitchHandle) filterService.destroy(glitchHandle.instanceId)
 })
 
@@ -140,6 +223,7 @@ function navigate() {
     return
   }
   currentSrc.value = normalizeUrl(raw)
+  grantSiteReward(currentSrc.value)
 }
 </script>
 
@@ -164,6 +248,9 @@ function navigate() {
 
     <!-- 内容区：禁止访问占位页 或 iframe 网页 -->
     <div class="browser__content">
+      <div v-if="rewardBannerVisible" class="browser__reward" role="status">
+        {{ t('browser.vtbReward', { amount: rewardAmount }) }}
+      </div>
       <div v-if="denied" class="browser__denied">
         <div
           class="browser__denied-panel"
@@ -258,6 +345,35 @@ function navigate() {
   height: 100%;
   border: none;
   background: #fff;
+}
+
+/* 代币奖励到账横幅 */
+.browser__reward {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  max-width: calc(100% - 32px);
+  padding: 9px 16px;
+  border: 1px solid var(--signal-mint);
+  color: var(--text-primary);
+  background: var(--surface-panel);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+  font: 600 12px var(--font-ui);
+  text-align: center;
+  transform: translateX(-50%);
+  animation: browser-reward-in 0.25s ease-out both;
+}
+
+@keyframes browser-reward-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* ── 禁止访问页（仿拒绝访问弹窗样式） ── */
