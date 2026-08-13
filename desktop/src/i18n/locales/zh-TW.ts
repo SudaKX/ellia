@@ -53,6 +53,7 @@ export const zhTW = {
     addressPlaceholder: '輸入網址',
     go: '前往',
     deniedTitle: '禁止訪問',
+    vtbReward: '發現神秘網址彩蛋！已為你增加 {amount} VTB。',
   },
   /** 文字編輯器 */
   textEditor: {
@@ -297,5 +298,13 @@ export const zhTW = {
       hint2: '提示 2：偏移量是向後 3 位。"khoor" → "hello"。試試補完剩餘部分。',
     },
     noPuzzles: '暫無可用謎題。',
+  },
+  /** 代幣錢包（狀態列） */
+  tokens: {
+    label: '錢包',
+    balance: '餘額',
+    vtb: 'VTB 積分',
+    refresh: '重新整理',
+    error: '餘額取得失敗',
   },
 } as const satisfies LocaleMessages

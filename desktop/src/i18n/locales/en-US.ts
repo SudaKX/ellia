@@ -51,6 +51,7 @@ export const enUS = {
     addressPlaceholder: 'Enter URL',
     go: 'Go',
     deniedTitle: 'ACCESS DENIED',
+    vtbReward: 'Mysterious site found! +{amount} VTB credited to your balance.',
   },
   /** Text editor (FakeOS Notepad) */
   textEditor: {
@@ -295,6 +296,14 @@ export const enUS = {
       hint2: 'Hint 2: The shift is 3 positions backward. "khoor" → "hello". Try completing the rest.',
     },
     noPuzzles: 'No puzzles available.',
+  },
+  /** Token wallet (status bar) */
+  tokens: {
+    label: 'Wallet',
+    balance: 'Balance',
+    vtb: 'VTB Credits',
+    refresh: 'Refresh',
+    error: 'Balance unavailable',
   },
 } as const
 

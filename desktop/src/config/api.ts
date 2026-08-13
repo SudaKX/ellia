@@ -33,6 +33,12 @@ export const AUTH_ENDPOINTS = {
   tokenLogin: `${API_BASE}/api/auth/token-login`,
 } as const
 
+/** Credits-related endpoints */
+export const CREDITS_ENDPOINTS = {
+  /** GET - player token balances (vtb + optimistic-lock version) */
+  balances: `${API_BASE}/api/v1/credits`,
+} as const
+
 /**
  * 出题器发布题库接入（自动发现）。
  * 出题器（desktop_designer）审核通过的题目导出 published-questions.json 后，

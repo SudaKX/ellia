@@ -28,6 +28,7 @@ import NetworkMenu from './status/NetworkMenu.vue'
 import PowerMenu from './status/PowerMenu.vue'
 import SoundMenu from './status/SoundMenu.vue'
 import StatusMenuButton from './status/StatusMenuButton.vue'
+import TokenBalance from './status/TokenBalance.vue'
 import { useDesktopStore } from '@/stores/desktop'
 
 defineProps<{
@@ -75,6 +76,7 @@ function handleShutdown() {
       <span class="status-bar__identity">
         {{ desktop.privilegeClass }}:{{ desktop.currentUser }}
       </span>
+      <TokenBalance />
     </div>
 
     <div class="status-bar__time">
@@ -135,6 +137,10 @@ function handleShutdown() {
 .status-bar__time {
   display: flex;
   align-items: center;
+}
+
+.status-bar__user {
+  gap: 10px;
 }
 
 .status-bar__identity {

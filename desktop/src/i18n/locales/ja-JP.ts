@@ -53,6 +53,7 @@ export const jaJP = {
     addressPlaceholder: 'URL を入力',
     go: '移動',
     deniedTitle: 'アクセス拒否',
+    vtbReward: '謎のサイトを発見！{amount} VTB を追加しました。',
   },
   /** テキストエディタ */
   textEditor: {
@@ -297,5 +298,13 @@ export const jaJP = {
       hint2: 'ヒント 2: シフトは後方に 3 ポジションです。"khoor" → "hello"。残りを完成させてみてください。',
     },
     noPuzzles: '利用可能なパズルはありません。',
+  },
+  /** トークンウォレット（ステータスバー） */
+  tokens: {
+    label: 'ウォレット',
+    balance: '残高',
+    vtb: 'VTB クレジット',
+    refresh: '更新',
+    error: '残高を取得できません',
   },
 } as const satisfies LocaleMessages

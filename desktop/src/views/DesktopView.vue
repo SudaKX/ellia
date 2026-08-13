@@ -74,12 +74,14 @@ import { useWindowService } from '@/composables/useWindowService'
 import { applicationRegistry } from '@/registries/applications'
 import type { FilterType } from '@/registries/filters'
 import { useDesktopStore } from '@/stores/desktop'
+import { useCreditsStore } from '@/stores/credits'
 import type { ApplicationId } from '@/types/desktop'
 
 // 副作用导入：注册所有谜题（谜题组件通过 defineAsyncComponent 异步加载）
 import '@/registries/puzzle-list'
 
 const desktop = useDesktopStore()
+const creditsStore = useCreditsStore()
 const windowService = useWindowService()
 // 提供给子组件（Terminal.vue 通过 inject 获取，用于 sil 命令打开谜题窗口）
 provide('windowService', windowService)
@@ -171,6 +173,7 @@ function handleCloseOverview() {
 /** 电源菜单 → 更改账户 → 清除登录态并跳转登录页 */
 function handleSwitchUser() {
   auth.logout()
+  creditsStore.reset()
   router.push({ name: 'login' })
 }
 
@@ -623,6 +626,7 @@ function handleDockAppClick(target: DockClickTarget) {
 onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
+  void creditsStore.fetchBalances()
   initAiWindow()
   // initLive2dWindow() — Live2D 暂时隐藏
 })
