@@ -170,6 +170,15 @@ export const jaJP = {
       2: '本当に退屈ね',
     },
   },
+  /** ドッキング AI チャット窓 */
+  aiChat: {
+    attach: 'ドッキング',
+    attachTip: '最後にフォーカスしたウィンドウにドッキング',
+    detach: '分離',
+    attached: 'ドッキング中：{title}',
+    attachedTitle: 'ドッキング中 · {title}',
+    continue: '続ける ▸',
+  },
   /** 対話型コマンドターミナル */
   terminal: {
     boot: {
@@ -283,6 +292,7 @@ export const jaJP = {
       placeholder: '解読テキストを入力...',
       hint1: 'ヒント 1: 各文字は同じ量だけ前方にシフトされています。"k" が "h" になる — シフト量は？',
       hint2: 'ヒント 2: シフトは後方に 3 ポジションです。"khoor" → "hello"。残りを完成させてみてください。',
+      aiHint: '（AIヒント）アルファベットを 3 つ前に戻す：k→h、h→e、o→l。答えは "hello world" です。',
     },
     noPuzzles: '利用可能なパズルはありません。',
   },

@@ -170,6 +170,15 @@ export const deDE = {
       2: 'Wie langweilig',
     },
   },
+  /** Angedocktes AI-Chatfenster */
+  aiChat: {
+    attach: 'Andocken',
+    attachTip: 'Am letzten fokussierten Fenster andocken',
+    detach: 'Lösen',
+    attached: 'Angedockt: {title}',
+    attachedTitle: 'Angedockt · {title}',
+    continue: 'Weiter ▸',
+  },
   /** Interaktives Befehlsterminal */
   terminal: {
     boot: {
@@ -283,6 +292,7 @@ export const deDE = {
       placeholder: 'Entschlüsselten Text eingeben...',
       hint1: 'Hinweis 1: Jeder Buchstabe wurde um den gleichen Betrag vorwärts verschoben. "k" wird zu "h" — was ist die Verschiebung?',
       hint2: 'Hinweis 2: Die Verschiebung beträgt 3 Positionen rückwärts. "khoor" → "hello". Versuchen Sie den Rest zu vervollständigen.',
+      aiHint: '(KI-Hinweis) Jeden Buchstaben 3 Positionen zurückverschieben: k→h, h→e, o→l. Die Antwort ist "hello world".',
     },
     noPuzzles: 'Keine Rätsel verfügbar.',
   },

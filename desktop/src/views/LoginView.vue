@@ -83,6 +83,7 @@ const loginWindow = ref<WindowInstance>({
   zIndex: 200,
   isMinimized: false,
   maximizable: true,
+  layer: 'normal',
   isMaximized: false,
 })
 

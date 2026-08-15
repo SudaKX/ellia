@@ -182,10 +182,16 @@ export function useHalftone(options?: HalftoneOptions) {
   }
 
   /**
-   * 将缓存的 masterCanvas 缩放到当前显示 canvas。
+   * 将缓存的 masterCanvas 等比缩放到当前显示 canvas（contain 模式）。
    *
    * 这是热点路径——每次 resizeObserver 触发都会调用。
    * 仅一次 ctx.drawImage，由浏览器 GPU 加速缩放，无任何遍历。
+   *
+   * ## 等比 contain
+   *
+   * 保持原图宽高比缩放并居中绘制，多余区域保持透明：
+   * 窗口被拉伸到任意宽高比时，点阵图都不会变形。
+   * （原图 1:1、显示区域 1:1 时等同于铺满，行为与旧版一致。）
    *
    * @param imageUrl 要显示的图片 URL，用于从 cache 取对应的 masterCanvas
    */
@@ -193,7 +199,18 @@ export function useHalftone(options?: HalftoneOptions) {
     const masterCanvas = cache.get(imageUrl)
     if (!ctx || !masterCanvas || cssWidth <= 0 || cssHeight <= 0) return
     ctx.clearRect(0, 0, cssWidth, cssHeight)
-    ctx.drawImage(masterCanvas, 0, 0, cssWidth, cssHeight)
+
+    // contain：按原图比例缩放，取能完整放入显示区域的尺寸，居中
+    const ratio = masterCanvas.width / masterCanvas.height
+    let drawWidth = cssWidth
+    let drawHeight = drawWidth / ratio
+    if (drawHeight > cssHeight) {
+      drawHeight = cssHeight
+      drawWidth = drawHeight * ratio
+    }
+    const offsetX = (cssWidth - drawWidth) / 2
+    const offsetY = (cssHeight - drawHeight) / 2
+    ctx.drawImage(masterCanvas, offsetX, offsetY, drawWidth, drawHeight)
   }
 
   // ─── DPR 感知的 canvas 尺寸调整 ─────────────────────────

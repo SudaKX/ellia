@@ -49,6 +49,8 @@ import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { AiAttachIcon, AiDetachIcon } from '@/ai/icons'
+import { getAiLiaisonState, requestAiAttach, requestAiDetach, requestAiDragEnd, requestAiDragMove } from '@/ai/useAiLiaison'
 import { useAuth } from '@/composables/useAuth'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
@@ -304,6 +306,7 @@ function initAiWindow() {
         close: false,
       },
       maximizable: false,     // AI 助手为演出型窗口，不允许双击标题栏全屏
+      layer: 'ai',            // AI 助手层：常驻于普通窗口之上、模态之下（z-index 固定）
     },
   })
 
@@ -357,8 +360,27 @@ function initLive2dWindow() {
 }
  */
 
-/** AI 窗口 X 按钮 → 播放关闭语音 + 修改标题栏 + 随机漂移 */
+/** AI 窗口是否处于贴合态（贴合跟随需禁用位置过渡，保证跟手） */
+const isAiAttached = computed(() => getAiLiaisonState().value === 'attached')
+
+/** AI 窗口标题栏右侧的贴合/分离切换按钮（图标与行为随状态切换） */
+const aiTitlebarActions = computed(() => {
+  const attached = getAiLiaisonState().value === 'attached'
+  return [
+    {
+      key: 'ai-liaison-toggle',
+      label: attached ? t('aiChat.detach') : t('aiChat.attach'),
+      icon: attached ? AiDetachIcon : AiAttachIcon,
+      onClick: attached ? () => { requestAiDetach() } : () => { requestAiAttach() },
+    },
+  ]
+})
+
+/** AI 窗口 X 按钮 → 贴合态分离；离开态播放关闭语音 + 修改标题栏 + 随机漂移 */
 function handleAiCloseRequest() {
+  // 贴合态：关闭键语义 = 分离（由 AiAssistant 处理），不走随机漂移
+  if (requestAiDetach()) return
+
   const aiWin = windowService.windows.value.find((w) => w.id === aiWindowId.value)
   if (!aiWin) return
 
@@ -668,6 +690,10 @@ onBeforeUnmount(() => {
         "
         :translucent="window.id === aiWindowId ? true : undefined"
         :skip-enter-animation="window.id === aiWindowId ? true : undefined"
+        :on-drag-move="window.id === aiWindowId ? requestAiDragMove : undefined"
+        :on-drag-end="window.id === aiWindowId ? requestAiDragEnd : undefined"
+        :titlebar-actions="window.id === aiWindowId ? aiTitlebarActions : undefined"
+        :instant-move="window.id === aiWindowId ? isAiAttached : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

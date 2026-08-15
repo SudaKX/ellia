@@ -170,6 +170,15 @@ export const zhTW = {
       2: '真是無聊呢',
     },
   },
+  /** 貼邊 AI 對話窗 */
+  aiChat: {
+    attach: '貼合',
+    attachTip: '貼合到上一個焦點視窗',
+    detach: '分離',
+    attached: '貼合中：{title}',
+    attachedTitle: '貼合中 · {title}',
+    continue: '繼續 ▸',
+  },
   /** 互動式命令終端機 */
   terminal: {
     boot: {
@@ -283,6 +292,7 @@ export const zhTW = {
       placeholder: '輸入解密文字...',
       hint1: '提示 1：每個字母都被向前偏移了相同位數。"k" 變成了 "h"——偏移了多少？',
       hint2: '提示 2：偏移量是向後 3 位。"khoor" → "hello"。試試補完剩餘部分。',
+      aiHint: '（AI 提示）字母表向前回退 3 位：k→h，h→e，o→l。答案是 "hello world"。',
     },
     noPuzzles: '暫無可用謎題。',
   },

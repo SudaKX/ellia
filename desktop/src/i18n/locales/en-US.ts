@@ -168,6 +168,15 @@ export const enUS = {
       2: 'How boring',
     },
   },
+  /** Attached AI chat window */
+  aiChat: {
+    attach: 'Attach',
+    attachTip: 'Attach to the last focused window',
+    detach: 'Detach',
+    attached: 'Attached: {title}',
+    attachedTitle: 'Attached · {title}',
+    continue: 'Continue ▸',
+  },
   /** Interactive command terminal */
   terminal: {
     boot: {
@@ -281,6 +290,7 @@ export const enUS = {
       placeholder: 'Enter decrypted text...',
       hint1: 'Hint 1: Every letter has been shifted forward by the same amount. "k" becomes "h" — what is the shift?',
       hint2: 'Hint 2: The shift is 3 positions backward. "khoor" → "hello". Try completing the rest.',
+      aiHint: '(AI hint) Shift each letter back 3 positions: k→h, h→e, o→l. The answer is "hello world".',
     },
     noPuzzles: 'No puzzles available.',
   },

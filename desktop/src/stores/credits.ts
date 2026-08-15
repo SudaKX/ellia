@@ -108,6 +108,24 @@ export const useCreditsStore = defineStore('credits', () => {
     return balances.value.vtb
   }
 
+  /**
+   * 消费 VTB（如 AI 帮开提示扣费）。
+   * 余额不足时返回 false，不产生任何变化。
+   */
+  function spendVtb(amount: number): boolean {
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new Error('VTB spend amount must be a positive integer.')
+    }
+    if (balances.value.vtb < amount) return false
+    balances.value = { vtb: balances.value.vtb - amount }
+    version.value += 1
+    isLoaded.value = true
+    writeStoredVtb(balances.value.vtb)
+    lastDelta.value = -amount
+    changeSequence.value += 1
+    return true
+  }
+
   /** 登出/切换账号时清空内存余额（本地保存保留，重新登录后恢复） */
   function reset(): void {
     balances.value = { vtb: readStoredVtb() ?? 0 }
@@ -130,6 +148,7 @@ export const useCreditsStore = defineStore('credits', () => {
     changeSequence,
     fetchBalances,
     grantVtb,
+    spendVtb,
     reset,
   }
 })
