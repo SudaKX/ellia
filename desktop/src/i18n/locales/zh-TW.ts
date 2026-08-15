@@ -170,19 +170,6 @@ export const zhTW = {
       2: '真是無聊呢',
     },
   },
-  /** Live2D 助手 */
-  live2d: {
-    title: 'Live2D 助手',
-    loading: 'Live2D 載入中...',
-    containerError: 'Live2D 容器初始化失敗',
-    loadFailed: '載入失敗',
-    motionFailed: '動作播放失敗',
-    motionPlaying: '動作播放中',
-    idle: '待機中',
-    mainMotion: '主動作 {n}',
-    touchBody: '摸身體',
-    touchHead: '摸頭',
-  },
   /** 互動式命令終端機 */
   terminal: {
     boot: {

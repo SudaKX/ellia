@@ -61,7 +61,7 @@ import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import AiAssistant from '@/components/applications/AiAssistant.vue'
-// Live2D 暂时隐藏 — 取消注释以下行 + initLive2dWindow() 即可恢复
+// Live2D 已归档至 desktop/archive/live2d — 恢复时先移回组件与资源，再取消下方注释 + initLive2dWindow()
 // import Live2DAssistant from '@/components/applications/Live2DAssistant.vue'
 import { initAchievementAudio } from '@/composables/useAchievementUnlocks'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
@@ -316,8 +316,9 @@ function initAiWindow() {
 }
 
 /**
- * 初始化 Live2D 虚拟形象窗口 — 暂时隐藏。
- * 取消此注释块 + 恢复导入 + 恢复配置常量即可重新启用。
+ * 初始化 Live2D 虚拟形象窗口 — 已归档至 desktop/archive/live2d。
+ * 恢复时先移回组件（Live2DAssistant.vue）与资源（public/live2d），
+ * 再取消此注释块 + 恢复导入 + 恢复配置常量即可重新启用。
  *
 function initLive2dWindow() {
   const windowWidth = 400

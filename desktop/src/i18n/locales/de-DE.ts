@@ -170,19 +170,6 @@ export const deDE = {
       2: 'Wie langweilig',
     },
   },
-  /** Live2D-Assistent */
-  live2d: {
-    title: 'Live2D-Assistent',
-    loading: 'Live2D wird geladen...',
-    containerError: 'Live2D-Container-Init fehlgeschlagen',
-    loadFailed: 'Laden fehlgeschlagen',
-    motionFailed: 'Animationswiedergabe fehlgeschlagen',
-    motionPlaying: 'Animation wird abgespielt',
-    idle: 'Bereit',
-    mainMotion: 'Hauptanimation {n}',
-    touchBody: 'Körper berühren',
-    touchHead: 'Kopf berühren',
-  },
   /** Interaktives Befehlsterminal */
   terminal: {
     boot: {

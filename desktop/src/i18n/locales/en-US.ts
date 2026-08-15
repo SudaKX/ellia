@@ -168,19 +168,6 @@ export const enUS = {
       2: 'How boring',
     },
   },
-  /** Live2D assistant */
-  live2d: {
-    title: 'Live2D Assistant',
-    loading: 'Live2D Loading...',
-    containerError: 'Live2D container init failed',
-    loadFailed: 'Load failed',
-    motionFailed: 'Motion playback failed',
-    motionPlaying: 'Playing motion',
-    idle: 'Idle',
-    mainMotion: 'Main Motion {n}',
-    touchBody: 'Touch Body',
-    touchHead: 'Touch Head',
-  },
   /** Interactive command terminal */
   terminal: {
     boot: {

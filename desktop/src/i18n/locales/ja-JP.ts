@@ -170,19 +170,6 @@ export const jaJP = {
       2: '本当に退屈ね',
     },
   },
-  /** Live2D アシスタント */
-  live2d: {
-    title: 'Live2D アシスタント',
-    loading: 'Live2D 読み込み中...',
-    containerError: 'Live2D コンテナの初期化に失敗',
-    loadFailed: '読み込み失敗',
-    motionFailed: 'モーション再生に失敗',
-    motionPlaying: 'モーション再生中',
-    idle: '待機中',
-    mainMotion: 'メインモーション {n}',
-    touchBody: '体をタッチ',
-    touchHead: '頭をタッチ',
-  },
   /** 対話型コマンドターミナル */
   terminal: {
     boot: {

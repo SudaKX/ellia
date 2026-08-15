@@ -170,19 +170,6 @@ export const zhCN = {
       2: '真是无聊呢',
     },
   },
-  /** Live2D 助手 */
-  live2d: {
-    title: 'Live2D 助手',
-    loading: 'Live2D 加载中...',
-    containerError: 'Live2D 容器初始化失败',
-    loadFailed: '加载失败',
-    motionFailed: '动作播放失败',
-    motionPlaying: '动作播放中',
-    idle: '待机中',
-    mainMotion: '主动作 {n}',
-    touchBody: '摸身体',
-    touchHead: '摸头',
-  },
   /** 交互式命令终端 */
   terminal: {
     boot: {
