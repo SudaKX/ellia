@@ -122,6 +122,13 @@ const current = computed(() => script.value[nodeIndex.value] ?? null)
 const displayImage = computed(() =>
   isAttached.value ? expressionImage(currentExpression.value) : currentImage.value,
 )
+/**
+ * "大头照"待机态：贴合中且没有聊天文字（剧本结束 / 无对白节点）时，
+ * 表情大图占满整个内容区（隐藏文字区与选项行）。
+ */
+const isPortraitMode = computed(() =>
+  isAttached.value && !typedText.value && !current.value?.choices,
+)
 
 // ─── 窗口实例辅助 ──────────────────────────────────────
 
@@ -565,36 +572,45 @@ function buildInsufficientBalance(): AiNode[] {
     :class="{ 'ai-assistant--attached': isAttached }"
     aria-label="AI Assistant"
   >
-    <!-- 图片区：离开态点击轮换；贴合态显示表情差分（等比 contain，不变形） -->
-    <div class="ai-assistant__image-area" @click="handleImageClick">
-      <canvas
-        ref="canvasRef"
-        class="ai-assistant__canvas"
-        aria-label="Halftone dot rendering"
-      />
+    <!-- 第二行：离开态图片占满；贴合态"左图右文"；无文字时大头照占满 -->
+    <div
+      class="ai-assistant__body"
+      :class="{
+        'ai-assistant__body--attached': isAttached,
+        'ai-assistant__body--portrait': isPortraitMode,
+      }"
+    >
+      <div class="ai-assistant__image-area" @click="handleImageClick">
+        <canvas
+          ref="canvasRef"
+          class="ai-assistant__canvas"
+          aria-label="Halftone dot rendering"
+        />
+      </div>
+
+      <!-- 贴合态：右侧文字（大头照待机态时隐藏） -->
+      <div v-if="isAttached && !isPortraitMode" class="ai-assistant__lines">
+        <p class="ai-assistant__text" @click="handleLinesClick">
+          {{ typedText }}<span v-if="isTyping" class="ai-assistant__cursor" aria-hidden="true">_</span>
+        </p>
+      </div>
     </div>
 
-    <!-- 贴合态：对话区 -->
-    <div v-if="isAttached" class="ai-assistant__dialog">
-      <p class="ai-assistant__text" @click="handleLinesClick">
-        {{ typedText }}<span v-if="isTyping" class="ai-assistant__cursor" aria-hidden="true">_</span>
-      </p>
+    <!-- 第三行（贴合态，大头照待机态隐藏）：选项 / 继续 -->
+    <div v-if="isAttached && current?.choices" class="ai-assistant__choices">
+      <button
+        v-for="(choice, i) in current.choices.slice(0, MAX_AI_CHOICES)"
+        :key="i"
+        class="ai-assistant__choice"
+        type="button"
+        @click="handleChoice(choice)"
+      >
+        {{ choice.label }}
+      </button>
+    </div>
 
-      <div v-if="current?.choices" class="ai-assistant__choices">
-        <button
-          v-for="(choice, i) in current.choices.slice(0, MAX_AI_CHOICES)"
-          :key="i"
-          class="ai-assistant__choice"
-          type="button"
-          @click="handleChoice(choice)"
-        >
-          {{ choice.label }}
-        </button>
-      </div>
-
-      <div v-else-if="!isTyping && current" class="ai-assistant__continue" @click="goto(current.next)">
-        {{ t('aiChat.continue') }}
-      </div>
+    <div v-else-if="isAttached && !isPortraitMode && !isTyping && current" class="ai-assistant__continue" @click="goto(current.next)">
+      {{ t('aiChat.continue') }}
     </div>
   </section>
 </template>
@@ -614,7 +630,30 @@ function buildInsufficientBalance(): AiNode[] {
   background: color-mix(in srgb, var(--surface-raised) 75%, transparent);
 }
 
-/* ── 图片区 ── */
+/* ── 第二行容器：离开态纵向（图片占满），贴合态横向（左图右文） ── */
+.ai-assistant__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.ai-assistant__body--attached {
+  flex-direction: row;
+}
+
+/* "大头照"待机态：无聊天文字时图片占满整个内容区（覆盖贴合态左图右文） */
+.ai-assistant__body--portrait {
+  flex-direction: column;
+}
+
+.ai-assistant__body--portrait .ai-assistant__image-area {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+/* 图片区：离开态占满整个 body；贴合态为左侧固定 128 方形（表情差分） */
 .ai-assistant__image-area {
   position: relative;
   display: flex;
@@ -623,8 +662,10 @@ function buildInsufficientBalance(): AiNode[] {
   cursor: pointer;
 }
 
-.ai-assistant--attached .ai-assistant__image-area {
+.ai-assistant__body--attached .ai-assistant__image-area {
   flex: 0 0 128px;
+  width: 128px;
+  height: 128px;
 }
 
 .ai-assistant__canvas {
@@ -640,13 +681,13 @@ function buildInsufficientBalance(): AiNode[] {
   opacity: 0.7;
 }
 
-/* ── 对话区（贴合态） ── */
-.ai-assistant__dialog {
+/* 贴合态：右侧文字区 */
+.ai-assistant__lines {
   display: flex;
-  min-height: 0;
   flex: 1;
-  flex-direction: column;
-  border-top: 1px solid var(--line-subtle);
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line-subtle);
 }
 
 .ai-assistant__text {
@@ -672,6 +713,7 @@ function buildInsufficientBalance(): AiNode[] {
   50%, 100% { opacity: 0; }
 }
 
+/* ── 第三行（贴合态）：选项 / 继续 ── */
 .ai-assistant__choices {
   display: flex;
   flex-direction: column;
