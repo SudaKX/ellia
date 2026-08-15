@@ -111,6 +111,35 @@ Logout SHALL clear the session and return the visitor to `/login`.
 - **WHEN** an authenticated user activates logout
 - **THEN** the server session is invalidated, the UI clears the current user, and the application navigates to `/login`
 
+### Requirement: Material 3 visual tokens
+
+The application SHALL use Material 3 design styling, and all color values used by
+views, forms, navigation, and feedback elements SHALL be consumed from CSS
+custom-property color tokens defined in a single token stylesheet that contains
+both light and dark token sets.
+
+#### Scenario: Theme recolor from one place
+
+- **WHEN** a developer changes a `--md-sys-color-*` token value in the token stylesheet
+- **THEN** every component using that token reflects the new color without component-level edits
+
+### Requirement: Light and dark theme switching
+
+The application SHALL provide a theme control that switches between light and
+dark themes, SHALL persist the chosen preference in the browser, and SHALL
+restore it on the next visit. Without a saved preference, the application SHALL
+follow the operating system's color-scheme preference.
+
+#### Scenario: Toggle to dark theme
+
+- **WHEN** a visitor activates the theme control and chooses dark
+- **THEN** the entire interface switches to the dark token set and the choice survives a page reload
+
+#### Scenario: First visit follows system preference
+
+- **WHEN** a visitor with no saved theme preference opens the application
+- **THEN** the initial theme matches the operating system's light/dark preference
+
 ### Requirement: Loading and error feedback
 
 All authentication-related actions SHALL disable duplicate submission while in

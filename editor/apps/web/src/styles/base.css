@@ -1,0 +1,424 @@
+/* 全局基础样式：Material 3 风格；颜色一律来自 tokens.css 的 --app-* 别名。 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-page-background);
+  color: var(--app-text);
+  font-family:
+    Roboto,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    system-ui,
+    sans-serif;
+  font-size: var(--md-sys-typescale-body-size);
+  line-height: var(--md-sys-typescale-body-line);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: var(--md-sys-typescale-title-large-size);
+  line-height: var(--md-sys-typescale-title-large-line);
+  font-weight: 500;
+}
+
+h2,
+h3 {
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+a {
+  color: var(--app-primary);
+}
+
+button {
+  font: inherit;
+}
+
+/* ---------- App bar ---------- */
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 64px;
+  padding: 0.5rem 1rem;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  font-weight: 600;
+  color: var(--app-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.app-bar__brand::before {
+  content: '';
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--app-primary);
+}
+
+.app-bar__spacer {
+  flex: 1;
+}
+
+.app-bar__user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--md-sys-shape-corner-full);
+  color: var(--app-muted-text);
+  font-size: var(--md-sys-typescale-label-size);
+  white-space: nowrap;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.nav-link {
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  color: var(--app-muted-text);
+  text-decoration: none;
+  font-size: var(--md-sys-typescale-body-size);
+}
+
+.nav-link:hover {
+  background: var(--app-surface-container-high);
+  color: var(--app-text);
+}
+
+.nav-link.router-link-active {
+  background: var(--app-primary-container);
+  color: var(--app-on-primary-container);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--md-sys-shape-corner-full);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn--primary {
+  background: var(--app-primary);
+  color: var(--app-on-primary);
+}
+
+.btn--primary:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.btn--tonal {
+  background: var(--app-primary-container);
+  color: var(--app-on-primary-container);
+}
+
+.btn--text {
+  background: transparent;
+  color: var(--app-primary);
+}
+
+.btn--outlined {
+  background: transparent;
+  color: var(--app-primary);
+  border-color: var(--app-outline);
+}
+
+.btn--danger {
+  background: var(--app-error);
+  color: var(--app-on-error);
+}
+
+.btn--small {
+  min-height: 32px;
+  padding: 0.25rem 0.9rem;
+  font-size: var(--md-sys-typescale-label-size);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--app-muted-text);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.icon-button:hover {
+  background: var(--app-surface-container-high);
+}
+
+/* ---------- Layout / cards ---------- */
+
+.page {
+  width: min(1080px, 100% - 2rem);
+  margin: 1.5rem auto 3rem;
+}
+
+.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 64px);
+  padding: 1rem;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+}
+
+.card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--md-sys-shape-corner-large);
+  box-shadow: 0 1px 3px var(--app-shadow);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.card--fill {
+  background: var(--app-surface-container);
+}
+
+.card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.grid--2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 1rem;
+}
+
+/* ---------- Forms ---------- */
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.field label {
+  font-size: var(--md-sys-typescale-label-size);
+  color: var(--app-muted-text);
+}
+
+.field input,
+.field select {
+  min-height: 48px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--app-surface-container-high);
+  color: var(--app-text);
+  font: inherit;
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 1px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.muted {
+  color: var(--app-muted-text);
+}
+
+.hint {
+  font-size: var(--md-sys-typescale-label-size);
+  color: var(--app-muted-text);
+}
+
+.mono {
+  font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+}
+
+/* ---------- Feedback ---------- */
+
+.alert {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--md-sys-shape-corner-small);
+  margin-bottom: 1rem;
+  font-size: var(--md-sys-typescale-body-size);
+}
+
+.alert--error {
+  background: var(--app-error-container);
+  color: var(--app-on-error-container);
+  border: 1px solid var(--app-error);
+}
+
+.alert--success {
+  background: var(--app-success-container);
+  color: var(--app-on-success-container);
+  border: 1px solid var(--app-success);
+}
+
+.alert--warning {
+  background: var(--app-warning-container);
+  color: var(--app-on-warning-container);
+  border: 1px solid var(--app-warning);
+}
+
+/* ---------- Tables ---------- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--md-sys-typescale-body-size);
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--app-border);
+  vertical-align: middle;
+}
+
+.data-table th {
+  font-size: var(--md-sys-typescale-label-size);
+  color: var(--app-muted-text);
+  font-weight: 500;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.7rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-size);
+  white-space: nowrap;
+}
+
+.badge--unused {
+  background: var(--app-primary-container);
+  color: var(--app-on-primary-container);
+}
+
+.badge--used {
+  background: var(--app-surface-container-highest);
+  color: var(--app-muted-text);
+}
+
+.badge--expired {
+  background: var(--app-error-container);
+  color: var(--app-on-error-container);
+}
+
+.badge--admin {
+  background: var(--app-success-container);
+  color: var(--app-on-success-container);
+}
+
+.badge--user {
+  background: var(--app-primary-container);
+  color: var(--app-on-primary-container);
+}
+
+/* ---------- Misc ---------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.stack {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.loading {
+  color: var(--app-muted-text);
+  padding: 1rem 0;
+}
+
+.divider {
+  height: 1px;
+  background: var(--app-border);
+  margin: 1rem 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

@@ -107,7 +107,8 @@
 - **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟（web 200、`/api` 代理、`/ws` ping/pong 与 echo）通过。
 - **M1 已拆分并完成 OpenSpec 提案**：拆分计划见 `editor/docs/m1-plan.md`；两个 change 见 `openspec/changes/m1-backend-auth`（SQLite 用户管理与认证 API）与 `openspec/changes/m1-frontend-auth`（登录/注册/admin 界面与 Pinia auth）。`openspec validate` 均已通过。
 - **`m1-backend-auth` 已实现完成（22/22 任务）**：15 个单元测试、type-check、HTTP cookie-jar 冒烟（health / 登录 / 邀请码 / 注册 / 提权 / me）与 WS echo 均通过。
-- **尚未开始实现**：`m1-frontend-auth`（前端认证界面，等用户指示）；M1.2 项目 CRUD；M2 数据模型与同步；M3 导出。
+- **`m1-frontend-auth` 已实现完成（21/21 任务）**：`/login`、`/register`、`/`、`/admin` 页面 + Pinia auth/theme store + 路由守卫；Material 3 风格（`src/styles/tokens.css` 集中 light/dark 颜色令牌，`base.css` 消费令牌，主题切换持久化到 localStorage 并跟随系统偏好）；type-check/build 与无头浏览器守卫冒烟通过。
+- **尚未开始实现**：M1.2 项目 CRUD（后端 `projects` 表 + CRUD，前端项目列表）；M2 数据模型与同步；M3 导出。
 
 ## 6. 环境事实与坑（新会话务必注意）
 
@@ -124,9 +125,8 @@
 
 ```text
 请先阅读 editor/docs/handoff.md 与 editor/docs/plan-v1.md，
-M0 完成；M1.1a 后端用户管理完成。
-下一步（待用户指示）实现 openspec/changes/m1-frontend-auth（前端认证界面）。
-使用 openspec instructions apply --change "m1-frontend-auth" --json 获取实现指引。
+M0 完成；M1.1（后端用户管理 + 前端认证界面）完成。
+下一步实现 M1.2 项目 CRUD（后端 projects 表/CRUD + 前端项目列表）。
 ```
 
-M1.1a 已完成：better-sqlite3 + 三表迁移、`/api/auth/*`（注册/登录/登出/me）、`/api/admin/*`（邀请码生成/列表/作废、用户列表/提权）、初始 admin 播种、cookie 会话与统一错误格式；测试 `pnpm --dir apps/server test`。剩余：`m1-frontend-auth` 前端；M1.2 项目 CRUD；M2 同步；M3 导出。
+M1.1 已完成：后端 better-sqlite3 三表迁移、auth/admin API、cookie 会话、初始 admin 播种（测试 `pnpm --dir apps/server test`）；前端 Material 3 登录/注册/管理界面、Pinia auth、路由守卫、亮暗主题令牌切换。剩余：M1.2 项目 CRUD；M2 同步；M3 导出。

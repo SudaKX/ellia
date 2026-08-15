@@ -49,9 +49,10 @@
 ```text
 apps/web/src/
 ├── api/{client,auth,admin,types}.ts
-├── stores/auth.ts
+├── stores/{auth,theme}.ts
+├── styles/{tokens,base}.css
 ├── router/index.ts                 # 路由表 + meta + 守卫
-├── App.vue                         # 顶部导航：品牌/当前用户/admin 入口/登出
+├── App.vue                         # 顶部导航：品牌/主题切换/当前用户/admin 入口/登出
 └── views/
     ├── LoginView.vue
     ├── RegisterView.vue
@@ -74,12 +75,22 @@ apps/web/src/
 - 所有请求 `credentials: 'include'`；同源（dev 经 Vite 代理，prod 后续由 Express 托管）自动携带 cookie。
 - 不读取/写入 localStorage 中的 token，避免 XSS 暴露面。
 
+### 7. Material 3 风格与颜色令牌
+
+- `src/styles/tokens.css` 是唯一颜色来源：`:root` 定义 light 令牌，`[data-theme='dark']` 定义 dark 令牌，采用 Material 3 语义色（`--md-sys-color-{primary,on-primary,primary-container,...,surface,on-surface,outline,error}`），另加少量应用级语义别名（页面背景、卡片、成功/警告态）。
+- `src/styles/base.css` 提供 reset、排版、表单控件、按钮、卡片、表格与 `role="alert"` 的视觉；所有颜色只引用令牌，不在组件 `<style>` 里写死色值。
+- `src/stores/theme.ts`（Pinia setup store）：`mode: 'light' | 'dark'`；初始化时读取 `localStorage['ellia-theme']`，无保存值则跟随 `prefers-color-scheme`；`toggle()` 同步写回 localStorage 与 `document.documentElement.dataset.theme`。
+- `index.html` 增加极小内联脚本：在首屏 CSS 之前按保存值/系统偏好设置 `data-theme`，避免暗色用户白屏闪烁。
+- 不引入 Vue Material / Vuetify 等组件库（与本 change 的 Non-Goals 一致）；M3 通过令牌 + CSS 实现，后续“换色”只需改 tokens.css 或注入不同的 token 文件。
+- 主题偏好是界面偏好而非敏感凭证，允许存 localStorage（与 token 的禁用策略不同）。
+
 ## Risks / Trade-offs
 
 - [后端未就绪时前端页面报网络错误] → `client.ts` 区分 `ApiClientError`（有 code）与网络错误（`NETWORK`），表单显示“无法连接服务器”。
 - [clipboard API 在非安全上下文失败] → 复制失败时选中文本提示手动复制，功能不阻断。
 - [启动前 `fetchMe` 延迟首屏] → v1 接受一次本地请求（约毫秒级）；慢时可在 `index.html` 放静态 loading 文案。
 - [多标签页登出/登录不同步] → v1 不处理；每个标签页加载时各自 `fetchMe`。
+- [暗色首屏闪烁] → `index.html` 内联脚本在样式加载前设置 `data-theme`。
 
 ## Migration Plan
 

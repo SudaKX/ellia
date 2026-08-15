@@ -1,0 +1,155 @@
+/*
+ * Material 3 颜色令牌 — 全站唯一颜色来源。
+ * 换色/暗色模式：修改本文件（或注入另一套 token 文件），组件无需改动。
+ * 命名遵循 Material Design 3 语义色。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Primary / Secondary / Tertiary */
+  --md-sys-color-primary: #6750a4;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #eaddff;
+  --md-sys-color-on-primary-container: #21005d;
+
+  --md-sys-color-secondary: #625b71;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #e8def8;
+  --md-sys-color-on-secondary-container: #1d192b;
+
+  --md-sys-color-tertiary: #7d5260;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #ffd8e4;
+  --md-sys-color-on-tertiary-container: #31111d;
+
+  /* Error */
+  --md-sys-color-error: #b3261e;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #f9dedc;
+  --md-sys-color-on-error-container: #410e0b;
+
+  /* Background / Surface */
+  --md-sys-color-background: #fffbfe;
+  --md-sys-color-on-background: #1c1b1f;
+  --md-sys-color-surface: #fffbfe;
+  --md-sys-color-on-surface: #1c1b1f;
+  --md-sys-color-surface-variant: #e7e0ec;
+  --md-sys-color-on-surface-variant: #49454f;
+
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f7f2fa;
+  --md-sys-color-surface-container: #f3edf7;
+  --md-sys-color-surface-container-high: #ece6f0;
+  --md-sys-color-surface-container-highest: #e6e0e9;
+
+  /* Outline */
+  --md-sys-color-outline: #79747e;
+  --md-sys-color-outline-variant: #cac4d0;
+
+  --md-sys-color-inverse-surface: #313033;
+  --md-sys-color-inverse-on-surface: #f4eff4;
+  --md-sys-color-inverse-primary: #d0bcff;
+
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+
+  /* Shape / Type tokens */
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 999px;
+
+  --md-sys-typescale-title-large-size: 22px;
+  --md-sys-typescale-title-large-line: 28px;
+  --md-sys-typescale-title-medium-size: 16px;
+  --md-sys-typescale-title-medium-line: 24px;
+  --md-sys-typescale-body-size: 14px;
+  --md-sys-typescale-body-line: 20px;
+  --md-sys-typescale-label-size: 12px;
+  --md-sys-typescale-label-line: 16px;
+
+  /* 应用级语义别名：组件只使用 --app-*，不直接绑定具体色值 */
+  --app-page-background: var(--md-sys-color-background);
+  --app-text: var(--md-sys-color-on-background);
+  --app-muted-text: var(--md-sys-color-on-surface-variant);
+  --app-surface: var(--md-sys-color-surface);
+  --app-surface-container: var(--md-sys-color-surface-container);
+  --app-surface-container-high: var(--md-sys-color-surface-container-high);
+  --app-surface-container-highest: var(--md-sys-color-surface-container-highest);
+  --app-border: var(--md-sys-color-outline-variant);
+  --app-outline: var(--md-sys-color-outline);
+  --app-primary: var(--md-sys-color-primary);
+  --app-on-primary: var(--md-sys-color-on-primary);
+  --app-primary-container: var(--md-sys-color-primary-container);
+  --app-on-primary-container: var(--md-sys-color-on-primary-container);
+  --app-error: var(--md-sys-color-error);
+  --app-on-error: var(--md-sys-color-on-error);
+  --app-error-container: var(--md-sys-color-error-container);
+  --app-on-error-container: var(--md-sys-color-on-error-container);
+  --app-success: #2e7d32;
+  --app-on-success: #ffffff;
+  --app-success-container: #c8e6c9;
+  --app-on-success-container: #1b5e20;
+  --app-warning: #8f5c00;
+  --app-on-warning: #ffffff;
+  --app-warning-container: #ffe0b2;
+  --app-on-warning-container: #4e2f00;
+  --app-shadow: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --md-sys-color-primary: #d0bcff;
+  --md-sys-color-on-primary: #381e72;
+  --md-sys-color-primary-container: #4f378b;
+  --md-sys-color-on-primary-container: #eaddff;
+
+  --md-sys-color-secondary: #ccc2dc;
+  --md-sys-color-on-secondary: #332d41;
+  --md-sys-color-secondary-container: #4a4458;
+  --md-sys-color-on-secondary-container: #e8def8;
+
+  --md-sys-color-tertiary: #efb8c8;
+  --md-sys-color-on-tertiary: #492532;
+  --md-sys-color-tertiary-container: #633b48;
+  --md-sys-color-on-tertiary-container: #ffd8e4;
+
+  --md-sys-color-error: #f2b8b5;
+  --md-sys-color-on-error: #601410;
+  --md-sys-color-error-container: #8c1d18;
+  --md-sys-color-on-error-container: #f9dedc;
+
+  --md-sys-color-background: #1c1b1f;
+  --md-sys-color-on-background: #e6e1e5;
+  --md-sys-color-surface: #1c1b1f;
+  --md-sys-color-on-surface: #e6e1e5;
+  --md-sys-color-surface-variant: #49454f;
+  --md-sys-color-on-surface-variant: #cac4d0;
+
+  --md-sys-color-surface-container-lowest: #0f0d13;
+  --md-sys-color-surface-container-low: #1d1b20;
+  --md-sys-color-surface-container: #211f26;
+  --md-sys-color-surface-container-high: #2b2930;
+  --md-sys-color-surface-container-highest: #36343b;
+
+  --md-sys-color-outline: #938f99;
+  --md-sys-color-outline-variant: #49454f;
+
+  --md-sys-color-inverse-surface: #e6e1e5;
+  --md-sys-color-inverse-on-surface: #313033;
+  --md-sys-color-inverse-primary: #6750a4;
+
+  --app-success: #81c995;
+  --app-on-success: #062e0d;
+  --app-success-container: #1e4620;
+  --app-on-success-container: #c8e6c9;
+  --app-warning: #ffb95e;
+  --app-on-warning: #402d00;
+  --app-warning-container: #5c4200;
+  --app-on-warning-container: #ffe0b2;
+  --app-shadow: rgba(0, 0, 0, 0.4);
+}
