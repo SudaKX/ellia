@@ -104,7 +104,8 @@
   - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（14 种实体 kind + 11 注册表 + KindStateMap + Change/EntityPatch/Project）、`sync.ts`（WS 协议消息）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/stable_id/validation_id 轻校验）、`exporter/`（M3 占位）。
 - 已产出文档：`editor/docs/plan-v1.md`（方案）、`editor/docs/handoff.md`（本文档）。
 - **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟（web 200、`/api` 代理、`/ws` ping/pong 与 echo）通过。
-- **尚未开始实现**：M1 认证与项目（SQLite、注册/登录/邀请码/初始 admin、项目 CRUD）；M2 数据模型与同步；M3 导出。
+- **M1 已拆分并完成 OpenSpec 提案（未开始实现）**：拆分计划见 `editor/docs/m1-plan.md`；两个 change 见 `openspec/changes/m1-backend-auth`（SQLite 用户管理与认证 API）与 `openspec/changes/m1-frontend-auth`（登录/注册/admin 界面与 Pinia auth）。`openspec validate` 均已通过。
+- **尚未开始实现**：M1.1 用户管理与认证（先做后端 `m1-backend-auth`，再做前端 `m1-frontend-auth`）；M1.2 项目 CRUD；M2 数据模型与同步；M3 导出。
 
 ## 6. 环境事实与坑（新会话务必注意）
 
@@ -121,7 +122,10 @@
 
 ```text
 请先阅读 editor/docs/handoff.md 与 editor/docs/plan-v1.md，
-M0 已完成，从 M1（SQLite 初始化、注册/登录/邀请码/初始 admin、项目 CRUD）开始实现。
+M0 已完成；M1 按 editor/docs/m1-plan.md 拆分。
+先实现 openspec/changes/m1-backend-auth（后端 SQLite 用户管理），
+再实现 openspec/changes/m1-frontend-auth（前端认证界面）。
+使用 openspec instructions apply --change "<name>" --json 获取实现指引。
 ```
 
 M1 的具体步骤：① `apps/server` 接入 better-sqlite3，按 plan-v1.md §3.3 建表（users / invite_codes / projects / entities / entity_blobs / entity_patches / sessions）；② 实现 `/api/auth/*`（注册必须一次性有效邀请码、登录/登出/me，初始 admin 从 `.env` 播种）；③ 实现 `/api/admin/*`（邀请码生成/列表/作废、用户提权）；④ 实现 `/api/projects` CRUD（module_id 唯一校验，用 `@ellia/puzzle-schema` 的 `isValidModuleId`）；⑤ `apps/web` 落地 `/login`、`/register`、`/`（项目列表）、`/admin` 路由与 Pinia auth 状态。

@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-15
+goal: 实现 apps/server 的 SQLite 用户管理与认证 API，作为 M1 的第一个可验证切片

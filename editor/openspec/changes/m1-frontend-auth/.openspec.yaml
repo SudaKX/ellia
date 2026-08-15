@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-15
+goal: 配套后端用户管理 API，提供可访问的认证与管理员界面
