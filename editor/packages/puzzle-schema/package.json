@@ -1,0 +1,26 @@
+{
+  "name": "@ellia/puzzle-schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ellia 编辑器共享数据结构包：11 个 Mythos 注册表声明类型 + 实体模型 + WS 同步协议 + Python 代码块模型 + 导出生成器",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./sync": "./src/sync.ts",
+    "./python": "./src/python.ts",
+    "./validate": "./src/validate.ts",
+    "./exporter": "./src/exporter/index.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.0"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  }
+}

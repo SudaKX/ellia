@@ -37,3 +37,15 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Environment（.env.example 允许提交）
+.env
+.env.*
+!.env.example
+
+# SQLite 运行数据（apps/server）
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
