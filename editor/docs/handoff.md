@@ -100,19 +100,21 @@
 - **M0 仓库骨架已完成**：
   - pnpm workspace（`pnpm-workspace.yaml`: `apps/*`, `packages/*`）；根聚合脚本 `pnpm dev`（并行 web+server）/ `pnpm type-check` / `pnpm build`。
   - Vue 脚手架已迁入 `apps/web/`（`@` 别名指向 `apps/web/src`；dev 代理 `/api`、`/ws` → `http://localhost:3000`，可用 `VITE_API_PROXY_TARGET` 覆盖）。
-  - `apps/server/`（`@ellia/server`，Express 5 + 原生 ws，tsx 运行）：`src/{index,app,config}.ts`、`src/ws/hub.ts`（M0 WS echo：hello/ping→pong/echo）、`.env.example`（PORT、ADMIN_USERNAME、ADMIN_PASSWORD）；`src/{routes,db,export,auth}/` 空目录待 M1+。
+  - `apps/server/`（`@ellia/server`，Express 5 + 原生 ws，tsx 运行）：`src/{index,app,config}.ts`、`src/ws/hub.ts`（WS echo：hello/ping→pong/echo）、`.env.example`（PORT、ADMIN_USERNAME、ADMIN_PASSWORD、DATABASE_PATH、SESSION_TTL_DAYS）。
+  - **M1.1a 用户管理与认证后端已完成**：better-sqlite3（迁移 v1：`users`/`invite_codes`/`sessions`，`PRAGMA user_version` 版本化）；`src/db/`、`src/auth/`（scrypt 密码、cookie 会话、邀请码、seed admin）、`src/routes/{auth,admin}.ts`；错误契约 `{error:{code,message}}`；`pnpm --dir apps/server test`（node:test，15 个用例）通过。
   - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（14 种实体 kind + 11 注册表 + KindStateMap + Change/EntityPatch/Project）、`sync.ts`（WS 协议消息）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/stable_id/validation_id 轻校验）、`exporter/`（M3 占位）。
 - 已产出文档：`editor/docs/plan-v1.md`（方案）、`editor/docs/handoff.md`（本文档）。
 - **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟（web 200、`/api` 代理、`/ws` ping/pong 与 echo）通过。
-- **M1 已拆分并完成 OpenSpec 提案（未开始实现）**：拆分计划见 `editor/docs/m1-plan.md`；两个 change 见 `openspec/changes/m1-backend-auth`（SQLite 用户管理与认证 API）与 `openspec/changes/m1-frontend-auth`（登录/注册/admin 界面与 Pinia auth）。`openspec validate` 均已通过。
-- **尚未开始实现**：M1.1 用户管理与认证（先做后端 `m1-backend-auth`，再做前端 `m1-frontend-auth`）；M1.2 项目 CRUD；M2 数据模型与同步；M3 导出。
+- **M1 已拆分并完成 OpenSpec 提案**：拆分计划见 `editor/docs/m1-plan.md`；两个 change 见 `openspec/changes/m1-backend-auth`（SQLite 用户管理与认证 API）与 `openspec/changes/m1-frontend-auth`（登录/注册/admin 界面与 Pinia auth）。`openspec validate` 均已通过。
+- **`m1-backend-auth` 已实现完成（22/22 任务）**：15 个单元测试、type-check、HTTP cookie-jar 冒烟（health / 登录 / 邀请码 / 注册 / 提权 / me）与 WS echo 均通过。
+- **尚未开始实现**：`m1-frontend-auth`（前端认证界面，等用户指示）；M1.2 项目 CRUD；M2 数据模型与同步；M3 导出。
 
 ## 6. 环境事实与坑（新会话务必注意）
 
 - 会话工作目录：`D:\Ds_Projects\FullStack\ellia\editor`。上游 mythos：`D:\Ds_Projects\FullStack\ellia\mythos`。
 - 仓库边界见根 `AGENTS.md`：mythos 只用 `mythos/.venv`；desktop/ 与本项目无关；提交遵循 `type(module): description`（小写）。
 - **工具沙箱问题（已解决）**：当前会话文件策略为 danger-full-access，`pwsh` 可正常执行（pnpm 11.5.1 / node v24.16.0 已验证）。若后续会话出现 `SetNamedSecurityInfoW failed`，先检查会话文件策略。
-- **pnpm 11 配置位置（重要）**：`package.json` 里的 `pnpm.onlyBuiltDependencies` 已被 pnpm 11.5 忽略；构建脚本白名单必须写在 `pnpm-workspace.yaml` 的 `allowBuilds`（当前为 `esbuild: true`）。写回 package.json 会导致 `ERR_PNPM_IGNORED_BUILDS` 并阻断所有 `pnpm <script>`。
+- **pnpm 11 配置位置（重要）**：`package.json` 里的 `pnpm.onlyBuiltDependencies` 已被 pnpm 11.5 忽略；构建脚本白名单必须写在 `pnpm-workspace.yaml` 的 `allowBuilds`（当前为 `esbuild: true`、`better-sqlite3: true`）。写回 package.json 会导致 `ERR_PNPM_IGNORED_BUILDS` 并阻断所有 `pnpm <script>`。
   - `glob`/`grep` 在 mythos 根目录会因 `.pytest_cache` 拒绝访问而失败；应使用 `src/**`、`puzzles/**` 等子目录锚定路径。
   - `read`/`write`/`edit` 工具工作正常。
 - 本仓库是 pnpm 项目；AGENTS.md 中 desktop 的 pnpm 命令形式（`pnpm --dir ...`）可参考，但 editor 改为 workspace 后按根目录执行。
@@ -122,10 +124,9 @@
 
 ```text
 请先阅读 editor/docs/handoff.md 与 editor/docs/plan-v1.md，
-M0 已完成；M1 按 editor/docs/m1-plan.md 拆分。
-先实现 openspec/changes/m1-backend-auth（后端 SQLite 用户管理），
-再实现 openspec/changes/m1-frontend-auth（前端认证界面）。
-使用 openspec instructions apply --change "<name>" --json 获取实现指引。
+M0 完成；M1.1a 后端用户管理完成。
+下一步（待用户指示）实现 openspec/changes/m1-frontend-auth（前端认证界面）。
+使用 openspec instructions apply --change "m1-frontend-auth" --json 获取实现指引。
 ```
 
-M1 的具体步骤：① `apps/server` 接入 better-sqlite3，按 plan-v1.md §3.3 建表（users / invite_codes / projects / entities / entity_blobs / entity_patches / sessions）；② 实现 `/api/auth/*`（注册必须一次性有效邀请码、登录/登出/me，初始 admin 从 `.env` 播种）；③ 实现 `/api/admin/*`（邀请码生成/列表/作废、用户提权）；④ 实现 `/api/projects` CRUD（module_id 唯一校验，用 `@ellia/puzzle-schema` 的 `isValidModuleId`）；⑤ `apps/web` 落地 `/login`、`/register`、`/`（项目列表）、`/admin` 路由与 Pinia auth 状态。
+M1.1a 已完成：better-sqlite3 + 三表迁移、`/api/auth/*`（注册/登录/登出/me）、`/api/admin/*`（邀请码生成/列表/作废、用户列表/提权）、初始 admin 播种、cookie 会话与统一错误格式；测试 `pnpm --dir apps/server test`。剩余：`m1-frontend-auth` 前端；M1.2 项目 CRUD；M2 同步；M3 导出。

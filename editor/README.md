@@ -24,17 +24,20 @@ editor/
 ## 快速开始
 
 ```powershell
-pnpm install        # 安装全部 workspace 依赖
-pnpm dev            # 并行启动 server（:3000）与 web（:5173）
-pnpm type-check     # 三个包全部类型检查
-pnpm build          # 构建 web 生产包（先 vue-tsc 再 Vite）
+pnpm install                # 安装全部 workspace 依赖
+pnpm dev                    # 并行启动 server（:3000）与 web（:5173）
+pnpm type-check             # 三个包全部类型检查
+pnpm build                  # 构建 web 生产包（先 vue-tsc 再 Vite）
+pnpm --dir apps/server test # 后端单元测试（node:test + tsx）
 ```
 
-server 配置读取 `apps/server/.env`（模板见 `apps/server/.env.example`；`.env` 不提交）。
+server 配置读取 `apps/server/.env`（模板见 `apps/server/.env.example`；`.env` 不提交）。首次启动会自动创建 SQLite 数据库（默认 `apps/server/data/ellia.db`）并播种初始 admin。
 
 ## 里程碑状态
 
 - [x] **M0 仓库骨架**：workspace 建立、`apps/web` 迁移、`apps/server`（Express 5 + ws echo）可启动、`@ellia/puzzle-schema` 接通
-- [ ] M1 认证与项目：SQLite、注册/登录/邀请码/初始 admin、项目 CRUD
+- [x] **M1.1a 后端用户管理**：SQLite（better-sqlite3）、注册/登录/登出/me、一次性邀请码、初始 admin、admin 用户管理（含单元测试）
+- [ ] M1.1b 前端认证界面：`/login`、`/register`、`/admin`、Pinia auth 与路由守卫
+- [ ] M1.2 项目 CRUD：`projects` 表 + REST CRUD + 前端项目列表
 - [ ] M2 数据模型与同步：实体/补丁日志、WS 同步协议、编辑器主界面
 - [ ] M3 导出：file-tree.json、`__init__.py` 模板、`puzzles/__init__.py` 合并、zip 打包
