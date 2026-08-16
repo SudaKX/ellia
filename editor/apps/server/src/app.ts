@@ -6,6 +6,8 @@ import { loadConfig, type ServerConfig } from './config.js'
 import { errorHandler, notFoundHandler } from './errors.js'
 import { adminRouter } from './routes/admin.js'
 import { authRouter } from './routes/auth.js'
+import { filesRouter } from './routes/files.js'
+import { projectsRouter } from './routes/projects.js'
 
 /**
  * Express 应用工厂。
@@ -27,6 +29,8 @@ export function createApp(config: ServerConfig = loadConfig()): Express {
 
   app.use('/api/auth', authRouter)
   app.use('/api/admin', adminRouter)
+  app.use('/api/projects', projectsRouter)
+  app.use('/api/files', filesRouter)
   app.use('/api', notFoundHandler)
   app.use(errorHandler)
 

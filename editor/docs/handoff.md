@@ -1,7 +1,7 @@
 # 交接文档 — Ellia 谜题在线多人编辑器（editor/）
 
-> 用途：新对话的起点。新会话开场时**先读本文档，再读 `docs/plan-v1.md`**，即可完整接管。
-> 更新日期：本文档记录截至“v1 方案定稿”的全部调研结论、已确认决策与待办。
+> 用途：新对话的起点。新会话开场时**先读本文档，再读 `docs/plan-v1.md` 与 `docs/plan-v2.md`**，即可完整接管。
+> 更新日期：本文档记录截至“v1 方案定稿”的调研结论与已确认决策；模块数据与同步的**最新设计以 `docs/plan-v2.md` 为准**（v2 修订了 v1 §3/§4/§5/§6/§8/§9）。
 
 ## 1. 项目背景与目标
 
@@ -83,14 +83,14 @@
 - **deploy_baseline**：合并版 `puzzles/__init__.py` 的生成需要基线——方案默认“用户在项目配置中粘贴一次当前 mythos 的 `puzzles/__init__.py` 内容，导出时幂等合并本模块；未配置基线则降级为模块目录 + `register_all.patch` 片段”。实现前可与用户再确认。
 - 表单内保留轻量字段格式即时提示（编辑体验），但**不是**导出强校验，与“导出不校验”不冲突。
 
-## 4. v1 方案要点速览（详见 plan-v1.md）
+## 4. 方案要点速览（v1 详见 plan-v1.md；数据/同步以 plan-v2.md 为准）
 
 - **仓库**：editor 根为 pnpm workspace（`pnpm-workspace.yaml`: `apps/*`, `packages/*`）；现有 `src/`、`index.html`、`vite.config.*` 移入 `apps/web/`。
-- **共享包** `@ellia/puzzle-schema`：`types.ts`（15 种实体 kind + 11 注册表声明类型）、`validate.ts`（编辑期轻校验）、`python.ts`（Python 代码块 slot 与签名模板）、`exporter/`（file-tree.json / `__init__.py` 模板 / `puzzles/__init__.py` 合并 / zip 打包）。
-- **实体种类**（同步与版本的基本单位）：`progress-node`、`file-tree-node`、`asset`、`hint`、`script`、`validation`、`artifact-template`、`artifact-node`、`account-template`、`credit-template`、`achievement`、`task`、`event-listener`、`python-block`（另有自由辅助函数）。
-- **SQLite 表**：`users`、`invite_codes`、`projects`（含 `deploy_baseline`）、`entities`（id/kind/version/state JSON/deleted）、`entity_blobs`、`entity_patches`、`sessions`。
-- **WS 协议**：`join{project_id, vector}` → `sync{entities, tombstones}`；`patch{entity_id, base_version, changes}` → `applied` + 广播 `update{..., base_mismatch?}`；`ping/pong`、`presence`。文本编辑防抖约 500ms 整文提交。
-- **REST**：auth（register/login/logout/me）、admin（invites 生成/列表/作废、promote）、projects（CRUD + `/export`）、WS `/ws/projects/:id`。
+- **共享包** `@ellia/puzzle-schema`：`types.ts`（16 种实体 kind + 11 注册表 + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap）、`sync.ts`（WS v2 协议消息）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/resource_id/group/data_path 校验）、`exporter/`（导出占位，延后）。
+- **实体种类**：`progress-node`、`file-tree-node`、`file-tree`、`progress-dag`、`asset`、`hint`、`script`、`validation`、`artifact-template`、`artifact-node`、`account-template`、`credit-template`、`achievement`、`task`、`event-listener`、`python-block`。节点只存数据，树/DAG 拓扑在 `file-tree`/`progress-dag` 容器中；`asset.state={file_id,media_type}`，路径身份在 `resource_id`（`asset-path:<相对路径>`）。
+- **SQLite 表**：`users`、`invite_codes`、`sessions`、`projects`、`entities`（revision/version 双计数器 + JSON state）、`entity_history`（每实体 ≤N 快照，N 固化在 app_meta）、`files`（UUID 主键元数据；字节在 `FILE_DATA_DIR/<uuid>`）。
+- **WS 协议 v2**：`/ws/projects/:id` 经 cookie 会话认证；`join{vector}`→`sync`（revision 向量全量 diff + removed_ids）；`create/patch/delete/rollback/history`；`lock/unlock` 字段锁（每连接 1 把、断线清理）；`focus/presence` 在场；`ping/pong`。
+- **REST**：auth（register/login/logout/me）、admin（invites/users）、projects（CRUD）、files（POST/GET/DELETE `/api/files`，手动删除无条件、允许悬空 file_id）；`/export` 延后。
 - **导出模板要点**：自动生成 imports、`MODULE_ID`、`_handler = module_handler(MODULE_ID)`、用户函数体 + 自动补 `@_handler` 装饰器、`register()` 内固定顺序的注册调用、`access_rules` 名→函数映射、`register_json_tree_asset(...)`。
 - **前端**：`/login`、`/register`、`/`（项目列表）、`/admin`、`/projects/:id`（左实体树 / 中表单+CodeMirror+DAG 预览 / 右导出+历史 / 底部连接与成员状态）。
 - **里程碑**：M0 骨架 → M1 认证与项目 → M2 数据模型与同步 → M3 导出；验收项见 plan-v1.md §9。
@@ -100,15 +100,20 @@
 - **M0 仓库骨架已完成**：
   - pnpm workspace（`pnpm-workspace.yaml`: `apps/*`, `packages/*`）；根聚合脚本 `pnpm dev`（并行 web+server）/ `pnpm type-check` / `pnpm build`。
   - Vue 脚手架已迁入 `apps/web/`（`@` 别名指向 `apps/web/src`；dev 代理 `/api`、`/ws` → `http://localhost:3000`，可用 `VITE_API_PROXY_TARGET` 覆盖）。
-  - `apps/server/`（`@ellia/server`，Express 5 + 原生 ws，tsx 运行）：`src/{index,app,config}.ts`、`src/ws/hub.ts`（WS echo：hello/ping→pong/echo）、`.env.example`（PORT、ADMIN_USERNAME、ADMIN_PASSWORD、DATABASE_PATH、SESSION_TTL_DAYS）。
-  - **M1.1a 用户管理与认证后端已完成**：better-sqlite3（迁移 v1：`users`/`invite_codes`/`sessions`，`PRAGMA user_version` 版本化）；`src/db/`、`src/auth/`（scrypt 密码、cookie 会话、邀请码、seed admin）、`src/routes/{auth,admin}.ts`；错误契约 `{error:{code,message}}`；`pnpm --dir apps/server test`（node:test，15 个用例）通过。
-  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（14 种实体 kind + 11 注册表 + KindStateMap + Change/EntityPatch/Project）、`sync.ts`（WS 协议消息）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/stable_id/validation_id 轻校验）、`exporter/`（M3 占位）。
-- 已产出文档：`editor/docs/plan-v1.md`（方案）、`editor/docs/handoff.md`（本文档）。
-- **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟（web 200、`/api` 代理、`/ws` ping/pong 与 echo）通过。
-- **M1 已拆分并完成 OpenSpec 提案**：拆分计划见 `editor/docs/m1-plan.md`；两个 change 见 `openspec/changes/m1-backend-auth`（SQLite 用户管理与认证 API）与 `openspec/changes/m1-frontend-auth`（登录/注册/admin 界面与 Pinia auth）。`openspec validate` 均已通过。
-- **`m1-backend-auth` 已实现完成（22/22 任务）**：15 个单元测试、type-check、HTTP cookie-jar 冒烟（health / 登录 / 邀请码 / 注册 / 提权 / me）与 WS echo 均通过。
-- **`m1-frontend-auth` 已实现完成（21/21 任务）**：`/login`、`/register`、`/`、`/admin` 页面 + Pinia auth/theme store + 路由守卫；Material 3 风格（`src/styles/tokens.css` 集中 light/dark 颜色令牌，`base.css` 消费令牌，主题切换持久化到 localStorage 并跟随系统偏好）；type-check/build 与无头浏览器守卫冒烟通过。
-- **尚未开始实现**：M1.2 项目 CRUD（后端 `projects` 表 + CRUD，前端项目列表）；M2 数据模型与同步；M3 导出。
+  - `apps/server/`（`@ellia/server`，Express 5 + 原生 ws，tsx 运行）：`src/{index,app,config}.ts`、`src/ws/{hub,rooms,locks,presence}.ts`、`.env.example`（PORT、ADMIN_USERNAME、ADMIN_PASSWORD、DATABASE_PATH、SESSION_TTL_DAYS、FILE_DATA_DIR、MAX_FILE_BYTES、ENTITY_HISTORY_LIMIT）。
+  - **M1.1a 用户管理与认证后端已完成**：better-sqlite3（迁移 v1：`users`/`invite_codes`/`sessions`，`PRAGMA user_version` 版本化）；`src/db/`、`src/auth/`（scrypt 密码、cookie 会话、邀请码、seed admin）、`src/routes/{auth,admin}.ts`；错误契约 `{error:{code,message}}`。
+  - **M1.1b 前端认证界面已完成**：`/login`、`/register`、`/`、`/admin` + Pinia auth/theme + 路由守卫 + Material 3 亮暗主题。
+  - **M1.2 + M2 后端已完成（本 change `m2-backend-sync`）**：
+    - 迁移 v2 `projects`；v3 `entities`/`entity_history`/`files`/`app_meta`；
+    - REST：`GET/POST /api/projects`、`GET/PATCH /api/projects/:id`；`POST/GET/DELETE /api/files`（raw bytes、sha256/size、手动删除无条件）；
+    - WS v2 `/ws/projects/:id`：cookie 会话认证、join/sync 全量 diff、create/patch/delete/rollback/history、字段锁（每连接 1 把）、focus/presence、心跳；
+    - 实体：16 kind、`revision`/`version` 双计数器、每实体 ≤N 历史快照（N 固化 app_meta）、物理删除级联历史。
+  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（16 种实体 kind + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap + Entity/EntityRecord/Project/FileRecord）、`sync.ts`（SYNC_PROTOCOL_VERSION=2 消息全集）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/validation_id/stable_id/resource_id/group/data_path）、`exporter/`（导出占位，延后）。
+- 已产出文档：`editor/docs/plan-v1.md`（v1 方案）、`editor/docs/plan-v2.md`（数据/同步修订，**当前实施依据**）、`editor/docs/m1-plan.md`、本文档。
+- **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟通过。
+- **OpenSpec**：`m1-backend-auth` 与 `m1-frontend-auth` 已实现并归档；`m2-backend-sync` 已实现（42/42 任务），待归档。
+- **验证状态**：`pnpm --dir apps/server test` 共 59 个用例全部通过（auth 9 + admin 6 + entities 13 + projects 8 + sync 16 + files 7）；本地冒烟覆盖 WS 全流程、文件悬空删除、重启后 app_meta N 固化。
+- **尚未实现**：前端项目列表与编辑器界面（M1.2b / M2 前端）、M3 导出（延后）。
 
 ## 6. 环境事实与坑（新会话务必注意）
 
@@ -124,9 +129,9 @@
 ## 7. 新对话开场建议
 
 ```text
-请先阅读 editor/docs/handoff.md 与 editor/docs/plan-v1.md，
-M0 完成；M1.1（后端用户管理 + 前端认证界面）完成。
-下一步实现 M1.2 项目 CRUD（后端 projects 表/CRUD + 前端项目列表）。
+请先阅读 editor/docs/handoff.md、editor/docs/plan-v1.md 与 editor/docs/plan-v2.md。
+M0、M1.1、M1.2 与 M2 后端均已完成（m2-backend-sync 已实现，待归档）。
+下一步：M1.2b/M2 前端（项目列表 + 编辑器界面，按 plan-v2 §8）或归档 m2-backend-sync。
 ```
 
-M1.1 已完成：后端 better-sqlite3 三表迁移、auth/admin API、cookie 会话、初始 admin 播种（测试 `pnpm --dir apps/server test`）；前端 Material 3 登录/注册/管理界面、Pinia auth、路由守卫、亮暗主题令牌切换。剩余：M1.2 项目 CRUD；M2 同步；M3 导出。
+M1.1 已完成：认证/管理 API 与前端认证界面。M1.2+M2 后端已完成：projects CRUD、entities/entity_history/files/app_meta、WS v2（锁/在场/历史/重连全量）、文件 REST；59 个后端测试通过。剩余：前端项目列表与编辑器 UI；M3 导出（延后）。

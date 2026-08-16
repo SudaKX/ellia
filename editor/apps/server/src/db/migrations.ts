@@ -38,6 +38,76 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 2,
+    up(db) {
+      db.exec(`
+        CREATE TABLE projects (
+          id              TEXT PRIMARY KEY,
+          module_id       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+          display_name    TEXT NOT NULL,
+          description     TEXT,
+          deploy_baseline TEXT,
+          created_by      TEXT NOT NULL REFERENCES users(id),
+          created_at      TEXT NOT NULL,
+          updated_at      TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_projects_updated_at ON projects(updated_at DESC);
+      `)
+    },
+  },
+  {
+    version: 3,
+    up(db) {
+      db.exec(`
+        CREATE TABLE entities (
+          id          TEXT PRIMARY KEY,
+          project_id  TEXT NOT NULL REFERENCES projects(id),
+          "group"     TEXT NOT NULL,
+          kind        TEXT NOT NULL,
+          ui_kind     TEXT NOT NULL,
+          resource_id TEXT NOT NULL,
+          revision    INTEGER NOT NULL,
+          version     INTEGER NOT NULL,
+          state       TEXT NOT NULL,
+          created_at  TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        );
+
+        CREATE UNIQUE INDEX idx_entities_resource
+          ON entities(project_id, resource_id);
+        CREATE INDEX idx_entities_group ON entities(project_id, "group", kind);
+
+        CREATE TABLE entity_history (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_id  TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+          version    INTEGER NOT NULL,
+          state      TEXT NOT NULL,
+          author_id  TEXT NOT NULL REFERENCES users(id),
+          created_at TEXT NOT NULL,
+          UNIQUE(entity_id, version)
+        );
+
+        CREATE INDEX idx_entity_history ON entity_history(entity_id, version DESC);
+
+        CREATE TABLE files (
+          id            TEXT PRIMARY KEY,
+          original_name TEXT,
+          media_type    TEXT NOT NULL,
+          size          INTEGER NOT NULL,
+          sha256        TEXT NOT NULL,
+          uploaded_by   TEXT NOT NULL REFERENCES users(id),
+          created_at    TEXT NOT NULL
+        );
+
+        CREATE TABLE app_meta (
+          "key" TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: Database.Database): void {

@@ -20,6 +20,14 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(error.status).json({ error: { code: error.code, message: error.message } })
     return
   }
+  if (
+    error instanceof Error &&
+    'type' in error &&
+    (error as { type?: unknown }).type === 'entity.too.large'
+  ) {
+    res.status(413).json({ error: { code: 'FILE_TOO_LARGE', message: '文件超过大小上限' } })
+    return
+  }
   console.error('[ellia-server] unhandled error:', error)
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal server error' } })
 }

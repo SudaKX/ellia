@@ -12,6 +12,12 @@ export interface ServerConfig {
   sessionTtlDays: number
   /** 生产环境给会话 cookie 附加 Secure 标记 */
   secureCookies: boolean
+  /** 文件数据目录（UUID → bytes 单层存储） */
+  fileDataDir: string
+  /** 单文件上传上限（字节） */
+  maxFileBytes: number
+  /** 每实体历史快照上限 N（建库时固化进 app_meta） */
+  entityHistoryLimit: number
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
@@ -27,5 +33,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     databasePath: env.DATABASE_PATH?.trim() || 'data/ellia.db',
     sessionTtlDays: parsePositiveInt(env.SESSION_TTL_DAYS, 30),
     secureCookies: env.NODE_ENV === 'production',
+    fileDataDir: env.FILE_DATA_DIR?.trim() || 'data/files',
+    maxFileBytes: parsePositiveInt(env.MAX_FILE_BYTES, 50 * 1024 * 1024),
+    entityHistoryLimit: parsePositiveInt(env.ENTITY_HISTORY_LIMIT, 20),
   }
 }
