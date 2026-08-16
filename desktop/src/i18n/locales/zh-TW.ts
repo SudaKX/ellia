@@ -179,6 +179,46 @@ export const zhTW = {
     attachedTitle: '貼合中 · {title}',
     continue: '繼續 ▸',
   },
+  /** 貼邊 AI 對話窗劇本台詞（AiNode.text / AiChoice.label 的 i18n key） */
+  aiScripts: {
+    default: {
+      hello: '……你把我拖過來了。怎麼，需要幫忙？',
+      helloChat: '隨便聊聊',
+      helloQuiet: '你先安靜待著',
+      chat: '這個系統裡的文件、謎題、終端……我都看得見。你卡住了可以隨時問我。',
+      quiet: '……好。我閉嘴。不過你搖一搖我，我就走。',
+      end: '……我盯著你。別亂翻不該翻的東西。',
+    },
+    files: {
+      hello: '你在翻文件。……學姊的檔案系統裡，藏了不少東西。雙擊就能打開，有些檔案會觸發劇情。',
+      helloWorth: '有哪些值得看？',
+      helloOk: '知道了',
+      tip: '帶 .puz 後綴的是謎題，雙擊能打開。init.exe 別亂動——那是開場劇情。',
+      end: '……去吧。卡住了叫我。',
+    },
+    terminal: {
+      hello: '終端？有意思。用 help 看看指令，sil 可以打開謎題。',
+      helloLs: '幫我看看檔案',
+      helloOk: '知道了',
+      ls: 'ls 列出當前目錄，cat 讀取檔案內容。這裡的虛擬檔案系統和劇情聯動。',
+      end: '……小心輸入。別讓指令跑進不該去的地方。',
+    },
+    caesar: {
+      hello: '凱薩密碼？……字母位移而已。密文 "khoor zruog" 每個字母往前移 3 位。',
+      helloHow: '具體怎麼移？',
+      helloTry: '我先自己試試',
+      tip: 'k→h，h→e，o→l……按字母表逐個回退 3 位。你要是輸錯太多次，我也可以幫你。',
+      end: '……加油。實在不行再喊我。',
+    },
+    wrong2: '……看你卡了半天。要不要我幫你把提示打開？一次 30 個 TVB。',
+    wrong2Open: '幫我打開提示（-30 TVB）',
+    wrong2Think: '我再想想',
+    wrong2After: '提示給你了。剩下你自己琢磨。',
+    wrong2Quiet: '……行，我看著。',
+    wrong3: '……我受夠了。答案我幫你填好了，你自己核對一下再提交。',
+    wrong3End: '下次別這麼磨蹭。',
+    noCredits: '……你的 TVB 不夠。先想辦法賺點吧。',
+  },
   /** 互動式命令終端機 */
   terminal: {
     boot: {

@@ -177,6 +177,46 @@ export const enUS = {
     attachedTitle: 'Attached · {title}',
     continue: 'Continue ▸',
   },
+  /** AI chat script lines (i18n keys for AiNode.text / AiChoice.label) */
+  aiScripts: {
+    default: {
+      hello: '...You dragged me over here. Need something?',
+      helloChat: 'Just chatting',
+      helloQuiet: 'Stay quiet for now',
+      chat: 'I can see everything in this system—files, puzzles, terminals. Ask me if you get stuck.',
+      quiet: '...Fine. I\'ll shut up. Shake me if you want me gone.',
+      end: '...I\'m watching you. Don\'t go poking where you shouldn\'t.',
+    },
+    files: {
+      hello: 'Rummaging through files? ...The senpai\'s file system hides a lot. Double-click to open—some files trigger story events.',
+      helloWorth: 'Anything worth reading?',
+      helloOk: 'Got it',
+      tip: 'Files with a .puz suffix are puzzles—double-click opens them. Don\'t touch init.exe—that\'s the opening event.',
+      end: '...Go on. Call me if you\'re stuck.',
+    },
+    terminal: {
+      hello: 'A terminal? Fun. Use help for commands—sil opens puzzles.',
+      helloLs: 'Help me check the files',
+      helloOk: 'Got it',
+      ls: 'ls lists the current directory, cat reads files. This virtual file system ties into the story.',
+      end: '...Type carefully. Don\'t let a command run somewhere it shouldn\'t.',
+    },
+    caesar: {
+      hello: 'A Caesar cipher? ...Just letter shifting. In "khoor zruog", shift every letter back 3.',
+      helloHow: 'How exactly?',
+      helloTry: 'Let me try first',
+      tip: 'k→h, h→e, o→l... Step back 3 letters in the alphabet. If you mess up too many times, I can help.',
+      end: '...Good luck. Call me if you\'re truly stuck.',
+    },
+    wrong2: '...I can see you\'ve been stuck. Want me to open the hint? 30 TVB a pop.',
+    wrong2Open: 'Open the hint (-30 TVB)',
+    wrong2Think: 'I\'ll think about it',
+    wrong2After: 'Hint\'s open. Figure out the rest yourself.',
+    wrong2Quiet: '...Fine. I\'ll watch.',
+    wrong3: '...I\'ve had enough. I filled in the answer for you—check it before submitting.',
+    wrong3End: 'Don\'t dawdle next time.',
+    noCredits: '...Your TVB isn\'t enough. Go earn some first.',
+  },
   /** Interactive command terminal */
   terminal: {
     boot: {

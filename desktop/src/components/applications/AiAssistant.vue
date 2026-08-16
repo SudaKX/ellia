@@ -450,11 +450,13 @@ function startTyping(): void {
   }
   stopTyping()
   isTyping.value = true
+  // node.text 为 i18n key，先翻译再按字符逐字输出
+  const displayText = t(node.text)
   let cursor = 0
   typeTimer = setInterval(() => {
     cursor += 1
-    typedText.value = node.text!.slice(0, cursor)
-    if (cursor >= node.text!.length) stopTyping()
+    typedText.value = displayText.slice(0, cursor)
+    if (cursor >= displayText.length) stopTyping()
   }, TYPING_DELAY_MS)
 }
 
@@ -494,7 +496,7 @@ function handleLinesClick(): void {
   const node = current.value
   if (!node) return
   if (isTyping.value) {
-    typedText.value = node.text ?? ''
+    typedText.value = t(node.text ?? '')
     stopTyping()
     return
   }
@@ -524,10 +526,10 @@ function buildPuzzleHintOffer(): AiNode[] {
     {
       id: 'wrong-2',
       expression: 'awkward',
-      text: '……看你卡了半天。要不要我帮你把提示打开？一次 30 个 TVB。',
+      text: 'aiScripts.wrong2',
       choices: [
         {
-          label: '帮我打开提示（-30 TVB）',
+          label: 'aiScripts.wrong2Open',
           effect: () => {
             if (creditsStore.spendVtb(AI_HINT_COST) && hostWindowId.value) {
               sendHostAction(hostWindowId.value, 'ai-open-hint')
@@ -537,11 +539,11 @@ function buildPuzzleHintOffer(): AiNode[] {
           },
           next: 'wrong-2-after',
         },
-        { label: '我再想想', next: 'wrong-2-quiet' },
+        { label: 'aiScripts.wrong2Think', next: 'wrong-2-quiet' },
       ],
     },
-    { id: 'wrong-2-after', expression: 'smile', text: '提示给你了。剩下你自己琢磨。' },
-    { id: 'wrong-2-quiet', expression: 'normal', text: '……行，我看着。' },
+    { id: 'wrong-2-after', expression: 'smile', text: 'aiScripts.wrong2After' },
+    { id: 'wrong-2-quiet', expression: 'normal', text: 'aiScripts.wrong2Quiet' },
   ]
 }
 
@@ -551,18 +553,18 @@ function buildPuzzleAutoFill(): AiNode[] {
     {
       id: 'wrong-3',
       expression: 'urgent',
-      text: '……我受够了。答案我帮你填好了，你自己核对一下再提交。',
+      text: 'aiScripts.wrong3',
       effect: () => {
         if (hostWindowId.value) sendHostAction(hostWindowId.value, 'ai-fill-answer')
       },
     },
-    { id: 'wrong-3-end', expression: 'normal', text: '下次别这么磨蹭。' },
+    { id: 'wrong-3-end', expression: 'normal', text: 'aiScripts.wrong3End' },
   ]
 }
 
 /** TVB 余额不足 */
 function buildInsufficientBalance(): AiNode[] {
-  return [{ id: 'no-credits', expression: 'annoy', text: '……你的 TVB 不够。先想办法赚点吧。' }]
+  return [{ id: 'no-credits', expression: 'annoy', text: 'aiScripts.noCredits' }]
 }
 </script>
 
@@ -605,7 +607,7 @@ function buildInsufficientBalance(): AiNode[] {
         type="button"
         @click="handleChoice(choice)"
       >
-        {{ choice.label }}
+        {{ t(choice.label) }}
       </button>
     </div>
 
@@ -642,17 +644,6 @@ function buildInsufficientBalance(): AiNode[] {
   flex-direction: row;
 }
 
-/* "大头照"待机态：无聊天文字时图片占满整个内容区（覆盖贴合态左图右文） */
-.ai-assistant__body--portrait {
-  flex-direction: column;
-}
-
-.ai-assistant__body--portrait .ai-assistant__image-area {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-}
-
 /* 图片区：离开态占满整个 body；贴合态为左侧固定 128 方形（表情差分） */
 .ai-assistant__image-area {
   position: relative;
@@ -666,6 +657,18 @@ function buildInsufficientBalance(): AiNode[] {
   flex: 0 0 128px;
   width: 128px;
   height: 128px;
+}
+
+/* "大头照"待机态：无聊天文字时图片占满整个内容区（覆盖贴合态左图右文） */
+/* 注意：必须写在 .ai-assistant__body--attached 规则之后，同特异性下后者生效 */
+.ai-assistant__body--portrait {
+  flex-direction: column;
+}
+
+.ai-assistant__body--portrait .ai-assistant__image-area {
+  flex: 1;
+  width: 100%;
+  height: 100%;
 }
 
 .ai-assistant__canvas {

@@ -11,7 +11,8 @@
  *
  * ## 约定
  *
- * - 对话文本与选项文案为**内容数据**，不参与 i18n（与 story 一致）
+ * - 对话文本与选项文案均为 **i18n key**（`aiScripts.*`），渲染时由 AiAssistant 的
+ *   `t()` 翻译；key 缺失时回退为 key 本身
  * - 选项数量 1 ~ 4，超出部分忽略
  */
 
@@ -34,7 +35,7 @@ export type AiExpression =
 
 /** 玩家选项（1 ~ 4 个） */
 export interface AiChoice {
-  /** 选项按钮文案（内容数据） */
+  /** 选项按钮文案（i18n key，如 `aiScripts.default.helloChat`） */
   label: string
   /** 跳转目标节点 id；缺省 = 顺序下一个 */
   next?: string
@@ -48,7 +49,7 @@ export interface AiNode {
   id?: string
   /** kei 表情差分；缺省保持上一节点表情 */
   expression?: AiExpression
-  /** 台词正文（内容数据，不参与 i18n） */
+  /** 台词正文（i18n key，如 `aiScripts.default.hello`） */
   text?: string
   /** 玩家选项（1~4 个） */
   choices?: AiChoice[]
