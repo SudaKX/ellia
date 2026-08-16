@@ -104,6 +104,37 @@ let lastHostCandidate: string | null = null
 const script = ref<AiNode[]>([])
 const nodeIndex = ref(0)
 const typedText = ref('')
+/** 贴合缝隙"数据流光"特效层（Teleport 到 desktop-workspace，随窗口几何更新位置） */
+const gapEl = ref<HTMLDivElement | null>(null)
+/** 缝隙光点带：出发位置在目标窗口贴合边全高均匀分布，到达位置保持密集带分布 */
+const gapDots = ref<{ yStart: number; dy: number; delay: number }[]>([])
+
+/** 密集带区间：上缘 12.5%、下缘 25%（区域高度比例，顶 0% 底 100%） */
+const DOT_BAND_TOP = 0.125
+const DOT_BAND_BOTTOM = 0.25
+/** 已生成点带的几何签名（区域高度），变化时重新分布 */
+let lastDotGen = ''
+
+/**
+ * 生成光点带：
+ * - 出发位置（yStart，区域高度百分比 0~100）：目标窗口贴合边全高均匀分布
+ * - 到达位置：全部落在固定密集带（12.5%~25%）
+ * - dy：从出发到到达的垂直位移（px），由区域高度换算，动画做斜线汇聚流动
+ *
+ * @param rectHeight 缝隙区域高度（px），用于把百分比位移换算成像素
+ */
+function spawnGapDots(rectHeight: number): void {
+  gapDots.value = Array.from({ length: 34 }, (_, i) => {
+    // 出发：全高均匀
+    const yStart = Math.random() * 100
+    // 到达：全部进入密集带
+    const yEnd = (DOT_BAND_TOP + Math.random() * (DOT_BAND_BOTTOM - DOT_BAND_TOP)) * 100
+    const dy = rectHeight > 0 ? ((yEnd - yStart) / 100) * rectHeight : 0
+    // 相邻点小幅错开相位，保持"点带"整体流动感的同时有细微粒子流质感
+    const delay = (i % 5) * 0.09 + Math.random() * 0.18
+    return { yStart, dy, delay }
+  })
+}
 const isTyping = ref(false)
 const currentExpression = ref<AiExpression>('normal')
 const hostTitle = ref('')
@@ -392,6 +423,74 @@ function applyAttachedBounds(): void {
   updateSelfWindow({ ...computeAttachedBounds(host), resizable: false })
 }
 
+/**
+ * 贴合缝隙"数据流光"：根据两窗口几何计算缝隙条带的位置与流向。
+ * 区域 = 两窗口贴合边的并集高度，clip-path 裁成"四角相连"的梯形：
+ * host 贴合边的上下两角 ↔ AI 贴合边的上下两角。
+ * 数据从目标窗口流向 AI 窗口（右贴 → 光点左→右，左贴 → 反向）。
+ * 内部重新读取最新窗口几何，避免拿到本帧更新前的旧值。
+ */
+function updateGapEffects(host: WindowInstance | null): void {
+  const gap = gapEl.value
+  const aiWin = selfWindowId ? findWindow(selfWindowId) : null
+  if (!gap || !host || !aiWin) return
+
+  let gapLeft: number
+  let gapWidth: number
+  if (host.isMaximized) {
+    // 目标全屏：AI 窗贴屏幕右缘，缝隙为右侧 EDGE_GAP 条带
+    gapLeft = host.x + host.width - EDGE_GAP
+    gapWidth = EDGE_GAP
+  } else if (aiWin.x > host.x) {
+    // 右贴：AI 窗在目标窗口右侧，缝隙 = host 右缘 → AI 左缘
+    gapLeft = host.x + host.width
+    gapWidth = aiWin.x - gapLeft
+  } else {
+    // 左贴：AI 窗在目标窗口左侧，缝隙 = AI 右缘 → host 左缘
+    gapLeft = aiWin.x + aiWin.width
+    gapWidth = host.x - gapLeft
+  }
+  gapWidth = Math.max(0, gapWidth)
+
+  // 区域 = 两窗口贴合边的并集高度（含错位），clip-path 裁成"四角相连"的梯形
+  const rectTop = Math.min(host.y, aiWin.y)
+  const rectBottom = Math.max(host.y + host.height, aiWin.y + aiWin.height)
+  const rectHeight = Math.max(0, rectBottom - rectTop)
+
+  // 拖动中：位置即时跟随（禁过渡）；松手后：平滑回贴/跟随（避免瞬间跳变）。
+  // 必须在几何更新之前设置 transition，否则同帧属性已更新完、过渡不会触发。
+  // 【临时注释】去掉全部动画过渡，先看静态效果
+  // gap.style.transition = isAiDragging
+  //   ? 'none'
+  //   : 'left 0.25s ease-out, top 0.25s ease-out, width 0.25s ease-out, height 0.25s ease-out, opacity 0.35s ease'
+
+  gap.style.left = `${gapLeft}px`
+  gap.style.top = `${rectTop}px`
+  gap.style.width = `${gapWidth}px`
+  gap.style.height = `${rectHeight}px`
+
+  // 梯形顶点（相对元素左上角）
+  const aiRight = aiWin.x > host.x
+  const hostTopY = host.y - rectTop
+  const hostBottomY = host.y + host.height - rectTop
+  const aiTopY = aiWin.y - rectTop
+  const aiBottomY = aiWin.y + aiWin.height - rectTop
+  gap.style.clipPath = aiRight
+    ? `polygon(0 ${hostTopY}px, 0 ${hostBottomY}px, ${gapWidth}px ${aiBottomY}px, ${gapWidth}px ${aiTopY}px)`
+    : `polygon(0 ${aiTopY}px, 0 ${aiBottomY}px, ${gapWidth}px ${hostBottomY}px, ${gapWidth}px ${hostTopY}px)`
+
+  gap.style.setProperty('--flow', aiRight ? '1' : '-1')
+  // 任一窗口最小化（联动隐藏）时流光同步隐藏
+  gap.style.visibility = host.isMinimized || aiWin.isMinimized ? 'hidden' : 'visible'
+
+  // 惰性生成光点带：出发全高均匀、到达保持密集带；区域高度变化时重新分布
+  const dotSig = `${rectHeight.toFixed(0)}`
+  if (gapDots.value.length === 0 || dotSig !== lastDotGen) {
+    lastDotGen = dotSig
+    spawnGapDots(rectHeight)
+  }
+}
+
 function startFollowLoop(): void {
   stopFollowLoop()
   const loop = () => {
@@ -413,6 +512,8 @@ function startFollowLoop(): void {
         updateSelfWindow({ isMinimized: host.isMinimized })
       }
     }
+    // 缝隙流光位置随窗口几何实时更新（内部读取最新窗口几何）
+    updateGapEffects(host)
     followRaf = requestAnimationFrame(loop)
   }
   followRaf = requestAnimationFrame(loop)
@@ -615,6 +716,31 @@ function buildInsufficientBalance(): AiNode[] {
       {{ t('aiChat.continue') }}
     </div>
   </section>
+
+  <!-- 贴合缝隙"数据流光"特效：Teleport 到桌面工作区（与窗口同一坐标系，避免状态栏偏移），
+       显隐用 opacity 过渡，分离/贴合时淡入淡出而非瞬间消失 -->
+  <Teleport to=".desktop-workspace">
+    <div
+      ref="gapEl"
+      class="liaison-gap"
+      :class="{ 'liaison-gap--off': !isAttached }"
+      aria-hidden="true"
+    >
+      <!-- 光点带：从目标窗口贴合边全高均匀出发，斜线流到 AI 窗口侧密集带 -->
+      <!-- 【临时注释】光点带（粒子）先隐藏
+      <span
+        v-for="(dot, i) in gapDots"
+        :key="i"
+        class="liaison-gap__dot"
+        :style="{
+          top: `${dot.yStart}%`,
+          animationDelay: `${dot.delay}s`,
+          '--flow-dy': `${dot.dy}px`,
+        }"
+      />
+      -->
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -760,4 +886,65 @@ function buildInsufficientBalance(): AiNode[] {
 .ai-assistant__continue:hover {
   color: var(--signal-mint);
 }
+
+/* ── 贴合缝隙"数据流光"特效（Teleport 到 desktop-workspace 的覆盖层） ──
+   与窗口处于同一坐标系（绝对定位），避免状态栏导致的视口偏移；
+   clip-path 由 JS 实时裁成"两窗口四角相连"的梯形；
+   颜色跟随主题（--signal-mint + color-mix），明/暗主题自动适配 */
+.liaison-gap {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 1;
+  /* 淡入淡出（贴合/分离），位置过渡由 JS 每帧写入 inline */
+  /* 【临时注释】 transition: opacity 0.35s ease; */
+  /* 梯形内微弱的连接底色 */
+  /* 【临时注释】光带底色先隐藏
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--signal-mint) 14%, transparent),
+    transparent
+  );
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--signal-mint) 20%, transparent);
+  */
+}
+
+.liaison-gap--off {
+  opacity: 0;
+}
+
+/* 数据光点带：从目标窗口贴合边全高均匀出发，斜线流到 AI 窗口侧密集带（12.5%~25%） */
+/* 【临时注释】粒子样式先隐藏
+.liaison-gap__dot {
+  position: absolute;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: var(--signal-mint);
+  box-shadow: 0 0 5px 1px color-mix(in srgb, var(--signal-mint) 55%, transparent);
+  animation: liaison-dot-flow 2.6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+*/
+
+/* 【临时注释】@keyframes liaison-dot-flow {
+  0% {
+    transform: translate(calc(-16px * var(--flow, 1)), 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(16px * var(--flow, 1)), var(--flow-dy, 0px));
+    opacity: 0;
+  }
+}*/
 </style>
