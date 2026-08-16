@@ -98,11 +98,22 @@ export function useHalftone(options?: HalftoneOptions) {
    * @param imageUrl 图片 URL，同时也是缓存 key
    */
   async function renderMaster(imageUrl: string): Promise<void> {
-    // Step 1: 加载图片
+    // Step 1: 加载图片（decode 失败时兜底到 onload，仍失败则抛出，由 render 调用方决定如何降级）
     const image = new Image()
     image.crossOrigin = 'anonymous'
     image.src = imageUrl
-    await image.decode()
+
+    try {
+      await image.decode()
+    } catch {
+      // 部分环境/图片 decode 不可用或加载失败 → 回退到 onload 等待
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error(`Halftone image load failed: ${imageUrl}`))
+        // 已缓存图片可能不触发 onload 回调，检查尺寸兜底
+        if (image.complete && image.naturalWidth > 0) resolve()
+      })
+    }
 
     const imgW = image.naturalWidth
     const imgH = image.naturalHeight

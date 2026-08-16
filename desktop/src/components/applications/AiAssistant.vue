@@ -56,6 +56,11 @@ const props = defineProps<{
   overrideImage?: string | null
 }>()
 
+// 声明 close 为自定义事件，避免 WindowFrame 透传的 @close 因组件多根节点无法继承而刷 Vue 警告
+defineEmits<{
+  close: []
+}>()
+
 const { t } = useI18n({ useScope: 'global' })
 const audioService = useAudioService()
 const halftone = useHalftone({ dotSpacing: 3, maxRadius: 2.5, minRadius: 0.6 })
@@ -138,6 +143,17 @@ function spawnGapDots(rectHeight: number): void {
 const isTyping = ref(false)
 const currentExpression = ref<AiExpression>('normal')
 const hostTitle = ref('')
+/**
+ * "大头照"待机态：剧本结束 / 无对白节点时表情大图占满内容区。
+ * 防抖：typedText 为空先等 PORTRAIT_DEBOUNCE_MS，仍为空才变大，
+ * 避免跳转下一段文字瞬间 typedText 被清空导致一闪。
+ */
+const isPortraitMode = ref(false)
+/** 大头照防抖定时器 */
+let portraitTimer: ReturnType<typeof setTimeout> | null = null
+
+/** typedText 清空后进入大头照的等待时长（ms） */
+const PORTRAIT_DEBOUNCE_MS = 200
 
 let typeTimer: ReturnType<typeof setInterval> | null = null
 let followRaf = 0
@@ -152,13 +168,6 @@ const isAttached = computed(() => liaisonState.value === 'attached')
 const current = computed(() => script.value[nodeIndex.value] ?? null)
 const displayImage = computed(() =>
   isAttached.value ? expressionImage(currentExpression.value) : currentImage.value,
-)
-/**
- * "大头照"待机态：贴合中且没有聊天文字（剧本结束 / 无对白节点）时，
- * 表情大图占满整个内容区（隐藏文字区与选项行）。
- */
-const isPortraitMode = computed(() =>
-  isAttached.value && !typedText.value && !current.value?.choices,
 )
 
 // ─── 窗口实例辅助 ──────────────────────────────────────
@@ -181,7 +190,8 @@ function updateSelfWindow(partial: Partial<WindowInstance>): void {
 onMounted(async () => {
   if (canvasRef.value) {
     await halftone.init(canvasRef.value)
-    await halftone.render(displayImage.value)
+    // 图片渲染失败不能中断后续通信回调注册（贴合/分离按钮、拖拽检测、联动事件）
+    await halftone.render(displayImage.value).catch(() => undefined)
   }
 
   // 注册与 DesktopView 的通信回调（标题栏贴合/分离按钮 + 拖拽检测）
@@ -194,6 +204,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(portraitTimer ?? undefined)
+  portraitTimer = null
   halftone.destroy()
   stopTyping()
   stopFollowLoop()
@@ -201,12 +213,32 @@ onBeforeUnmount(() => {
 })
 
 watch(displayImage, (url) => {
-  halftone.render(url)
+  halftone.render(url).catch(() => undefined)
 })
 
 // 切换贴合/离开时窗口尺寸变化，等布局稳定后重绘点阵
 watch(liaisonState, () => {
-  nextTick(() => halftone.render(displayImage.value))
+  nextTick(() => halftone.render(displayImage.value).catch(() => undefined))
+})
+
+// 大头照防抖：typedText 为空（剧本结束/无对白节点）先等 200ms，仍为空才进入
+// 大头照模式；有文字或有选项立即退出。避免跳转下一段时 typedText 清空的瞬间闪一下。
+watch([typedText, () => current.value?.choices, isAttached], () => {
+  clearTimeout(portraitTimer ?? undefined)
+  if (!isAttached.value) {
+    isPortraitMode.value = false
+    return
+  }
+  if (typedText.value || current.value?.choices) {
+    isPortraitMode.value = false
+    return
+  }
+  portraitTimer = setTimeout(() => {
+    portraitTimer = null
+    if (isAttached.value && !typedText.value && !current.value?.choices) {
+      isPortraitMode.value = true
+    }
+  }, PORTRAIT_DEBOUNCE_MS)
 })
 
 // 缓存"上一个非 AI 焦点窗口"，供"贴合"键绑定
@@ -528,6 +560,9 @@ function stopFollowLoop(): void {
 
 function playScript(nodes: AiNode[]): void {
   stopTyping()
+  clearTimeout(portraitTimer ?? undefined)
+  portraitTimer = null
+  isPortraitMode.value = false
   script.value = nodes.map((n, i) => ({ ...n, id: n.id ?? `node-${i}` }))
   nodeIndex.value = 0
   enterNode()
@@ -675,7 +710,7 @@ function buildInsufficientBalance(): AiNode[] {
     :class="{ 'ai-assistant--attached': isAttached }"
     aria-label="AI Assistant"
   >
-    <!-- 第二行：离开态图片占满；贴合态"左图右文"；无文字时大头照占满 -->
+    <!-- 第二行：离开态图片占满；贴合态"左图右文"；剧本结束/无对白时大头照占满 -->
     <div
       class="ai-assistant__body"
       :class="{
