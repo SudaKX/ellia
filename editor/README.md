@@ -39,6 +39,6 @@ server 配置读取 `apps/server/.env`（模板见 `apps/server/.env.example`；
 - [x] **M1.1a 后端用户管理**：SQLite（better-sqlite3）、注册/登录/登出/me、一次性邀请码、初始 admin、admin 用户管理（含单元测试）
 - [x] **M1.1b 前端认证界面**：`/login`、`/register`、`/admin`、Pinia auth 与路由守卫、Material 3 颜色令牌 + 亮/暗主题
 - [x] **M1.2 项目 CRUD（后端）**：`projects` 表 + `GET/POST /api/projects`、`GET/PATCH /api/projects/:id`
-- [x] **M2 后端（数据模型与同步）**：entities/entity_history/files/app_meta、WS v2（join/sync、create/patch/delete/rollback/history、字段锁、focus/presence）、文件 REST（上传/下载/手动删除）；后端 59 个测试通过
-- [ ] M1.2b / M2 前端：项目列表 + 编辑器主界面（group 树、ui_kind 组件、锁交互、历史面板）
+- [x] **M2 后端（数据模型与同步）**：entities/entity_history/files/app_meta、WS v2（join/sync、create/patch/delete/rollback/history、字段锁、focus/presence、clear focus）、文件 REST（上传/下载/列表/手动删除）；后端 62 个测试通过
+- [x] **M1.2b / M2 前端**：项目列表 + 三段可拖拽编辑器界面、实体卡片流/筛选、多标签 KeepAlive、通用操作栏、锁/在场 UI、文件管理面板、CodeMirror 代码编辑
 - [ ] M3 导出：file-tree.json、`__init__.py` 模板、`puzzles/__init__.py` 合并、zip 打包（延后）

@@ -105,15 +105,15 @@
   - **M1.1b 前端认证界面已完成**：`/login`、`/register`、`/`、`/admin` + Pinia auth/theme + 路由守卫 + Material 3 亮暗主题。
   - **M1.2 + M2 后端已完成（本 change `m2-backend-sync`）**：
     - 迁移 v2 `projects`；v3 `entities`/`entity_history`/`files`/`app_meta`；
-    - REST：`GET/POST /api/projects`、`GET/PATCH /api/projects/:id`；`POST/GET/DELETE /api/files`（raw bytes、sha256/size、手动删除无条件）；
-    - WS v2 `/ws/projects/:id`：cookie 会话认证、join/sync 全量 diff、create/patch/delete/rollback/history、字段锁（每连接 1 把）、focus/presence、心跳；
+    - REST：`GET/POST /api/projects`、`GET/PATCH /api/projects/:id`；`GET/POST/GET/DELETE /api/files`（列表/上传/下载/手动删除）；
+    - WS v2 `/ws/projects/:id`：cookie 会话认证、join/sync 全量 diff、create/patch/delete/rollback/history、字段锁（每连接 1 把）、focus/presence/clear focus、ref 回传、心跳；
     - 实体：16 kind、`revision`/`version` 双计数器、每实体 ≤N 历史快照（N 固化 app_meta）、物理删除级联历史。
-  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（16 种实体 kind + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap + Entity/EntityRecord/Project/FileRecord）、`sync.ts`（SYNC_PROTOCOL_VERSION=2 消息全集）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/validation_id/stable_id/resource_id/group/data_path）、`exporter/`（导出占位，延后）。
+  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（16 种实体 kind + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap + Entity/EntityRecord/Project/FileRecord/ApiFileRecord/FileListResponse）、`sync.ts`（SYNC_PROTOCOL_VERSION=2 消息全集，含 clear focus 与 ref 回传）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/validation_id/stable_id/resource_id/group/data_path）、`exporter/`（导出占位，延后）。
 - 已产出文档：`editor/docs/plan-v1.md`（v1 方案）、`editor/docs/plan-v2.md`（数据/同步修订，**当前实施依据**）、`editor/docs/m1-plan.md`、本文档。
 - **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟通过。
-- **OpenSpec**：`m1-backend-auth` 与 `m1-frontend-auth` 已实现并归档；`m2-backend-sync` 已实现（42/42 任务），待归档。
-- **验证状态**：`pnpm --dir apps/server test` 共 59 个用例全部通过（auth 9 + admin 6 + entities 13 + projects 8 + sync 16 + files 7）；本地冒烟覆盖 WS 全流程、文件悬空删除、重启后 app_meta N 固化。
-- **尚未实现**：前端项目列表与编辑器界面（M1.2b / M2 前端）、M3 导出（延后）。
+- **OpenSpec**：`m1-backend-auth`、`m1-frontend-auth`、`m2-backend-sync` 三个 change 均已实现并归档；当前 active change 为 `m2-frontend-editor`（前端编辑器 + 文件列表 API + WS 协议扩展）；主 specs 已同步（`user-management`、`auth-web`、`projects`、`entity-sync`、`file-storage`）。
+- **验证状态**：`pnpm type-check`、`pnpm build` 通过；`pnpm --dir apps/server test` 共 62 个用例全部通过（auth 9 + admin 6 + entities 13 + projects 8 + sync 17 + files 9）；前端联调/双浏览器验证待用户指示后执行。
+- **尚未实现**：M3 导出（延后）。
 
 ## 6. 环境事实与坑（新会话务必注意）
 
@@ -130,8 +130,8 @@
 
 ```text
 请先阅读 editor/docs/handoff.md、editor/docs/plan-v1.md 与 editor/docs/plan-v2.md。
-M0、M1.1、M1.2 与 M2 后端均已完成（m2-backend-sync 已实现，待归档）。
-下一步：M1.2b/M2 前端（项目列表 + 编辑器界面，按 plan-v2 §8）或归档 m2-backend-sync。
+M0、M1.1、M1.2 与 M2 后端均已完成，M1.2b/M2 前端已实现。
+下一步：等待用户指示执行前端联调/双浏览器验证；之后可归档 m2-frontend-editor。
 ```
 
-M1.1 已完成：认证/管理 API 与前端认证界面。M1.2+M2 后端已完成：projects CRUD、entities/entity_history/files/app_meta、WS v2（锁/在场/历史/重连全量）、文件 REST；59 个后端测试通过。剩余：前端项目列表与编辑器 UI；M3 导出（延后）。
+M1.1 已完成：认证/管理 API 与前端认证界面。M1.2+M2 后端已完成：projects CRUD、entities/entity_history/files/app_meta、WS v2（锁/在场/历史/重连全量/clear focus/ref 回传）、文件 REST（含列表）。M1.2b/M2 前端已完成：项目列表、三段可拖拽编辑器、实体卡片/筛选、多标签 KeepAlive、操作栏、锁/在场 UI、文件管理面板、CodeMirror 编辑。剩余：M3 导出（延后）与联调验证（待用户指示）。
