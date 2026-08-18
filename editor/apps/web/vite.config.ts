@@ -19,6 +19,12 @@ export default defineConfig({
     },
   },
   server: {
+    watch: {
+      // Windows 下 Vite 的默认文件监听会短暂占用文件句柄，导致外部工具写入时出现
+      // ReplaceFileW EIO；使用轮询模式可避免该问题。
+      usePolling: true,
+      interval: 100,
+    },
     proxy: {
       '/api': { target: API_TARGET, changeOrigin: true },
       '/ws': { target: API_TARGET.replace(/^http/, 'ws'), ws: true },

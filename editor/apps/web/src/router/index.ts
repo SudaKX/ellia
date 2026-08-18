@@ -7,6 +7,7 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     guestOnly?: boolean
+    hideAppBar?: boolean
   }
 }
 
@@ -36,6 +37,12 @@ const router = createRouter({
       name: 'admin',
       component: () => import('../views/AdminView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/projects/:id',
+      name: 'project-editor',
+      component: () => import('../views/ProjectView.vue'),
+      meta: { requiresAuth: true, hideAppBar: true },
     },
     {
       path: '/:pathMatch(.*)*',

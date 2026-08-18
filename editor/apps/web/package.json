@@ -11,7 +11,11 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.29.1",
     "@ellia/puzzle-schema": "workspace:*",
+    "codemirror": "^6.0.1",
     "pinia": "^4.0.2",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"

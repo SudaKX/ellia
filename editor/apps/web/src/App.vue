@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
 
 const auth = useAuthStore()
 const theme = useThemeStore()
+const route = useRoute()
 const router = useRouter()
 
 async function onLogout(): Promise<void> {
@@ -16,7 +17,7 @@ async function onLogout(): Promise<void> {
 
 <template>
   <div class="app-shell">
-    <header class="app-bar">
+    <header v-if="!route.meta.hideAppBar" class="app-bar">
       <RouterLink class="app-bar__brand" to="/">Ellia Puzzle Editor</RouterLink>
 
       <nav class="app-nav" aria-label="主导航">
