@@ -43,3 +43,4 @@ __pycache__/
 **/cypress/screenshots/
 **/__screenshots__/
 **/*.timestamp-*-*.mjs
+/.dsh/
