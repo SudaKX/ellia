@@ -52,8 +52,8 @@ export function isCanonicalRelativePath(value: string): boolean {
   )
 }
 
-/** entity group：Python 模块路径段，默认 main */
-export const GROUP_RE = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$/
+/** entity group：Python 模块名单段，默认 main */
+export const GROUP_RE = /^[a-z_][a-z0-9_]*$/
 
 export function isValidGroup(value: string): boolean {
   return GROUP_RE.test(value)

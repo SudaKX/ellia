@@ -7,11 +7,24 @@ import express, { Router } from 'express'
 import { requireAuth } from '../auth/middleware.js'
 import type { ServerConfig } from '../config.js'
 import { ApiError } from '../errors.js'
-import { deleteFile, findFileById, insertFile } from '../services/files.js'
+import { deleteFile, findFileById, insertFile, listFiles } from '../services/files.js'
 
 export const filesRouter = Router()
 
 filesRouter.use(requireAuth)
+
+filesRouter.get('/', (_req, res) => {
+  const files = listFiles().map((file) => ({
+    file_id: file.id,
+    original_name: file.original_name,
+    media_type: file.media_type,
+    size: file.size,
+    sha256: file.sha256,
+    uploaded_by: file.uploaded_by,
+    created_at: file.created_at,
+  }))
+  res.json({ files })
+})
 
 filesRouter.post(
   '/',
@@ -27,7 +40,10 @@ filesRouter.post(
       ? (contentTypeHeader[0] ?? 'application/octet-stream')
       : (contentTypeHeader ?? 'application/octet-stream')
     const mediaType = contentType.split(';')[0].trim()
-    const originalName = parseOriginalName(req.headers['x-original-name'])
+    const originalName = parseOriginalName(
+      req.headers['x-original-name'],
+      req.headers['x-original-name-base64'],
+    )
     const fileId = randomUUID()
     const sha256 = createHash('sha256').update(bytes).digest('hex')
 
@@ -99,7 +115,20 @@ function serverConfig(req: express.Request): ServerConfig {
   return req.app.locals.config as ServerConfig
 }
 
-function parseOriginalName(header: string | string[] | undefined): string | null {
-  const value = Array.isArray(header) ? header[0] : header
+function parseOriginalName(
+  nameHeader: string | string[] | undefined,
+  base64Header: string | string[] | undefined,
+): string | null {
+  if (base64Header) {
+    const base64 = (Array.isArray(base64Header) ? base64Header[0] : base64Header)?.trim()
+    if (base64) {
+      try {
+        return Buffer.from(base64, 'base64').toString('utf8').trim() || null
+      } catch {
+        return null
+      }
+    }
+  }
+  const value = Array.isArray(nameHeader) ? nameHeader[0] : nameHeader
   return value && value.trim().length > 0 ? value.trim() : null
 }

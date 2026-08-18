@@ -69,6 +69,10 @@ export function getLock(lockKey: string): LockHolder | undefined {
   return locks.get(lockKey)
 }
 
+export function listLocks(): Array<{ dataPath: string; holder: LockHolder }> {
+  return [...locks.entries()].map(([dataPath, holder]) => ({ dataPath, holder }))
+}
+
 /** 其他连接是否持有该实体任意字段锁（锁键前缀 `<entity_id>@`） */
 export function findEntityLockHolder(
   entityId: string,

@@ -45,7 +45,7 @@ describe('entities service', () => {
     db.prepare('DELETE FROM entities').run()
   })
 
-  function hint(resourceId: string, stableId = resourceId.slice('stable-id:'.length)) {
+  function hint(resourceId: string, stableId = resourceId.slice(resourceId.indexOf(':') + 1)) {
     return createEntity(
       projectId,
       {
@@ -64,13 +64,13 @@ describe('entities service', () => {
   }
 
   it('create 初始 revision/version 均为 1', () => {
-    const entity = hint('stable-id:hint-1')
+    const entity = hint('hint:hint-1')
     assert.equal(entity.revision, 1)
     assert.equal(entity.version, 1)
   })
 
   it('patch 递增 revision 与 version 并写历史', () => {
-    const entity = hint('stable-id:hint-2')
+    const entity = hint('hint:hint-2')
     const updated = patchEntity(
       projectId,
       entity.id,
@@ -87,7 +87,7 @@ describe('entities service', () => {
   })
 
   it('revision 单调且回退后 version 递减', () => {
-    const entity = hint('stable-id:hint-3')
+    const entity = hint('hint:hint-3')
     patchEntity(projectId, entity.id, `${entity.id}@state:/display/title`, 'v2', adminId)
     const v3 = patchEntity(projectId, entity.id, `${entity.id}@state:/display/title`, 'v3', adminId)
     assert.equal(v3.revision, 3)
@@ -99,7 +99,7 @@ describe('entities service', () => {
   })
 
   it('无历史时回退抛 HISTORY_EMPTY', () => {
-    const entity = hint('stable-id:hint-4')
+    const entity = hint('hint:hint-4')
     assert.throws(
       () => rollbackEntity(projectId, entity.id, adminId),
       (error: unknown) =>
@@ -112,7 +112,7 @@ describe('entities service', () => {
     db.prepare(
       `UPDATE app_meta SET value = '2' WHERE "key" = 'entity_history_limit'`,
     ).run()
-    const entity = hint('stable-id:hint-5')
+    const entity = hint('hint:hint-5')
     for (let index = 0; index < 4; index += 1) {
       patchEntity(
         projectId,
@@ -131,7 +131,7 @@ describe('entities service', () => {
   })
 
   it('删除实体级联清除历史，且同 resource_id 可重建', () => {
-    const entity = hint('stable-id:hint-6')
+    const entity = hint('hint:hint-6')
     patchEntity(projectId, entity.id, `${entity.id}@state:/display/title`, '改', adminId)
     assert.equal(deleteEntity(projectId, entity.id), true)
     const db = getDatabase()
@@ -139,22 +139,22 @@ describe('entities service', () => {
       .prepare('SELECT COUNT(*) AS n FROM entity_history WHERE entity_id = ?')
       .get(entity.id) as { n: number }
     assert.equal(historyRows.n, 0)
-    const rebuilt = hint('stable-id:hint-6')
+    const rebuilt = hint('hint:hint-6')
     assert.notEqual(rebuilt.id, entity.id)
     assert.equal(rebuilt.revision, 1)
   })
 
   it('resource_id 重复创建抛 RESOURCE_CONFLICT', () => {
-    hint('stable-id:hint-7')
+    hint('hint:hint-7')
     assert.throws(
-      () => hint('stable-id:hint-7'),
+      () => hint('hint:hint-7'),
       (error: unknown) =>
         error instanceof ApiError && error.code === 'RESOURCE_CONFLICT',
     )
   })
 
   it('@group patch 合法值生效，非法值抛 VALIDATION', () => {
-    const entity = hint('stable-id:hint-8')
+    const entity = hint('hint:hint-8')
     const updated = patchEntity(
       projectId,
       entity.id,
@@ -171,15 +171,15 @@ describe('entities service', () => {
   })
 
   it('@resource_id patch 保持命名空间，跨命名空间抛 VALIDATION', () => {
-    const entity = hint('stable-id:hint-9')
+    const entity = hint('hint:hint-9')
     const renamed = patchEntity(
       projectId,
       entity.id,
       `${entity.id}@resource_id:`,
-      'stable-id:hint-9-renamed',
+      'hint:hint-9-renamed',
       adminId,
     )
-    assert.equal(renamed.resource_id, 'stable-id:hint-9-renamed')
+    assert.equal(renamed.resource_id, 'hint:hint-9-renamed')
     assert.throws(
       () =>
         patchEntity(

@@ -50,6 +50,11 @@ export function findFileById(
   return row ? toFileRecord(row) : undefined
 }
 
+export function listFiles(db: Database.Database = getDatabase()): FileRecord[] {
+  const rows = db.prepare('SELECT * FROM files ORDER BY created_at DESC').all() as FileRow[]
+  return rows.map(toFileRecord)
+}
+
 /** 无条件删除元数据行（不做任何实体/历史引用扫描） */
 export function deleteFile(id: string, db: Database.Database = getDatabase()): boolean {
   const result = db.prepare('DELETE FROM files WHERE id = ?').run(id)

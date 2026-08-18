@@ -85,6 +85,7 @@ export type UiKind = (typeof UI_KINDS)[number]
 /** resource_id 的命名空间（内嵌在 resource_id 前缀中，不单独建列） */
 export const RESOURCE_NAMESPACES = [
   'stable-id',
+  'hint',
   'asset-path',
   'artifact-id',
   'account-id',
@@ -123,7 +124,7 @@ const UI_KIND_OF_KIND: Record<EntityKind, UiKind> = {
 const NAMESPACE_OF_KIND: Record<EntityKind, ResourceNamespace> = {
   'progress-node': 'stable-id',
   'file-tree-node': 'stable-id',
-  hint: 'stable-id',
+  hint: 'hint',
   script: 'stable-id',
   validation: 'stable-id',
   'artifact-node': 'stable-id',
@@ -408,4 +409,19 @@ export interface FileRecord {
   sha256: string
   uploaded_by: string
   created_at: string
+}
+
+/** 文件列表响应（API 使用 file_id 作为对外字段名） */
+export interface ApiFileRecord {
+  file_id: string
+  original_name: string | null
+  media_type: string
+  size: number
+  sha256: string
+  uploaded_by: string
+  created_at: string
+}
+
+export interface FileListResponse {
+  files: ApiFileRecord[]
 }

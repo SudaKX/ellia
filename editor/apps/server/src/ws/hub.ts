@@ -27,12 +27,13 @@ import {
 import {
   findEntityLockHolder,
   getLock,
+  listLocks,
   locksOfEntity,
   releaseByConnection,
   releaseLock,
   tryLock,
 } from './locks.js'
-import { buildPresence, setFocus } from './presence.js'
+import { buildPresence, clearFocus, setFocus } from './presence.js'
 import { broadcastRoom, joinRoom, leaveRoom, listRoom } from './rooms.js'
 
 /** WS 端点前缀：/ws/projects/:id（cookie 会话认证） */
@@ -159,7 +160,7 @@ function handleMessage(ws: WebSocket, context: ConnectionContext, message: Clien
       handleLock(ws, context, message.ref, message.entity_id, message.data_path)
       return
     case 'unlock':
-      handleUnlock(ws, context, message.entity_id, message.data_path)
+      handleUnlock(ws, context, message.ref, message.entity_id, message.data_path)
       return
     case 'patch':
       handlePatch(ws, context, message.ref, message.entity_id, message.data_path, message.value)
@@ -209,6 +210,15 @@ function handleJoin(
   const removedIds = Object.keys(vector).filter((id) => !byId.has(id))
 
   send(ws, { type: 'sync', entities: payloadEntities, removed_ids: removedIds })
+
+  const entityIds = new Set(entities.map((entity) => entity.id))
+  const projectLocks = listLocks()
+    .filter(({ dataPath }) => entityIds.has(dataPath.split('@')[0] ?? ''))
+    .map(({ dataPath, holder }) => ({
+      data_path: dataPath,
+      holder: { id: holder.userId, username: holder.username },
+    }))
+  send(ws, { type: 'locks', locks: projectLocks })
 }
 
 function handleCreate(ws: WebSocket, context: ConnectionContext, message: Extract<ClientMessage, { type: 'create' }>): void {
@@ -261,6 +271,7 @@ function handleLock(
     }
     broadcastRoom(context.projectId, {
       type: 'locked',
+      ref,
       entity_id: entityId,
       data_path: dataPath,
       user: { id: context.userId, username: context.username },
@@ -273,13 +284,14 @@ function handleLock(
 function handleUnlock(
   ws: WebSocket,
   context: ConnectionContext,
+  ref: string | undefined,
   entityId: string,
   dataPath: string,
 ): void {
   const holder = getLock(dataPath)
   if (holder?.connectionId !== context.connectionId) return
   releaseLock(dataPath)
-  broadcastRoom(context.projectId, { type: 'unlocked', entity_id: entityId, data_path: dataPath })
+  broadcastRoom(context.projectId, { type: 'unlocked', ref, entity_id: entityId, data_path: dataPath })
 }
 
 function handlePatch(
@@ -305,19 +317,15 @@ function handlePatch(
       revision: entity.revision,
       version: entity.version,
     })
-    broadcastRoom(
-      context.projectId,
-      {
-        type: 'update',
-        entity_id: entityId,
-        revision: entity.revision,
-        version: entity.version,
-        data_path: dataPath,
-        value,
-        author: { id: context.userId, username: context.username },
-      },
-      context.connectionId,
-    )
+    broadcastRoom(context.projectId, {
+      type: 'update',
+      entity_id: entityId,
+      revision: entity.revision,
+      version: entity.version,
+      data_path: dataPath,
+      value,
+      author: { id: context.userId, username: context.username },
+    })
     releaseLock(dataPath)
     broadcastRoom(context.projectId, { type: 'unlocked', entity_id: entityId, data_path: dataPath })
   } catch (error) {
@@ -347,7 +355,7 @@ function handleDelete(ws: WebSocket, context: ConnectionContext, ref: string, en
       releaseLock(key)
       broadcastRoom(context.projectId, { type: 'unlocked', entity_id: entityId, data_path: key })
     }
-    broadcastRoom(context.projectId, { type: 'deleted', entity_id: entityId })
+    broadcastRoom(context.projectId, { type: 'deleted', ref, entity_id: entityId })
   } catch (error) {
     sendApiError(ws, error, ref)
   }
@@ -369,6 +377,7 @@ function handleRollback(ws: WebSocket, context: ConnectionContext, ref: string, 
     const entity = rollbackEntity(context.projectId, entityId, context.userId)
     broadcastRoom(context.projectId, {
       type: 'rolled_back',
+      ref,
       entity_id: entityId,
       revision: entity.revision,
       version: entity.version,
@@ -393,9 +402,14 @@ function handleHistory(ws: WebSocket, context: ConnectionContext, ref: string, e
 function handleFocus(
   ws: WebSocket,
   context: ConnectionContext,
-  entityId: string,
+  entityId: string | null,
   dataPath: string | undefined,
 ): void {
+  if (entityId === null) {
+    clearFocus(context.connectionId)
+    broadcastPresence(context.projectId)
+    return
+  }
   try {
     requireEntity(context.projectId, entityId)
     if (dataPath !== undefined && !parseDataPath(dataPath, entityId)) {

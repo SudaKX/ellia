@@ -83,14 +83,15 @@ export interface LockMessage {
 
 export interface UnlockMessage {
   type: 'unlock'
-  ref: string
+  ref?: string
   entity_id: EntityId
   data_path: string
 }
 
 export interface FocusMessage {
   type: 'focus'
-  entity_id: EntityId
+  /** null 表示清除当前连接记录的用户焦点 */
+  entity_id: EntityId | null
   data_path?: string
 }
 
@@ -153,11 +154,13 @@ export interface UpdateMessage {
 
 export interface DeletedMessage {
   type: 'deleted'
+  ref?: string
   entity_id: EntityId
 }
 
 export interface RolledBackMessage {
   type: 'rolled_back'
+  ref?: string
   entity_id: EntityId
   revision: number
   version: number
@@ -174,6 +177,7 @@ export interface HistoryResponseMessage {
 
 export interface LockedMessage {
   type: 'locked'
+  ref?: string
   entity_id: EntityId
   data_path: string
   user?: AuthorInfo
@@ -181,6 +185,7 @@ export interface LockedMessage {
 
 export interface UnlockedMessage {
   type: 'unlocked'
+  ref?: string
   entity_id: EntityId
   data_path: string
   user?: AuthorInfo
@@ -197,6 +202,14 @@ export interface LockDeniedMessage {
 export interface PresenceMessage {
   type: 'presence'
   users: PresenceUser[]
+}
+
+export interface LocksMessage {
+  type: 'locks'
+  locks: Array<{
+    data_path: string
+    holder: AuthorInfo
+  }>
 }
 
 export interface ErrorMessage {
@@ -223,5 +236,6 @@ export type ServerMessage =
   | UnlockedMessage
   | LockDeniedMessage
   | PresenceMessage
+  | LocksMessage
   | ErrorMessage
   | PongMessage

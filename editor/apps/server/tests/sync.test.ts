@@ -53,7 +53,7 @@ describe('WS v2 sync', () => {
       ui_kind: 'form',
       resource_id: resourceId,
       state: {
-        stable_id: resourceId.slice('stable-id:'.length),
+        stable_id: resourceId.slice(resourceId.indexOf(':') + 1),
         credit_id: 'vib',
         credit_amount: 1,
         display: { title },
@@ -80,7 +80,7 @@ describe('WS v2 sync', () => {
   })
 
   it('join 全量 diff、增量一致与 removed_ids', async () => {
-    const hint = await createHint(admin, 'stable-id:join-1')
+    const hint = await createHint(admin, 'hint:join-1')
     const other = await connect()
     other.send({ type: 'join', project_id: projectId, vector: {} })
     const full = await other.waitFor('sync')
@@ -105,18 +105,20 @@ describe('WS v2 sync', () => {
     other.send({ type: 'join', project_id: projectId, vector: {} })
     await other.waitFor('sync')
     const createdPromise = other.waitFor('created')
-    const hint = await createHint(admin, 'stable-id:broadcast-1')
+    const hint = await createHint(admin, 'hint:broadcast-1')
     const broadcast = await createdPromise
     assert.equal((broadcast.entity as { id: string }).id, hint.id)
     await other.close()
   })
 
   it('lock/patch：applied 给提交者，update+unlocked 广播给他人', async () => {
-    const hint = await createHint(admin, 'stable-id:patch-1')
+    const hint = await createHint(admin, 'hint:patch-1')
     const other = await connect()
     const dataPath = `${hint.id}@state:/display/title`
-    admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
-    await admin.waitFor('locked')
+    const lockRef = ref()
+    admin.send({ type: 'lock', ref: lockRef, entity_id: hint.id, data_path: dataPath })
+    const locked = await admin.waitFor('locked')
+    assert.equal(locked.ref, lockRef)
 
     admin.send({
       type: 'patch',
@@ -140,7 +142,7 @@ describe('WS v2 sync', () => {
   })
 
   it('锁冲突返回 lock_denied，未持锁 patch 返回 STALE_LOCK', async () => {
-    const hint = await createHint(admin, 'stable-id:lock-1')
+    const hint = await createHint(admin, 'hint:lock-1')
     const other = await connect()
     const dataPath = `${hint.id}@state:/display/title`
 
@@ -168,7 +170,7 @@ describe('WS v2 sync', () => {
   })
 
   it('同连接锁幂等且新锁顶替旧锁', async () => {
-    const hint = await createHint(admin, 'stable-id:lock-2')
+    const hint = await createHint(admin, 'hint:lock-2')
     const other = await connect()
     const pathA = `${hint.id}@state:/display/title`
     const pathB = `${hint.id}@group:`
@@ -186,7 +188,7 @@ describe('WS v2 sync', () => {
   })
 
   it('断线释放该连接全部锁', async () => {
-    const hint = await createHint(admin, 'stable-id:lock-3')
+    const hint = await createHint(admin, 'hint:lock-3')
     const other = await connect()
     const dataPath = `${hint.id}@state:/display/title`
 
@@ -204,7 +206,7 @@ describe('WS v2 sync', () => {
   })
 
   it('group 与 resource_id 的 patch 规则', async () => {
-    const hint = await createHint(admin, 'stable-id:meta-1')
+    const hint = await createHint(admin, 'hint:meta-1')
 
     const groupPath = `${hint.id}@group:`
     admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: groupPath })
@@ -221,7 +223,7 @@ describe('WS v2 sync', () => {
       ref: 'r',
       entity_id: hint.id,
       data_path: resourcePath,
-      value: 'stable-id:meta-1-renamed',
+      value: 'hint:meta-1-renamed',
     })
     const renamed = await admin.waitFor('applied')
     assert.equal(renamed.version, 3)
@@ -240,7 +242,7 @@ describe('WS v2 sync', () => {
   })
 
   it('删除：他人锁拒绝 ENTITY_LOCKED；删除后可同 resource_id 重建', async () => {
-    const hint = await createHint(admin, 'stable-id:delete-1')
+    const hint = await createHint(admin, 'hint:delete-1')
     const other = await connect()
     const dataPath = `${hint.id}@state:/display/title`
 
@@ -255,19 +257,20 @@ describe('WS v2 sync', () => {
 
     admin.send({ type: 'delete', ref: 'del', entity_id: hint.id })
     const deleted = await admin.waitFor('deleted')
+    assert.equal(deleted.ref, 'del')
     assert.equal(deleted.entity_id, hint.id)
 
     admin.send({ type: 'patch', ref: 'gone', entity_id: hint.id, data_path: dataPath, value: 'x' })
     const notFound = await admin.waitFor('error')
     assert.equal(notFound.code, 'ENTITY_NOT_FOUND')
 
-    const rebuilt = await createHint(admin, 'stable-id:delete-1')
+    const rebuilt = await createHint(admin, 'hint:delete-1')
     assert.notEqual(rebuilt.id, hint.id)
     await other.close()
   })
 
   it('rollback 应用 v-1 快照、version 递减、revision 递增', async () => {
-    const hint = await createHint(admin, 'stable-id:rollback-1', '旧标题')
+    const hint = await createHint(admin, 'hint:rollback-1', '旧标题')
     const other = await connect()
     const dataPath = `${hint.id}@state:/display/title`
 
@@ -279,6 +282,7 @@ describe('WS v2 sync', () => {
     const rolledPromise = other.waitFor('rolled_back')
     admin.send({ type: 'rollback', ref: 'rb', entity_id: hint.id })
     const rolled = await rolledPromise
+    assert.equal(rolled.ref, 'rb')
     assert.equal(rolled.version, 1)
     assert.equal(rolled.revision, 3)
     assert.equal((rolled.state as { display: { title: string } }).display.title, '旧标题')
@@ -286,14 +290,14 @@ describe('WS v2 sync', () => {
   })
 
   it('无历史回退返回 HISTORY_EMPTY', async () => {
-    const hint = await createHint(admin, 'stable-id:rollback-2')
+    const hint = await createHint(admin, 'hint:rollback-2')
     admin.send({ type: 'rollback', ref: 'rb', entity_id: hint.id })
     const error = await admin.waitFor('error')
     assert.equal(error.code, 'HISTORY_EMPTY')
   })
 
   it('history 按 version 降序返回', async () => {
-    const hint = await createHint(admin, 'stable-id:history-1')
+    const hint = await createHint(admin, 'hint:history-1')
     const dataPath = `${hint.id}@state:/display/title`
     for (const value of ['v2', 'v3']) {
       admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
@@ -308,7 +312,7 @@ describe('WS v2 sync', () => {
   })
 
   it('focus 广播 presence，断开后清除位置', async () => {
-    const hint = await createHint(admin, 'stable-id:focus-1')
+    const hint = await createHint(admin, 'hint:focus-1')
     const other = await connect()
     admin.flush('presence')
     other.send({
@@ -343,6 +347,57 @@ describe('WS v2 sync', () => {
     for (const entry of cleared.users as Array<Record<string, unknown>>) {
       assert.equal(entry.entity_id, undefined)
     }
+  })
+
+  it('focus(null) 清除当前连接的位置', async () => {
+    const hint = await createHint(admin, 'hint:focus-clear')
+    const other = await connect()
+    admin.flush('presence')
+    other.send({
+      type: 'focus',
+      entity_id: hint.id,
+      data_path: `${hint.id}@state:/display/title`,
+    })
+    await admin.waitFor(
+      'presence',
+      2000,
+      (message) =>
+        (message.users as Array<{ entity_id?: string }>).some(
+          (entry) => entry.entity_id === hint.id,
+        ),
+    )
+
+    admin.flush('presence')
+    other.send({ type: 'focus', entity_id: null })
+    const cleared = await admin.waitFor(
+      'presence',
+      2000,
+      (message) =>
+        (message.users as Array<{ entity_id?: string }>).every(
+          (entry) => entry.entity_id === undefined,
+        ),
+    )
+    assert.equal((cleared.users as unknown[]).length, 1)
+    await other.close()
+  })
+
+  it('join 时返回当前项目锁快照', async () => {
+    const hint = await createHint(admin, 'hint:lock-snapshot')
+    const locker = await connect()
+    const dataPath = `${hint.id}@state:/display/title`
+    locker.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
+    await locker.waitFor('locked')
+
+    const joiner = await connect()
+    joiner.send({ type: 'join', project_id: projectId, vector: { [hint.id]: hint.revision } })
+    await joiner.waitFor('sync')
+    const locksMessage = await joiner.waitFor('locks')
+    const locks = locksMessage.locks as Array<{ data_path: string; holder: { username: string } }>
+    assert.ok(
+      locks.some((lock) => lock.data_path === dataPath && lock.holder.username === 'admin'),
+    )
+    await locker.close()
+    await joiner.close()
   })
 
   it('ping/pong 与 BAD_JSON', async () => {
