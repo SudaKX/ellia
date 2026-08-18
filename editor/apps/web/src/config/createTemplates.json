@@ -1,0 +1,183 @@
+{
+  "progress-node": {
+    "namespace": "stable-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": { "stable_id": "", "node_kind": "normal", "triggers_checkpoint": false },
+    "comment": {
+      "description": "进度 DAG 中的节点，用于定义普通/分支/合并节点与检查点。",
+      "format": "kebab-case，例如 start"
+    }
+  },
+  "file-tree-node": {
+    "namespace": "stable-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": {
+      "stable_id": "",
+      "kind": "file",
+      "name": "",
+      "display": { "label": "", "description": "", "icon": "", "sort_order": 0 },
+      "hidden": false
+    },
+    "comment": {
+      "description": "静态文件树中的节点，表示目录或文件。",
+      "format": "kebab-case，例如 assets"
+    }
+  },
+  "file-tree": {
+    "namespace": "file-tree",
+    "fixed": { "enable": true, "value": "main" },
+    "inject_id": { "enable": false, "field": "" },
+    "default": { "root_stable_id": null, "children": {} },
+    "comment": {
+      "description": "文件树容器，保存根节点与父子排序关系。",
+      "format": "固定为 main"
+    }
+  },
+  "progress-dag": {
+    "namespace": "progress-dag",
+    "fixed": { "enable": true, "value": "main" },
+    "inject_id": { "enable": false, "field": "" },
+    "default": { "entry_stable_ids": [], "successors": {} },
+    "comment": {
+      "description": "进度 DAG 容器，保存入口节点与边关系。",
+      "format": "固定为 main"
+    }
+  },
+  "asset": {
+    "namespace": "asset-path",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": false, "field": "" },
+    "default": { "file_id": "", "media_type": "application/octet-stream" },
+    "comment": {
+      "description": "资产文件引用，指向 files 表中的文件并声明媒体类型。",
+      "format": "相对路径，例如 assets/a.txt"
+    }
+  },
+  "hint": {
+    "namespace": "hint",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": {
+      "stable_id": "",
+      "credit_id": "vib",
+      "credit_amount": 1,
+      "display": { "title": "", "teaser": "", "icon": "", "sort_order": 0 }
+    },
+    "comment": {
+      "description": "提示条目，引用一个资产文件并设置货币奖励与展示信息。",
+      "format": "点分 kebab-case，例如 first-hint.basic"
+    }
+  },
+  "script": {
+    "namespace": "stable-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": { "stable_id": "", "revision": 1, "body": { "kind": "script", "lines": [] } },
+    "comment": {
+      "description": "终端交互脚本，包含脚本行与可选校验引用。",
+      "format": "kebab-case，例如 script-1"
+    }
+  },
+  "validation": {
+    "namespace": "stable-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": { "stable_id": "", "validation_id": "" },
+    "comment": {
+      "description": "答案校验条目，关联 handler 代码块。",
+      "format": "kebab-case，例如 validation-1"
+    }
+  },
+  "artifact-template": {
+    "namespace": "artifact-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "artifact_id" },
+    "default": { "artifact_id": "", "media_type": "application/octet-stream" },
+    "comment": {
+      "description": "动态文件模板，通过 generator 生成玩家专属文件。",
+      "format": "kebab-case，例如 letter"
+    }
+  },
+  "artifact-node": {
+    "namespace": "stable-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "stable_id" },
+    "default": {
+      "stable_id": "",
+      "path": "",
+      "artifact_locator": "",
+      "display": { "label": "", "description": "", "icon": "", "sort_order": 0 },
+      "hidden": false
+    },
+    "comment": {
+      "description": "动态文件树节点，表示一个可生成的文件节点。",
+      "format": "kebab-case，例如 artifact-node-1"
+    }
+  },
+  "account-template": {
+    "namespace": "account-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "account_id" },
+    "default": { "account_id": "", "display_name": "", "permission": "", "metadata": {} },
+    "comment": {
+      "description": "虚拟账号模板，定义账号展示与权限元数据。",
+      "format": "kebab-case，例如 guard"
+    }
+  },
+  "credit-template": {
+    "namespace": "credit-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "credit_id" },
+    "default": { "credit_id": "", "display_name": "", "metadata": {} },
+    "comment": {
+      "description": "货币类型模板，定义货币展示与元数据。",
+      "format": "kebab-case，例如 vib"
+    }
+  },
+  "achievement": {
+    "namespace": "achievement-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "achievement_id" },
+    "default": {
+      "achievement_id": "",
+      "secret": false,
+      "display": { "title": "", "description": "" }
+    },
+    "comment": {
+      "description": "成就定义，包含展示、secret 与 predicate/reward 回调引用。",
+      "format": "kebab-case，例如 first-blood"
+    }
+  },
+  "task": {
+    "namespace": "task-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "task_id" },
+    "default": { "task_id": "", "dependencies": [] },
+    "comment": {
+      "description": "惰性任务定义，包含依赖与 handler 回调引用。",
+      "format": "kebab-case，例如 daily"
+    }
+  },
+  "event-listener": {
+    "namespace": "listener-id",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": false, "field": "" },
+    "default": { "event_type": "", "priority": 0, "dependencies": [] },
+    "comment": {
+      "description": "事件监听器，监听事件并执行 listener 回调。",
+      "format": "kebab-case，例如 evt-levelup-1"
+    }
+  },
+  "python-block": {
+    "namespace": "python-name",
+    "fixed": { "enable": false, "value": "" },
+    "inject_id": { "enable": true, "field": "name" },
+    "default": { "name": "", "slot": "free", "content": "" },
+    "comment": {
+      "description": "Python 代码块，可被其他实体引用为回调函数。",
+      "format": "Python 标识符（snake_case），例如 can_access"
+    }
+  }
+}

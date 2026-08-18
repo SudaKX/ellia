@@ -2,6 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 
 import * as adminApi from '../api/admin'
+import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import DropdownSelect from '../components/ui/DropdownSelect.vue'
+import PromptDialog from '../components/ui/PromptDialog.vue'
 import type { AuthUser, InviteCode } from '../api/types'
 
 const INVITE_TTL_OPTIONS = [
@@ -19,6 +22,10 @@ const userLoading = ref(false)
 const inviteError = ref('')
 const userError = ref('')
 const notice = ref('')
+const copyFallbackOpen = ref(false)
+const copyFallbackCode = ref('')
+const confirmState = ref<{ title: string; message: string; action: () => Promise<void> } | null>(null)
+const confirmBusy = ref(false)
 
 const statusLabel: Record<InviteCode['status'], string> = {
   unused: '可用',
@@ -78,31 +85,49 @@ async function onCopyInvite(code: string): Promise<void> {
     await navigator.clipboard.writeText(code)
     notice.value = `已复制邀请码 ${code}`
   } catch {
-    window.prompt('当前环境无法自动复制，请手动复制邀请码：', code)
+    copyFallbackCode.value = code
+    copyFallbackOpen.value = true
   }
 }
 
-async function onRevokeInvite(code: string): Promise<void> {
-  if (!window.confirm(`确定作废邀请码 ${code} 吗？作废后无法用于注册。`)) return
-  inviteError.value = ''
-  try {
-    await adminApi.revokeInvite(code)
-    notice.value = '邀请码已作废'
-    await loadInvites()
-  } catch (error) {
-    inviteError.value = error instanceof Error ? error.message : '邀请码作废失败'
+function requestRevokeInvite(code: string): void {
+  confirmState.value = {
+    title: '作废邀请码',
+    message: `确定作废邀请码 ${code} 吗？作废后无法用于注册。`,
+    action: async () => {
+      inviteError.value = ''
+      await adminApi.revokeInvite(code)
+      notice.value = '邀请码已作废'
+      await loadInvites()
+    },
   }
 }
 
-async function onPromoteUser(user: AuthUser): Promise<void> {
-  if (!window.confirm(`确定将用户 ${user.username} 提权为 admin 吗？`)) return
-  userError.value = ''
+function requestPromoteUser(user: AuthUser): void {
+  confirmState.value = {
+    title: '提权用户',
+    message: `确定将用户 ${user.username} 提权为 admin 吗？`,
+    action: async () => {
+      userError.value = ''
+      await adminApi.promoteUser(user.id)
+      notice.value = `用户 ${user.username} 已提权为 admin`
+      await loadUsers()
+    },
+  }
+}
+
+async function runConfirmAction(): Promise<void> {
+  if (!confirmState.value) return
+  const current = confirmState.value
+  confirmBusy.value = true
   try {
-    await adminApi.promoteUser(user.id)
-    notice.value = `用户 ${user.username} 已提权为 admin`
-    await loadUsers()
+    await current.action()
   } catch (error) {
-    userError.value = error instanceof Error ? error.message : '用户提权失败'
+    inviteError.value = error instanceof Error ? error.message : inviteError.value
+    userError.value = error instanceof Error ? error.message : userError.value
+  } finally {
+    confirmBusy.value = false
+    confirmState.value = null
   }
 }
 
@@ -130,11 +155,12 @@ onMounted(() => {
         <form class="field" @submit.prevent="onGenerateInvite">
           <label for="invite-ttl">有效期</label>
           <div class="row">
-            <select id="invite-ttl" v-model.number="inviteTtlSeconds" :disabled="inviteLoading">
-              <option v-for="option in INVITE_TTL_OPTIONS" :key="option.seconds" :value="option.seconds">
-                {{ option.label }}
-              </option>
-            </select>
+            <DropdownSelect
+              :options="INVITE_TTL_OPTIONS.map((option) => ({ label: option.label, value: option.seconds }))"
+              :model-value="inviteTtlSeconds"
+              :disabled="inviteLoading"
+              @update:model-value="(value) => inviteTtlSeconds = Number(value)"
+            />
             <button class="btn btn--primary" type="submit" :disabled="inviteLoading">
               {{ inviteLoading ? '生成中…' : '生成邀请码' }}
             </button>
@@ -172,7 +198,7 @@ onMounted(() => {
                     v-if="invite.status === 'unused'"
                     class="btn btn--danger btn--small"
                     type="button"
-                    @click="onRevokeInvite(invite.code)"
+                    @click="requestRevokeInvite(invite.code)"
                   >
                     作废
                   </button>
@@ -212,7 +238,7 @@ onMounted(() => {
                   v-if="user.role === 'user'"
                   class="btn btn--tonal btn--small"
                   type="button"
-                  @click="onPromoteUser(user)"
+                  @click="requestPromoteUser(user)"
                 >
                   提权为 admin
                 </button>
@@ -228,5 +254,28 @@ onMounted(() => {
         </p>
       </section>
     </div>
+
+    <ConfirmDialog
+      v-if="confirmState"
+      :open="Boolean(confirmState)"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      confirm-label="确认"
+      cancel-label="取消"
+      :busy="confirmBusy"
+      @confirm="runConfirmAction"
+      @cancel="confirmState = null"
+    />
+
+    <PromptDialog
+      :open="copyFallbackOpen"
+      title="手动复制邀请码"
+      message="当前环境无法自动复制，请从下方输入框手动复制。"
+      :initial-value="copyFallbackCode"
+      readonly
+      confirm-label="关闭"
+      @confirm="copyFallbackOpen = false"
+      @cancel="copyFallbackOpen = false"
+    />
   </main>
 </template>

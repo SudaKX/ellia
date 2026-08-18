@@ -28,6 +28,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* M3 风格滚动条：只覆盖外观，不添加自定义滚动条控件 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-sys-color-outline-variant, #cac4d0) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-surface-container-highest, #e6e0e9);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline-variant, #cac4d0);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 h1,
 h2,
 h3,
@@ -136,11 +164,12 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 40px;
-  padding: 0.5rem 1.25rem;
+  gap: 0.3rem;
+  min-height: 32px;
+  padding: 0.3rem 0.9rem;
   border: 1px solid transparent;
   border-radius: var(--md-sys-shape-corner-full);
+  font-size: 0.85rem;
   cursor: pointer;
   text-decoration: none;
   transition:
@@ -184,23 +213,23 @@ button {
 }
 
 .btn--small {
-  min-height: 32px;
-  padding: 0.25rem 0.9rem;
-  font-size: var(--md-sys-typescale-label-size);
+  min-height: 26px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
 }
 
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: var(--md-sys-shape-corner-full);
   background: transparent;
   color: var(--app-muted-text);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .icon-button:hover {
