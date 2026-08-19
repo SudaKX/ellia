@@ -194,7 +194,6 @@ async function createEntity(): Promise<void> {
             :disabled="isFixedId"
           />
         </div>
-        <span v-if="isFixedId" class="muted">该类型 id 已固定为 {{ template.fixed.value }}</span>
         <div class="create-entity-field__surface">
           {{ template.comment.format }}
         </div>
