@@ -19,6 +19,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
+    allowedHosts: ['frp-fee.com'],
     watch: {
       // Windows 下 Vite 的默认文件监听会短暂占用文件句柄，导致外部工具写入时出现
       // ReplaceFileW EIO；使用轮询模式可避免该问题。

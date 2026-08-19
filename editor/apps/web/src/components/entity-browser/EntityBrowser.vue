@@ -6,12 +6,14 @@ import UserBadge from '../presence/UserBadge.vue'
 import { useEditorTabsStore } from '../../stores/editorTabs'
 import { useEntitiesStore } from '../../stores/entities'
 import { usePresenceStore } from '../../stores/presence'
+import { useVoiceStore } from '../../stores/voice'
 import EntityCard from './EntityCard.vue'
 import EntityFilterBar from './EntityFilterBar.vue'
 
 const entitiesStore = useEntitiesStore()
 const tabsStore = useEditorTabsStore()
 const presenceStore = usePresenceStore()
+const voiceStore = useVoiceStore()
 const router = useRouter()
 
 const filters = ref<{ kind: string; group: string }>({ kind: '', group: '' })
@@ -40,6 +42,11 @@ function toggleMenu(): void {
 function goHome(): void {
   menuOpen.value = false
   void router.push('/')
+}
+
+function openVoiceSettings(): void {
+  menuOpen.value = false
+  voiceStore.openSettings()
 }
 
 function onClickOutside(event: PointerEvent): void {
@@ -89,6 +96,9 @@ onBeforeUnmount(() => {
       </button>
 
       <div v-if="menuOpen" class="entity-browser__menu" role="menu">
+        <button class="entity-browser__menu-item" type="button" role="menuitem" @click="openVoiceSettings">
+          语音设置
+        </button>
         <button class="entity-browser__menu-item" type="button" role="menuitem" @click="goHome">
           返回项目界面
         </button>

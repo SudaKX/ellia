@@ -9,7 +9,11 @@ import { useLayoutStore } from '../stores/layout'
 import { useLocksStore } from '../stores/locks'
 import { usePresenceStore } from '../stores/presence'
 import { useProjectsStore } from '../stores/projects'
+import { useVoiceStore } from '../stores/voice'
 import EditorLayout from '../layouts/EditorLayout.vue'
+import VoiceAudioHost from '../components/voice/VoiceAudioHost.vue'
+import VoiceSettingsOverlay from '../components/voice/VoiceSettingsOverlay.vue'
+import VoiceSpeakerOverlay from '../components/voice/VoiceSpeakerOverlay.vue'
 
 const route = useRoute()
 const projectsStore = useProjectsStore()
@@ -17,6 +21,7 @@ const entitiesStore = useEntitiesStore()
 const layoutStore = useLayoutStore()
 const locksStore = useLocksStore()
 const presenceStore = usePresenceStore()
+const voiceStore = useVoiceStore()
 const tabsStore = useEditorTabsStore()
 
 const error = ref<string | null>(null)
@@ -40,6 +45,9 @@ async function initialize(): Promise<void> {
       syncClient.join(projectId, entitiesStore.vector as Record<string, number>)
     })
     syncClient.connect(wsUrl)
+    voiceStore.init(projectId).catch((err) => {
+      console.warn('[voice] init failed:', err)
+    })
 
     ready.value = true
   } catch (err) {
@@ -56,6 +64,7 @@ onUnmounted(() => {
   syncClient.disconnect()
   presenceStore.clear()
   entitiesStore.clear()
+  void voiceStore.dispose()
 })
 </script>
 
@@ -64,6 +73,9 @@ onUnmounted(() => {
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <p v-else-if="!ready" class="muted">正在加载项目…</p>
     <EditorLayout v-else />
+    <VoiceAudioHost />
+    <VoiceSpeakerOverlay />
+    <VoiceSettingsOverlay />
   </div>
 </template>
 
