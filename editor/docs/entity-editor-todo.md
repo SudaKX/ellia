@@ -1,7 +1,7 @@
 # 实体编辑器细化 TODO
 
 > 目标：按实体类型逐个细化“字段定义 / 创建表单 / 专用编辑器”，提升字段级锁、在场提示和创建体验。
-> 状态：规划中，未开始。
+> 状态：进行中；hint 已完成字段/结构检查，按顺序继续后续实体。
 
 ## 推荐处理顺序
 
@@ -37,8 +37,8 @@
 
 ### 1. hint
 
-- [ ] 字段：`stable_id`、`source_asset_id`、`download_name`、`display`、`credit_id`、`credit_amount`、`access_rule_block_id`
-- [ ] 创建表单：自动建议 `stable-id:` 前缀，校验 credit_id 是否已注册
+- [x] 字段：`stable_id`、`source_asset_id`、`download_name`、`display`、`credit_id`、`credit_amount`、`access_rule_block_id`（已对照 schema/后端校验）
+- [ ] 创建表单：自动建议 `hint:` 前缀，校验 credit_id 是否已注册
 - [ ] 编辑器：结构化表单，`display` 容器字段锁，`credit_id` 下拉候选
 
 ### 2. validation
