@@ -108,6 +108,27 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 4,
+    up(db) {
+      db.exec(`
+        CREATE TABLE voice_channels (
+          id               TEXT PRIMARY KEY,
+          project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          name             TEXT NOT NULL COLLATE NOCASE,
+          max_participants INTEGER NOT NULL DEFAULT 8
+                           CHECK (max_participants > 0 AND max_participants <= 8),
+          created_by       TEXT NOT NULL REFERENCES users(id),
+          created_at       TEXT NOT NULL,
+          updated_at       TEXT NOT NULL,
+          UNIQUE (project_id, name)
+        );
+
+        CREATE INDEX idx_voice_channels_project
+          ON voice_channels(project_id);
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: Database.Database): void {

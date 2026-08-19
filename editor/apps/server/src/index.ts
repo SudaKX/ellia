@@ -7,6 +7,7 @@ import { createApp } from './app.js'
 import { loadConfig } from './config.js'
 import { getDatabase, initDatabase } from './db/database.js'
 import { ensureMetaSeeded } from './db/meta.js'
+import { attachVoiceSocket } from './voice/socket.js'
 import { attachWebSocketHub, WS_PATH_PREFIX } from './ws/hub.js'
 
 const config = loadConfig()
@@ -17,6 +18,7 @@ mkdirSync(path.resolve(config.fileDataDir), { recursive: true })
 
 const server = createServer(createApp(config))
 attachWebSocketHub(server)
+attachVoiceSocket(server)
 
 server.listen(config.port, () => {
   console.log(`[ellia-server] REST http://localhost:${config.port}/api`)
