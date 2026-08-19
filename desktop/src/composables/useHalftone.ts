@@ -98,11 +98,22 @@ export function useHalftone(options?: HalftoneOptions) {
    * @param imageUrl 图片 URL，同时也是缓存 key
    */
   async function renderMaster(imageUrl: string): Promise<void> {
-    // Step 1: 加载图片
+    // Step 1: 加载图片（decode 失败时兜底到 onload，仍失败则抛出，由 render 调用方决定如何降级）
     const image = new Image()
     image.crossOrigin = 'anonymous'
     image.src = imageUrl
-    await image.decode()
+
+    try {
+      await image.decode()
+    } catch {
+      // 部分环境/图片 decode 不可用或加载失败 → 回退到 onload 等待
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error(`Halftone image load failed: ${imageUrl}`))
+        // 已缓存图片可能不触发 onload 回调，检查尺寸兜底
+        if (image.complete && image.naturalWidth > 0) resolve()
+      })
+    }
 
     const imgW = image.naturalWidth
     const imgH = image.naturalHeight
@@ -182,10 +193,16 @@ export function useHalftone(options?: HalftoneOptions) {
   }
 
   /**
-   * 将缓存的 masterCanvas 缩放到当前显示 canvas。
+   * 将缓存的 masterCanvas 等比缩放到当前显示 canvas（contain 模式）。
    *
    * 这是热点路径——每次 resizeObserver 触发都会调用。
    * 仅一次 ctx.drawImage，由浏览器 GPU 加速缩放，无任何遍历。
+   *
+   * ## 等比 contain
+   *
+   * 保持原图宽高比缩放并居中绘制，多余区域保持透明：
+   * 窗口被拉伸到任意宽高比时，点阵图都不会变形。
+   * （原图 1:1、显示区域 1:1 时等同于铺满，行为与旧版一致。）
    *
    * @param imageUrl 要显示的图片 URL，用于从 cache 取对应的 masterCanvas
    */
@@ -193,7 +210,18 @@ export function useHalftone(options?: HalftoneOptions) {
     const masterCanvas = cache.get(imageUrl)
     if (!ctx || !masterCanvas || cssWidth <= 0 || cssHeight <= 0) return
     ctx.clearRect(0, 0, cssWidth, cssHeight)
-    ctx.drawImage(masterCanvas, 0, 0, cssWidth, cssHeight)
+
+    // contain：按原图比例缩放，取能完整放入显示区域的尺寸，居中
+    const ratio = masterCanvas.width / masterCanvas.height
+    let drawWidth = cssWidth
+    let drawHeight = drawWidth / ratio
+    if (drawHeight > cssHeight) {
+      drawHeight = cssHeight
+      drawWidth = drawHeight * ratio
+    }
+    const offsetX = (cssWidth - drawWidth) / 2
+    const offsetY = (cssHeight - drawHeight) / 2
+    ctx.drawImage(masterCanvas, offsetX, offsetY, drawWidth, drawHeight)
   }
 
   // ─── DPR 感知的 canvas 尺寸调整 ─────────────────────────
