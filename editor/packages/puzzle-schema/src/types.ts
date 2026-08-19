@@ -177,10 +177,10 @@ export interface FileTreeNodeState {
   display: DisplayField
   hidden: boolean
   download_name?: string
-  /** file 节点指向资产库中的 asset 实体（entity id） */
-  source_asset_id?: EntityId
-  /** access_rule 引用 python-block 实体（slot=access_rule） */
-  access_rule_block_id?: EntityId
+  /** file 节点指向资产库中的 asset 实体 resource_id（asset-path:…） */
+  source_asset_id?: string
+  /** access_rule 引用 python-block 实体 resource_id（python-name:…） */
+  access_rule_block_id?: string
 }
 
 /** 文件树容器：持有整棵树拓扑与排序；节点只按 stable_id 引用 */
@@ -206,7 +206,8 @@ export interface AssetState {
 }
 
 export interface HintDisplay {
-  title?: string
+  /** mythos HintDisplayParams.title 必填：非空单行 */
+  title: string
   teaser?: string
   icon?: string
   sort_order?: number
@@ -214,14 +215,16 @@ export interface HintDisplay {
 
 export interface HintState {
   stable_id: StableId
-  /** 来源资产（asset 实体引用） */
-  source_asset_id?: EntityId
-  download_name?: string
+  /** 来源资产 resource_id（asset-path:…）；mythos Hint.source 为 FileReference，导出时必需 */
+  source_asset_id: string
+  /** mythos Hint.download_name 必填：安全单路径段 */
+  download_name: string
   display: HintDisplay
-  /** 必须已注册的 credit_id（编辑器表单做即时提示） */
+  /** 必须已注册的 credit-template resource_id（credit-id:…；编辑器表单做即时提示） */
   credit_id: string
   credit_amount: number
-  access_rule_block_id?: EntityId
+  /** 访问规则 python-block resource_id（python-name:…） */
+  access_rule_block_id?: string
 }
 
 /** 脚本 body 骨架；细节后续对照 mythos Script 定义细化 */
@@ -236,21 +239,24 @@ export interface ScriptState {
   stable_id: StableId
   revision: number
   body: ScriptBody
-  access_rule_block_id?: EntityId
+  /** 访问规则 python-block resource_id（python-name:…） */
+  access_rule_block_id?: string
 }
 
 export interface ValidationState {
   stable_id: StableId
   /** slug 格式（^[a-z0-9]+(?:-[a-z0-9]+)*$） */
   validation_id: string
-  handler_block_id?: EntityId
+  /** 校验处理 python-block resource_id（python-name:…） */
+  handler_block_id?: string
 }
 
 export interface ArtifactTemplateState {
   artifact_id: string
   media_type: string
   download_name?: string
-  generator_block_id?: EntityId
+  /** 生成器 python-block resource_id（python-name:…） */
+  generator_block_id?: string
 }
 
 export interface ArtifactNodeState {
@@ -260,8 +266,10 @@ export interface ArtifactNodeState {
   display: DisplayField
   hidden: boolean
   download_name?: string
-  access_rule_block_id?: EntityId
-  node_generator_block_id?: EntityId
+  /** 访问规则 python-block resource_id（python-name:…） */
+  access_rule_block_id?: string
+  /** 节点生成器 python-block resource_id（python-name:…） */
+  node_generator_block_id?: string
 }
 
 export interface AccountTemplateState {
@@ -286,21 +294,25 @@ export interface AchievementState {
   achievement_id: string
   secret: boolean
   display: AchievementDisplay
-  predicate_block_id?: EntityId
-  reward_block_id?: EntityId
+  /** 成就判定 python-block resource_id（python-name:…） */
+  predicate_block_id?: string
+  /** 成就奖励 python-block resource_id（python-name:…） */
+  reward_block_id?: string
 }
 
 export interface TaskState {
   task_id: string
   dependencies: string[]
-  handler_block_id?: EntityId
+  /** 任务处理 python-block resource_id（python-name:…） */
+  handler_block_id?: string
 }
 
 export interface EventListenerState {
   event_type: string
   priority: number
   dependencies: string[]
-  listener_block_id?: EntityId
+  /** 事件监听 python-block resource_id（python-name:…） */
+  listener_block_id?: string
 }
 
 /** python 代码块（独立实体，slot 决定签名模板，见 python.ts） */

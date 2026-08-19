@@ -32,7 +32,7 @@ function shouldRenderField(key: string): boolean {
   const fieldSpec = spec.value?.[key]
   if (!fieldSpec) return false
   if (fieldSpec.hidden) return false
-  if (fieldSpec.optional && stateRecord.value[key] === undefined) return false
+  // optional 字段未设置时也渲染，显示“未设置”并提供设置入口
   return true
 }
 

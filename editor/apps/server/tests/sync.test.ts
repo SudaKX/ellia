@@ -54,7 +54,9 @@ describe('WS v2 sync', () => {
       resource_id: resourceId,
       state: {
         stable_id: resourceId.slice(resourceId.indexOf(':') + 1),
-        credit_id: 'vib',
+        source_asset_id: 'asset-path:assets/hint.txt',
+        download_name: 'hint.txt',
+        credit_id: 'credit-id:vib',
         credit_amount: 1,
         display: { title },
       },
@@ -138,6 +140,39 @@ describe('WS v2 sync', () => {
     assert.equal(update.value, '新标题')
     const unlocked = await other.waitFor('unlocked')
     assert.equal(unlocked.data_path, dataPath)
+    await other.close()
+  })
+
+  it('remove op 广播 update，且不带 value', async () => {
+    const hint = await createHint(admin, 'hint:remove-1')
+    const dataPath = `${hint.id}@state:/access_rule_block_id`
+
+    admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
+    await admin.waitFor('locked')
+    admin.send({
+      type: 'patch',
+      ref: ref(),
+      entity_id: hint.id,
+      data_path: dataPath,
+      op: 'set',
+      value: 'python-name:block-1',
+    })
+    await admin.waitFor('applied')
+
+    const other = await connect()
+    admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
+    await admin.waitFor('locked')
+    admin.send({
+      type: 'patch',
+      ref: ref(),
+      entity_id: hint.id,
+      data_path: dataPath,
+      op: 'remove',
+    })
+    await admin.waitFor('applied')
+    const update = await other.waitFor('update')
+    assert.equal(update.op, 'remove')
+    assert.equal(update.value, undefined)
     await other.close()
   })
 

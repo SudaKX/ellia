@@ -54,7 +54,9 @@ describe('entities service', () => {
         resource_id: resourceId,
         state: {
           stable_id: stableId,
-          credit_id: 'vib',
+          source_asset_id: 'asset-path:assets/hint.txt',
+          download_name: 'hint.txt',
+          credit_id: 'credit-id:vib',
           credit_amount: 1,
           display: { title: '提示' },
         },
@@ -84,6 +86,27 @@ describe('entities service', () => {
     const history = listHistory(projectId, entity.id)
     assert.equal(history.length, 1)
     assert.equal(history[0].version, 1)
+  })
+
+  it('patch set 可创建缺失可选字段，remove 可删除字段', () => {
+    const entity = hint('hint:optional-fields')
+    const setPath = `${entity.id}@state:/access_rule_block_id`
+    const set = patchEntity(projectId, entity.id, setPath, 'python-name:block-1', adminId, 'set')
+    assert.equal(set.state.access_rule_block_id, 'python-name:block-1')
+
+    const remove = patchEntity(projectId, entity.id, setPath, undefined, adminId, 'remove')
+    assert.equal('access_rule_block_id' in remove.state, false)
+
+    assert.throws(
+      () => patchEntity(projectId, entity.id, setPath, 'python-name:block-2', adminId, 'bad' as never),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('op'),
+    )
+    assert.throws(
+      () => patchEntity(projectId, entity.id, `${entity.id}@group:`, undefined, adminId, 'remove'),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('不支持 remove'),
+    )
   })
 
   it('revision 单调且回退后 version 递减', () => {

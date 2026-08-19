@@ -231,7 +231,9 @@ describe('files API', () => {
       resource_id: 'hint:stable-entity',
       state: {
         stable_id: 'stable-entity',
-        credit_id: 'vib',
+        source_asset_id: 'asset-path:assets/hint.txt',
+        download_name: 'hint.txt',
+        credit_id: 'credit-id:vib',
         credit_amount: 1,
         display: { title: '稳定实体' },
       },

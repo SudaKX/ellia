@@ -61,7 +61,9 @@
     "inject_id": { "enable": true, "field": "stable_id" },
     "default": {
       "stable_id": "",
-      "credit_id": "vib",
+      "source_asset_id": "",
+      "download_name": "",
+      "credit_id": "credit-id:vib",
       "credit_amount": 1,
       "display": { "title": "", "teaser": "", "icon": "", "sort_order": 0 }
     },

@@ -13,6 +13,7 @@ import {
   type EntityRecord,
   type EntityState,
   type KindStateMap,
+  type PatchOp,
   type UiKind,
 } from '@ellia/puzzle-schema'
 import type Database from 'better-sqlite3'
@@ -198,14 +199,24 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
       if (typeof state.stable_id !== 'string' || !state.stable_id) {
         throw new ApiError(400, 'VALIDATION', 'hint.stable_id 必填')
       }
+      if (typeof state.source_asset_id !== 'string' || !state.source_asset_id) {
+        throw new ApiError(400, 'VALIDATION', 'hint.source_asset_id 必填')
+      }
+      if (typeof state.download_name !== 'string' || !state.download_name) {
+        throw new ApiError(400, 'VALIDATION', 'hint.download_name 必填')
+      }
       if (typeof state.credit_id !== 'string' || !state.credit_id) {
         throw new ApiError(400, 'VALIDATION', 'hint.credit_id 必填')
       }
-      if (typeof state.credit_amount !== 'number') {
-        throw new ApiError(400, 'VALIDATION', 'hint.credit_amount 必须为数字')
+      if (
+        typeof state.credit_amount !== 'number' ||
+        !Number.isInteger(state.credit_amount) ||
+        state.credit_amount <= 0
+      ) {
+        throw new ApiError(400, 'VALIDATION', 'hint.credit_amount 必须为正整数')
       }
-      if (!isRecord(state.display)) {
-        throw new ApiError(400, 'VALIDATION', 'hint.display 必须是对象')
+      if (!isRecord(state.display) || typeof state.display.title !== 'string' || !state.display.title) {
+        throw new ApiError(400, 'VALIDATION', 'hint.display.title 必填')
       }
       return
     }
@@ -400,30 +411,58 @@ interface AppliedPatch {
   state: string
   group: string
   resource_id: string
+  op: PatchOp
   value: unknown
 }
 
+function assertPatchOp(value: unknown): PatchOp {
+  if (value === undefined || value === 'set') return 'set'
+  if (value === 'remove') return 'remove'
+  throw new ApiError(400, 'VALIDATION', "op 必须是 'set' 或 'remove'")
+}
+
 /** 解析并应用 data_path；返回更新后的列值（不做历史与版本递增） */
-export function applyDataPath(row: EntityRow, dataPath: string, value: unknown): AppliedPatch {
+export function applyDataPath(
+  row: EntityRow,
+  dataPath: string,
+  value: unknown,
+  op: PatchOp = 'set',
+): AppliedPatch {
   const parsed = parseDataPath(dataPath, row.id)
   if (!parsed) throw new ApiError(400, 'VALIDATION', 'data_path 非法')
-  const state = JSON.parse(row.state) as Record<string, unknown>
+  const resolvedOp = assertPatchOp(op)
+  if (resolvedOp === 'set' && value === undefined) {
+    throw new ApiError(400, 'VALIDATION', 'set 操作必须提供 value')
+  }
 
   if (parsed.root === 'state') {
-    const nextState = setJsonPointer(state, parsed.json_path, value)
-    return { state: JSON.stringify(nextState), group: row.group, resource_id: row.resource_id, value }
+    const state = JSON.parse(row.state) as Record<string, unknown>
+    const nextState =
+      resolvedOp === 'remove'
+        ? removeJsonPointer(state, parsed.json_path)
+        : setJsonPointer(state, parsed.json_path, value)
+    return {
+      state: JSON.stringify(nextState),
+      group: row.group,
+      resource_id: row.resource_id,
+      op: resolvedOp,
+      value: resolvedOp === 'remove' ? undefined : value,
+    }
+  }
+  if (resolvedOp === 'remove') {
+    throw new ApiError(400, 'VALIDATION', 'group/resource_id 不支持 remove 操作')
   }
   if (parsed.root === 'group') {
     if (typeof value !== 'string' || !isValidGroup(value)) {
       throw new ApiError(400, 'VALIDATION', 'group 必须是 Python 模块路径段格式')
     }
-    return { state: row.state, group: value, resource_id: row.resource_id, value }
+    return { state: row.state, group: value, resource_id: row.resource_id, op: resolvedOp, value }
   }
   // resource_id
   if (typeof value !== 'string' || !isValidResourceIdForKind(row.kind, value)) {
     throw new ApiError(400, 'VALIDATION', 'resource_id 格式非法或命名空间与 kind 不匹配')
   }
-  return { state: row.state, group: row.group, resource_id: value, value }
+  return { state: row.state, group: row.group, resource_id: value, op: resolvedOp, value }
 }
 
 export function patchEntity(
@@ -432,12 +471,13 @@ export function patchEntity(
   dataPath: string,
   value: unknown,
   authorId: string,
+  op: PatchOp = 'set',
   db: Database.Database = getDatabase(),
 ): Entity {
   const apply = db.transaction(() => {
     const row = findRow(db, projectId, entityId)
     if (!row) throw new ApiError(404, 'ENTITY_NOT_FOUND', '实体不存在')
-    const applied = applyDataPath(row, dataPath, value)
+    const applied = applyDataPath(row, dataPath, value, op)
 
     if (applied.resource_id !== row.resource_id) {
       const conflict = db
@@ -576,7 +616,7 @@ function findRow(
     .get(entityId, projectId) as EntityRow | undefined
 }
 
-/** 按 JSON Pointer 在对象/数组中写入值；路径必须已存在（'' 表示整个 state） */
+/** 按 JSON Pointer 在对象/数组中写入值；set 允许创建缺失的容器/叶子字段（'' 表示整个 state） */
 function setJsonPointer(
   root: Record<string, unknown>,
   pointer: string,
@@ -586,17 +626,14 @@ function setJsonPointer(
     if (!isRecord(value)) throw new ApiError(400, 'VALIDATION', '整个 state 的替换值必须是对象')
     return value as Record<string, unknown>
   }
-  const segments = pointer
-    .slice(1)
-    .split('/')
-    .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
+  const segments = pointerSegments(pointer)
   let current: unknown = root
   for (let index = 0; index < segments.length - 1; index += 1) {
     const segment = segments[index]
     if (segment === undefined) {
       throw new ApiError(400, 'VALIDATION', `data_path 路径段为空: ${pointer}`)
     }
-    current = readChild(current, segment, pointer)
+    current = childForWrite(current, segment, pointer)
   }
   const last = segments[segments.length - 1]
   if (last === undefined) {
@@ -609,9 +646,6 @@ function setJsonPointer(
     }
     current[position] = value
   } else if (isRecord(current)) {
-    if (!(last in current)) {
-      throw new ApiError(400, 'VALIDATION', `data_path 指向不存在的字段: ${pointer}`)
-    }
     current[last] = value
   } else {
     throw new ApiError(400, 'VALIDATION', `data_path 无法写入: ${pointer}`)
@@ -619,19 +653,73 @@ function setJsonPointer(
   return root
 }
 
-function readChild(current: unknown, segment: string, pointer: string): unknown {
+/** 定位写入路径的下一层；对象字段缺失时自动创建空对象，数组元素必须已存在 */
+function childForWrite(current: unknown, segment: string, pointer: string): unknown {
   if (Array.isArray(current)) {
     const position = Number(segment)
     if (!Number.isInteger(position) || position < 0 || position >= current.length) {
       throw new ApiError(400, 'VALIDATION', `data_path 数组下标越界: ${pointer}`)
     }
-    return current[position]
+    const child = current[position]
+    if (!isRecord(child)) {
+      throw new ApiError(400, 'VALIDATION', `data_path 无法写入: ${pointer}`)
+    }
+    return child
   }
   if (isRecord(current)) {
     if (!(segment in current)) {
-      throw new ApiError(400, 'VALIDATION', `data_path 指向不存在的字段: ${pointer}`)
+      current[segment] = {}
     }
-    return current[segment]
+    const child = current[segment]
+    if (!isRecord(child)) {
+      throw new ApiError(400, 'VALIDATION', `data_path 无法写入: ${pointer}`)
+    }
+    return child
   }
   throw new ApiError(400, 'VALIDATION', `data_path 无法定位: ${pointer}`)
+}
+
+/** 按 JSON Pointer 删除对象键或数组元素；路径不存在时视为 no-op */
+function removeJsonPointer(
+  root: Record<string, unknown>,
+  pointer: string,
+): Record<string, unknown> {
+  if (pointer === '') {
+    throw new ApiError(400, 'VALIDATION', '不能移除整个 state')
+  }
+  const segments = pointerSegments(pointer)
+  let current: unknown = root
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index]
+    if (segment === undefined) {
+      throw new ApiError(400, 'VALIDATION', `data_path 路径段为空: ${pointer}`)
+    }
+    if (Array.isArray(current)) {
+      const position = Number(segment)
+      if (!Number.isInteger(position) || position < 0 || position >= current.length) return root
+      current = current[position]
+      continue
+    }
+    if (!isRecord(current) || !(segment in current)) return root
+    current = current[segment]
+  }
+  const last = segments[segments.length - 1]
+  if (last === undefined) {
+    throw new ApiError(400, 'VALIDATION', `data_path 路径段为空: ${pointer}`)
+  }
+  if (Array.isArray(current)) {
+    const position = Number(last)
+    if (!Number.isInteger(position) || position < 0 || position >= current.length) return root
+    current.splice(position, 1)
+  } else if (isRecord(current) && last in current) {
+    delete current[last]
+  }
+  return root
+}
+
+function pointerSegments(pointer: string): string[] {
+  return pointer
+    .slice(1)
+    .split('/')
+    .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
 }

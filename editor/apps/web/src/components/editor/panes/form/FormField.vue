@@ -5,8 +5,11 @@ import type { EntityRecord } from '@ellia/puzzle-schema'
 
 import { syncClient } from '../../../../client/ws'
 import { useAuthStore } from '../../../../stores/auth'
+import { useEditorTabsStore } from '../../../../stores/editorTabs'
+import { useEntitiesStore } from '../../../../stores/entities'
 import { useLocksStore } from '../../../../stores/locks'
 import { usePresenceStore } from '../../../../stores/presence'
+import { useTooltipStore } from '../../../../stores/tooltip'
 import UserBadge from '../../../presence/UserBadge.vue'
 import { getHashColorPair } from '../../../../utils/color'
 import FieldEditDialog from './FieldEditDialog.vue'
@@ -24,6 +27,7 @@ const props = defineProps<{
 const auth = useAuthStore()
 const locks = useLocksStore()
 const presence = usePresenceStore()
+const tooltip = useTooltipStore()
 
 const lockInfo = computed(() => locks.holderOf(props.dataPath))
 const lockedByOther = computed(() => Boolean(lockInfo.value && lockInfo.value.holder.id !== auth.user?.id))
@@ -32,8 +36,18 @@ const holderColor = computed(() =>
 )
 const fieldPresence = computed(() => presence.userAtPath(props.entity.id, props.dataPath))
 const isNonObject = computed(() => props.fieldSpec.type !== 'object')
+const isUnset = computed(() => Boolean(props.fieldSpec.optional && props.modelValue === undefined))
+
+const entitiesStore = useEntitiesStore()
+const editorTabsStore = useEditorTabsStore()
+
+const referencedEntity = computed(() => {
+  if (!props.fieldSpec.namespace || typeof props.modelValue !== 'string') return null
+  return entitiesStore.entityList.find((entity) => entity.resource_id === props.modelValue) ?? null
+})
 
 const displayValue = computed(() => {
+  if (isUnset.value) return '未设置'
   const value = props.modelValue
   switch (props.fieldSpec.type) {
     case 'bool':
@@ -49,6 +63,7 @@ const displayValue = computed(() => {
 })
 
 const fullValueText = computed(() => {
+  if (isUnset.value) return '未设置'
   const value = props.modelValue
   switch (props.fieldSpec.type) {
     case 'bool':
@@ -63,24 +78,26 @@ const fullValueText = computed(() => {
   }
 })
 
-const tooltipVisible = ref(false)
 let tooltipTimer: ReturnType<typeof setTimeout> | null = null
 
 function onValueMouseEnter(): void {
   if (tooltipTimer) clearTimeout(tooltipTimer)
   tooltipTimer = setTimeout(() => {
-    tooltipVisible.value = true
+    const element = valueRef.value
+    if (!element) return
+    tooltip.show({ text: fullValueText.value, anchor: element })
   }, 500)
 }
 
 function onValueMouseLeave(): void {
   if (tooltipTimer) clearTimeout(tooltipTimer)
   tooltipTimer = null
-  tooltipVisible.value = false
+  tooltip.hide()
 }
 
 onBeforeUnmount(() => {
   if (tooltipTimer) clearTimeout(tooltipTimer)
+  tooltip.hide()
 })
 
 const valueRef = ref<HTMLButtonElement | null>(null)
@@ -134,6 +151,14 @@ const dialogLocked = ref(false)
 const busy = ref(false)
 const error = ref<string | null>(null)
 
+function onValueClick(): void {
+  if (isNonObject.value) {
+    void openDialog()
+  } else {
+    void setObjectDefault()
+  }
+}
+
 async function openDialog(): Promise<void> {
   if (lockedByOther.value) return
   busy.value = true
@@ -177,10 +202,76 @@ async function cancelDialog(): Promise<void> {
     dialogLocked.value = false
   }
 }
+
+async function clearField(): Promise<void> {
+  if (!dialogLocked.value) return
+  busy.value = true
+  error.value = null
+  let succeeded = false
+  try {
+    await syncClient.removeField(props.entity.id, props.dataPath)
+    succeeded = true
+    dialogOpen.value = false
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '清除失败'
+  } finally {
+    if (dialogLocked.value && !succeeded) {
+      syncClient.unlock(props.entity.id, props.dataPath).catch(() => undefined)
+    }
+    dialogLocked.value = false
+    busy.value = false
+  }
+}
+
+async function setObjectDefault(): Promise<void> {
+  if (lockedByOther.value || busy.value) return
+  busy.value = true
+  error.value = null
+  let locked = false
+  try {
+    await syncClient.lock(props.entity.id, props.dataPath)
+    locked = true
+    await syncClient.patch(props.entity.id, props.dataPath, {}, 'set')
+    locked = false
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '设置失败'
+  } finally {
+    if (locked) {
+      syncClient.unlock(props.entity.id, props.dataPath).catch(() => undefined)
+    }
+    busy.value = false
+  }
+}
+
+async function clearObject(): Promise<void> {
+  if (lockedByOther.value || busy.value) return
+  busy.value = true
+  error.value = null
+  let locked = false
+  try {
+    await syncClient.lock(props.entity.id, props.dataPath)
+    locked = true
+    await syncClient.removeField(props.entity.id, props.dataPath)
+    locked = false
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '清除失败'
+  } finally {
+    if (locked) {
+      syncClient.unlock(props.entity.id, props.dataPath).catch(() => undefined)
+    }
+    busy.value = false
+  }
+}
+
+function openReferencedEntity(): void {
+  if (referencedEntity.value) {
+    editorTabsStore.openTab(referencedEntity.value)
+  }
+}
 </script>
 
 <template>
-  <div class="form-field">
+  <div class="form-field" :class="{ 'form-field--unset': isUnset }">
     <div class="form-field__main">
       <div class="form-field__info">
         <div class="form-field__header">
@@ -193,21 +284,40 @@ async function cancelDialog(): Promise<void> {
         </p>
       </div>
 
-      <div v-if="isNonObject" class="form-field__value-wrap">
+      <div v-if="isNonObject || isUnset" class="form-field__value-area">
         <button
           ref="valueRef"
           class="form-field__value"
+          :class="{ 'form-field__value--unset': isUnset }"
           type="button"
           :disabled="lockedByOther || busy"
-          @click="openDialog"
-          @mouseenter="onValueMouseEnter"
-          @mouseleave="onValueMouseLeave"
+          @click="onValueClick"
+          @mouseenter="isNonObject && onValueMouseEnter()"
+          @mouseleave="isNonObject && onValueMouseLeave()"
         >
           {{ displayValue }}
         </button>
-        <div v-if="tooltipVisible" class="form-field__tooltip">
-          {{ fullValueText }}
-        </div>
+
+        <button
+          v-if="isNonObject && fieldSpec.namespace && referencedEntity"
+          class="form-field__jump btn btn--tonal btn--small"
+          type="button"
+          title="打开引用实体"
+          @click.stop="openReferencedEntity"
+        >
+          打开
+        </button>
+      </div>
+
+      <div v-if="!isNonObject && !isUnset && fieldSpec.optional" class="form-field__object-clear">
+        <button
+          class="btn btn--danger btn--small"
+          type="button"
+          :disabled="lockedByOther || busy"
+          @click="clearObject"
+        >
+          清除
+        </button>
       </div>
     </div>
 
@@ -231,7 +341,7 @@ async function cancelDialog(): Promise<void> {
     <span v-if="error" class="error-text" role="alert">{{ error }}</span>
 
     <ObjectField
-      v-if="!isNonObject"
+      v-if="!isNonObject && !isUnset"
       :entity="entity"
       :field-spec="fieldSpec"
       :data-path="dataPath"
@@ -247,6 +357,7 @@ async function cancelDialog(): Promise<void> {
       :model-value="modelValue"
       @confirm="confirmDialog"
       @cancel="cancelDialog"
+      @clear="clearField"
     />
   </div>
 </template>
@@ -323,37 +434,28 @@ async function cancelDialog(): Promise<void> {
   line-height: 1.4;
 }
 
-.form-field__value-wrap {
+.form-field__value-area {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex: 1;
   min-width: 40px;
   max-width: 180px;
 }
 
-.form-field__tooltip {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  max-width: 280px;
-  padding: 6px 8px;
-  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
-  border-radius: 6px;
-  background: var(--md-sys-color-surface-container-high, #ece6f0);
-  color: var(--md-sys-color-on-surface, #1d1b20);
-  font-size: 0.75rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
-  pointer-events: none;
+.form-field__object-clear {
+  flex: none;
+  align-self: flex-start;
+}
+
+.form-field__jump {
+  flex: none;
+  align-self: center;
 }
 
 .form-field__value {
-  width: 100%;
   flex: 1;
-  min-width: 40px;
-  max-width: 180px;
   min-height: 32px;
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
@@ -376,5 +478,19 @@ async function cancelDialog(): Promise<void> {
 .form-field__value:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.form-field--unset {
+  opacity: 0.62;
+}
+
+.form-field--unset .form-field__description,
+.form-field--unset .form-field__label {
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+}
+
+.form-field__value--unset {
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  border-style: dashed;
 }
 </style>

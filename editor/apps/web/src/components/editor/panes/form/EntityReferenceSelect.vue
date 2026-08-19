@@ -8,11 +8,9 @@ const props = withDefaults(
   defineProps<{
     modelValue: string
     namespace: string
-    valueMode?: 'entity_id' | 'id_part'
     disabled?: boolean
   }>(),
   {
-    valueMode: 'entity_id',
     disabled: false,
   },
 )
@@ -26,13 +24,10 @@ const entitiesStore = useEntitiesStore()
 const options = computed(() =>
   entitiesStore.entityList
     .filter((entity) => entity.resource_id.startsWith(`${props.namespace}:`))
-    .map((entity) => {
-      const idPart = entity.resource_id.slice(props.namespace.length + 1)
-      return {
-        label: idPart,
-        value: props.valueMode === 'entity_id' ? entity.id : idPart,
-      }
-    }),
+    .map((entity) => ({
+      label: entity.resource_id.slice(props.namespace.length + 1),
+      value: entity.resource_id,
+    })),
 )
 </script>
 

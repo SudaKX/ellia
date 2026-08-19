@@ -1,7 +1,7 @@
 # 实体编辑器细化 TODO
 
 > 目标：按实体类型逐个细化“字段定义 / 创建表单 / 专用编辑器”，提升字段级锁、在场提示和创建体验。
-> 状态：进行中；hint 已完成字段/结构检查，按顺序继续后续实体。
+> 状态：进行中；hint 已完成字段/结构检查；validation 字段/后端检查已完成，按顺序继续创建表单与编辑器。
 
 ## 推荐处理顺序
 
@@ -38,14 +38,22 @@
 ### 1. hint
 
 - [x] 字段：`stable_id`、`source_asset_id`、`download_name`、`display`、`credit_id`、`credit_amount`、`access_rule_block_id`（已对照 schema/后端校验）
+  - 后端 `Hint(source, download_name, display, credit_id, credit_amount, access_rule)`：`source`（FileReference）与 `download_name` 均必填
+  - 编辑器 `source_asset_id` 已改为必填；`download_name`、`display.title` 已改为必填；`credit_amount` 后端要求正整数
 - [ ] 创建表单：自动建议 `hint:` 前缀，校验 credit_id 是否已注册
 - [ ] 编辑器：结构化表单，`display` 容器字段锁，`credit_id` 下拉候选
 
 ### 2. validation
 
-- [ ] 字段：`stable_id`、`validation_id`、`handler_block_id`
-- [ ] 创建表单：`validation_id` slug 校验
-- [ ] 编辑器：结构化表单，handler 引用选择
+- [x] 字段：`stable_id`、`validation_id`、`handler_block_id`（已对照 schema/后端校验）
+  - mythos 后端 `ValidationAttempt(stable_id, validation_id, handler)`：
+    - `stable_id`：注册表内唯一；仅用于身份/去重，不参与 HTTP 路径
+    - `validation_id`：公开 API slug，`POST /api/v1/validations/{validation_id}/attempts` 使用；后端规则 `^[a-z0-9][a-z0-9-]{0,63}$`，全局唯一
+    - `handler`：异步 `(context: ValidationContext, payload) -> ValidationResult`；编辑器用 `handler_block_id` 引用 `python-block`（slot=`validation_handler`），导出时生成 handler
+    - handler 可在事务内推进 progress、发放账号/资产、写 followups；`context.reject(reason, details)` → HTTP 409 Problem Details；返回 `accepted=false` 为 HTTP 200
+  - 注意：前端 `VALIDATION_ID_RE`（`^[a-z0-9]+(?:-[a-z0-9]+)*$`）比后端严格，但缺少 64 字符上限；建议对齐后端
+- [ ] 创建表单：`validation_id` slug 校验（对齐后端 regex + ≤64；默认 `handler_block_id` 可选）
+- [ ] 编辑器：结构化表单，handler 引用选择（仅列出 `slot='validation_handler'` 的 python-block）
 
 ### 3. task
 

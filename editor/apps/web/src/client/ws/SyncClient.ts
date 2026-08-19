@@ -6,6 +6,7 @@ import type {
   HistoryEntry,
   LockedMessage,
   LockDeniedMessage,
+  PatchOp,
   RolledBackMessage,
   ServerMessage,
   UnlockedMessage,
@@ -121,6 +122,7 @@ export class SyncClient {
     entityId: string,
     dataPath: string,
     value: unknown,
+    op: PatchOp = 'set',
   ): Promise<{ revision: number; version: number }> {
     return this.request<Extract<ServerMessage, { type: 'applied' }>, { revision: number; version: number }>(
       {
@@ -128,11 +130,16 @@ export class SyncClient {
         ref: generateRef(),
         entity_id: entityId,
         data_path: dataPath,
-        value,
+        op,
+        ...(op === 'set' ? { value } : {}),
       },
       'applied',
       (message) => ({ revision: message.revision, version: message.version }),
     )
+  }
+
+  removeField(entityId: string, dataPath: string): Promise<{ revision: number; version: number }> {
+    return this.patch(entityId, dataPath, undefined, 'remove')
   }
 
   lock(entityId: string, dataPath: string): Promise<LockedMessage> {

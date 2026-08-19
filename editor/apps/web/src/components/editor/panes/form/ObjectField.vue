@@ -89,7 +89,7 @@ async function saveJson(): Promise<void> {
     <template v-if="keys.length > 0">
       <div v-for="key in keys" :key="key" class="object-field__child">
         <FormField
-          v-if="!inner[key]?.hidden && (!inner[key]?.optional || objectValue[key] !== undefined)"
+          v-if="!inner[key]?.hidden"
           :entity="entity"
           :field-name="key"
           :field-spec="inner[key]!"

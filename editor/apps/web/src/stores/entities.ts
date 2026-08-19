@@ -90,10 +90,11 @@ export const useEntitiesStore = defineStore('entities', () => {
       state: { ...entity.state },
     }
     if (parsed.root === 'state') {
-      nextEntity.state = setPointerValue(
-        nextEntity.state as unknown as Record<string, unknown>,
-        parsed.json_path,
-        message.value,
+      const stateRoot = nextEntity.state as unknown as Record<string, unknown>
+      nextEntity.state = (
+        message.op === 'remove'
+          ? removePointerValue(stateRoot, parsed.json_path)
+          : setPointerValue(stateRoot, parsed.json_path, message.value)
       ) as unknown as EntityRecord['state']
     } else if (parsed.root === 'group') {
       nextEntity.group = message.value as string
@@ -193,5 +194,39 @@ function setPointerValue(
   }
   const lastKey = tokens[tokens.length - 1] ?? ''
   current[lastKey] = value
+  return target
+}
+
+function removePointerValue(
+  target: Record<string, unknown>,
+  pointer: string,
+): Record<string, unknown> {
+  if (pointer === '') return target
+
+  const tokens = pointer
+    .replace(/^\//, '')
+    .split('/')
+    .map((token) => token.replace(/~1/g, '/').replace(/~0/g, '~'))
+
+  let current: unknown = target
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    const key = tokens[index] ?? ''
+    if (Array.isArray(current)) {
+      const position = Number(key)
+      if (!Number.isInteger(position) || position < 0 || position >= current.length) return target
+      current = current[position]
+      continue
+    }
+    if (typeof current !== 'object' || current === null || !(key in current)) return target
+    current = (current as Record<string, unknown>)[key]
+  }
+  const lastKey = tokens[tokens.length - 1] ?? ''
+  if (Array.isArray(current)) {
+    const position = Number(lastKey)
+    if (!Number.isInteger(position) || position < 0 || position >= current.length) return target
+    current.splice(position, 1)
+  } else if (typeof current === 'object' && current !== null && lastKey in current) {
+    delete (current as Record<string, unknown>)[lastKey]
+  }
   return target
 }

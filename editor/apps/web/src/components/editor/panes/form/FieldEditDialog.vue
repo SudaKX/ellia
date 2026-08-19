@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'confirm', value: unknown): void
   (e: 'cancel'): void
+  (e: 'clear'): void
 }>()
 
 const draftString = ref('')
@@ -102,12 +103,15 @@ function defaultValueFor(spec: FieldSpec): unknown {
     <div class="field-edit-dialog">
       <p class="field-edit-dialog__description">{{ fieldSpec.description }}</p>
 
+      <div v-if="fieldSpec.optional && modelValue !== undefined" class="field-edit-dialog__clear">
+        <button class="btn btn--danger btn--small" type="button" @click="emit('clear')">清除字段</button>
+      </div>
+
       <template v-if="fieldSpec.type === 'string'">
         <EntityReferenceSelect
           v-if="fieldSpec.namespace"
           v-model="draftString"
           :namespace="fieldSpec.namespace"
-          :value-mode="fieldSpec.valueMode"
         />
         <textarea
           v-else
@@ -173,6 +177,11 @@ function defaultValueFor(spec: FieldSpec): unknown {
   margin: 0;
   font-size: 0.8rem;
   color: var(--md-sys-color-on-surface-variant, #49454f);
+}
+
+.field-edit-dialog__clear {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .field-edit-dialog__textarea {

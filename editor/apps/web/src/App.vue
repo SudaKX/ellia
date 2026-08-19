@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 
+import AppTooltip from './components/ui/AppTooltip.vue'
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
 
@@ -49,5 +50,7 @@ async function onLogout(): Promise<void> {
     </header>
 
     <RouterView />
+
+    <AppTooltip />
   </div>
 </template>

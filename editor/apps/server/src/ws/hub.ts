@@ -6,6 +6,7 @@ import {
   SYNC_PROTOCOL_VERSION,
   parseDataPath,
   type ClientMessage,
+  type PatchOp,
   type ServerMessage,
 } from '@ellia/puzzle-schema'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -163,7 +164,15 @@ function handleMessage(ws: WebSocket, context: ConnectionContext, message: Clien
       handleUnlock(ws, context, message.ref, message.entity_id, message.data_path)
       return
     case 'patch':
-      handlePatch(ws, context, message.ref, message.entity_id, message.data_path, message.value)
+      handlePatch(
+        ws,
+        context,
+        message.ref,
+        message.entity_id,
+        message.data_path,
+        message.value,
+        message.op ?? 'set',
+      )
       return
     case 'delete':
       handleDelete(ws, context, message.ref, message.entity_id)
@@ -301,6 +310,7 @@ function handlePatch(
   entityId: string,
   dataPath: string,
   value: unknown,
+  op: PatchOp = 'set',
 ): void {
   try {
     requireEntity(context.projectId, entityId)
@@ -309,7 +319,7 @@ function handlePatch(
       sendError(ws, 'STALE_LOCK', '未持有该字段锁，不能提交修改', ref)
       return
     }
-    const entity = patchEntity(context.projectId, entityId, dataPath, value, context.userId)
+    const entity = patchEntity(context.projectId, entityId, dataPath, value, context.userId, op)
     send(ws, {
       type: 'applied',
       ref,
@@ -323,7 +333,8 @@ function handlePatch(
       revision: entity.revision,
       version: entity.version,
       data_path: dataPath,
-      value,
+      op,
+      ...(op === 'set' ? { value } : {}),
       author: { id: context.userId, username: context.username },
     })
     releaseLock(dataPath)

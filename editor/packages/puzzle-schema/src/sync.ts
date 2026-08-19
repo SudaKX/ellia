@@ -47,13 +47,18 @@ export interface CreateMessage {
   state: EntityState
 }
 
+export type PatchOp = 'set' | 'remove'
+
 export interface PatchMessage {
   type: 'patch'
   ref: string
   entity_id: EntityId
   /** 已由 lock 建立的锁路径：<entity_id>@<root>:<json_path> */
   data_path: string
-  value: unknown
+  /** 默认 'set'；'remove' 用于删除可选字段 */
+  op?: PatchOp
+  /** op='set' 时必填；op='remove' 时忽略 */
+  value?: unknown
 }
 
 export interface DeleteMessage {
@@ -148,7 +153,9 @@ export interface UpdateMessage {
   revision: number
   version: number
   data_path: string
-  value: unknown
+  op: PatchOp
+  /** op='set' 时为新值；op='remove' 时不存在 */
+  value?: unknown
   author: AuthorInfo
 }
 
