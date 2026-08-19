@@ -10,6 +10,7 @@ __pycache__/
 /mythos/.env
 /mythos/credentials.json
 /refs/
+**/.ref/
 /mythos/data/*
 !/mythos/data/.gitkeep
 .trae/*
