@@ -1,14 +1,20 @@
 import type { StoryNode } from '@/composables/useStoryDialog'
 import keiAmasImg from '/images/kei_full_body/kei_amas立绘.png?url'
+import keiCrossImg from '/images/kei_full_body/kei_十字神明立绘.png?url'
 import rioWinterImg from '/images/rio/rio_冬装.png?url'
 
-const keiBirthStage = [
+const keiHologramStage = [
+  { id: 'kei', image: keiCrossImg, position: 'left' as const, speakerNames: ['柯伊'], animation: 'fade' as const, anchorY: 0.4, effect: 'hologram' as const },
+  { id: 'rio', image: rioWinterImg, position: 'right' as const, speakerNames: ['莉音'], animation: 'fade' as const, anchorY: 0.4 },
+]
+
+const keiAmasStage = [
   { id: 'kei', image: keiAmasImg, position: 'left' as const, speakerNames: ['柯伊'], animation: 'fade' as const, anchorY: 0.66 },
   { id: 'rio', image: rioWinterImg, position: 'right' as const, speakerNames: ['莉音'], animation: 'fade' as const, anchorY: 0.4 },
 ]
 
 export const keiBirthScript: StoryNode[] = [
-  { speaker: '莉音', text: '总之现在的重点是决定接下来该做什么。', stageCharacters: keiBirthStage },
+  { speaker: '莉音', text: '总之现在的重点是决定接下来该做什么。', stageCharacters: keiHologramStage },
   { speaker: '莉音', text: '所以我决定先来制造Kei的身体。' },
   { speaker: '柯伊', text: '咦？' },
   { speaker: '爱丽丝', text: '嗯？' },
@@ -47,7 +53,7 @@ export const keiBirthScript: StoryNode[] = [
   { speaker: '柯伊', text: '拜托先阻止那个一边追求合理性、一边坚持自我美感的人好不好！？' },
   { speaker: '老师', text: '“冷静点，Kei。工程已经开始了。”' },
   { speaker: '柯伊', text: '呃啊啊啊啊啊！' },
-  { speaker: '莉音', text: '真前卫啊……' },
+  { speaker: '莉音', text: '真前卫啊……', stageCharacters: keiAmasStage },
   { speaker: '柯伊', text: '……。' },
   { speaker: '老师', text: '“那个……Kei？你也发表一下感想吧……？”' },
   { speaker: '柯伊', text: '我要回资料里了。' },
