@@ -78,6 +78,10 @@ export interface WindowDefinition {
   placement?: WindowPlacement
   mode?: WindowMode
   resizable?: boolean
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   filters?: WindowFilters
   /**
    * 自定义窗口标题文本。提供后直接显示（不走 i18n），覆盖 titleKey。
@@ -140,6 +144,10 @@ export interface WindowInstance {
   controls: WindowControls
   mode: WindowMode
   resizable: boolean
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   filters: WindowFilters
   x: number
   y: number

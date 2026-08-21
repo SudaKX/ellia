@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { StoryChoice, StoryNode, StoryStageCharacter } from '@/composables/useStoryDialog'
@@ -24,12 +24,16 @@ const isTyping = ref(false)
 const sliderValue = ref(0)
 const autoSpeed = ref<1 | 2 | 5 | null>(null)
 const textRef = ref<HTMLElement | null>(null)
+const stageRef = ref<HTMLElement | null>(null)
+const dialogueRef = ref<HTMLElement | null>(null)
 const current = computed(() => props.nodes[index.value] ?? null)
 const stageCharacters = ref<StoryStageCharacter[]>([])
+const portraitBottoms = ref<Record<string, number>>({})
 
 let typeTimer: ReturnType<typeof setInterval> | null = null
 let autoTimer: ReturnType<typeof setTimeout> | null = null
 let stopAudio: (() => void) | null = null
+let resizeObserver: ResizeObserver | null = null
 
 function clearPlaybackTimers() {
   if (typeTimer) clearInterval(typeTimer)
@@ -134,16 +138,45 @@ function cycleAutoSpeed() {
   }
 }
 
+function updatePortraitPosition(character: StoryStageCharacter, image: HTMLImageElement) {
+  const stage = stageRef.value
+  const dialogue = dialogueRef.value
+  if (!stage || !dialogue || !image.naturalWidth) return
+  const renderedHeight = image.naturalHeight * (image.clientWidth / image.naturalWidth)
+  const dialogueTopFromBottom = stage.clientHeight - dialogue.offsetTop
+  portraitBottoms.value = {
+    ...portraitBottoms.value,
+    [character.id]: dialogueTopFromBottom - renderedHeight * (1 - (character.anchorY ?? 1)),
+  }
+}
+
+function handlePortraitLoad(character: StoryStageCharacter, event: Event) {
+  if (event.currentTarget instanceof HTMLImageElement) updatePortraitPosition(character, event.currentTarget)
+}
+
+function updateAllPortraitPositions() {
+  for (const character of stageCharacters.value) {
+    const image = stageRef.value?.querySelector<HTMLImageElement>(`[data-stage-character="${character.id}"]`)
+    if (image?.complete) updatePortraitPosition(character, image)
+  }
+}
+
 watch(index, handleNodeEnter, { immediate: true })
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => updateAllPortraitPositions())
+  if (stageRef.value) resizeObserver.observe(stageRef.value)
+  if (dialogueRef.value) resizeObserver.observe(dialogueRef.value)
+})
 onBeforeUnmount(() => {
   clearPlaybackTimers()
   stopAudio?.()
+  resizeObserver?.disconnect()
 })
 </script>
 
 <template>
   <div class="gal-story" @click="handleAdvance">
-    <div class="gal-story__stage">
+    <div ref="stageRef" class="gal-story__stage">
       <TransitionGroup name="gal-story-image">
         <div
           v-for="character in stageCharacters"
@@ -151,9 +184,9 @@ onBeforeUnmount(() => {
           :class="[
             'gal-story__portrait',
             `gal-story__portrait--${character.position}`,
-            `gal-story__portrait--${character.crop ?? 'full'}`,
             { 'gal-story__portrait--dimmed': !character.speakerNames.includes(current?.speaker ?? '') },
           ]"
+          :style="{ bottom: `${portraitBottoms[character.id] ?? 0}px` }"
         >
           <img
             :src="character.image"
@@ -163,12 +196,14 @@ onBeforeUnmount(() => {
             `gal-story__image--${character.animation ?? 'fade'}`,
           ]"
           alt=""
+          :data-stage-character="character.id"
+          @load="handlePortraitLoad(character, $event)"
           />
         </div>
       </TransitionGroup>
     </div>
 
-    <section class="gal-story__dialogue" @click.stop="handleAdvance">
+    <section ref="dialogueRef" class="gal-story__dialogue" @click.stop="handleAdvance">
       <div class="gal-story__controls" @click.stop>
         <button
           :class="['gal-story__auto-button', { 'gal-story__auto-button--active': autoSpeed }]"
@@ -208,13 +243,11 @@ onBeforeUnmount(() => {
 .gal-story { position: relative; height: 100%; overflow: hidden; background: var(--canvas); color: var(--text-primary); }
 .gal-story__stage { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, var(--surface-raised), var(--canvas)); }
 .gal-story__stage::after { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 38%, color-mix(in srgb, var(--canvas) 74%, transparent)); content: ''; pointer-events: none; }
-.gal-story__portrait { position: absolute; bottom: 38%; width: 42%; height: 58%; overflow: hidden; filter: drop-shadow(0 18px 20px color-mix(in srgb, var(--canvas) 70%, transparent)); transition: filter .2s ease; }
+.gal-story__portrait { position: absolute; width: 32%; filter: drop-shadow(0 18px 20px color-mix(in srgb, var(--canvas) 70%, transparent)); transition: filter .2s ease; }
 .gal-story__portrait--left { left: 4%; }
 .gal-story__portrait--center { left: 29%; }
 .gal-story__portrait--right { right: 4%; }
-.gal-story__portrait--top-third { height: 22%; overflow: hidden; }
-.gal-story__portrait--top-third .gal-story__image { width: 100%; max-width: none; max-height: none; height: auto; object-fit: initial; }
-.gal-story__image { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
+.gal-story__image { display: block; width: 100%; height: auto; }
 .gal-story__image--left, .gal-story__image--center, .gal-story__image--right { position: static; }
 .gal-story__image--slide-left { animation: slide-left 0.42s ease-out both; }
 .gal-story__image--slide-right { animation: slide-right 0.42s ease-out both; }
@@ -242,4 +275,5 @@ onBeforeUnmount(() => {
 @keyframes slide-left { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes slide-right { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes next { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .25; } }
+
 </style>

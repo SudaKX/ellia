@@ -99,8 +99,8 @@ export interface StoryStageCharacter {
   position: 'left' | 'center' | 'right'
   speakerNames: string[]
   animation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
-  /** 立绘展示范围；top-third 只保留原图顶部三分之一 */
-  crop?: 'full' | 'top-third'
+  /** 从图像顶部开始、与对话栏上沿对齐的比例，范围 0 ~ 1 */
+  anchorY?: number
 }
 
 /** 剧情节点（对白 / 多选 / 滑杆） */
@@ -192,7 +192,11 @@ export function playStoryScript(script: StoryNode[], options: StoryDialogOptions
       defaultHeight: 560,
       placement: 'center',
       mode: 'modal',
-      resizable: false,
+      resizable: true,
+      minWidth: 640,
+      minHeight: 440,
+      maxWidth: Math.max(640, window.innerWidth),
+      maxHeight: Math.max(440, window.innerHeight - 40),
       filters: options.glitch ? { glitch: true } : undefined,
       controls: { minimize: false, close: true },
       maximizable: false,

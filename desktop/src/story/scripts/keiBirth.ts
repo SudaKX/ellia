@@ -3,8 +3,8 @@ import keiAmasImg from '/images/kei_full_body/kei_amas立绘.png?url'
 import rioWinterImg from '/images/rio/rio_冬装.png?url'
 
 const keiBirthStage = [
-  { id: 'kei', image: keiAmasImg, position: 'left' as const, speakerNames: ['柯伊'], animation: 'fade' as const },
-  { id: 'rio', image: rioWinterImg, position: 'right' as const, speakerNames: ['莉音'], animation: 'fade' as const, crop: 'top-third' as const },
+  { id: 'kei', image: keiAmasImg, position: 'left' as const, speakerNames: ['柯伊'], animation: 'fade' as const, anchorY: 0.66 },
+  { id: 'rio', image: rioWinterImg, position: 'right' as const, speakerNames: ['莉音'], animation: 'fade' as const, anchorY: 0.4 },
 ]
 
 export const keiBirthScript: StoryNode[] = [
