@@ -19,9 +19,12 @@
 import type { StoryNode } from '@/composables/useStoryDialog'
 
 import { openingScript } from './scripts/opening'
+import { keiBirthScript } from './scripts/keiBirth'
 
 /** 剧情脚本注册表：storyId → 剧情节点数组 */
 export const storyScripts: Record<string, StoryNode[]> = {
   /** 开场剧情：JDK 欢迎 → Ellia 出场 → 玩家选择 → 信任滑杆（home/init.exe 双击触发） */
   opening: openingScript,
+  /** kei的诞生剧情脚本（home/kei的诞生.exe 双击触发） */
+  'kei-birth': keiBirthScript,
 }

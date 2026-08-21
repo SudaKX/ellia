@@ -199,8 +199,11 @@ onBeforeUnmount(stopTyping)
 
 <template>
   <div class="story-dialog">
-    <!-- 台词区：说话者标签 + 打字机正文 -->
+    <!-- 台词区：配图 + 说话者标签 + 打字机正文 -->
     <div class="story-dialog__lines" @click="handleLinesClick">
+      <div v-if="current?.image" class="story-dialog__image-wrapper">
+        <img :src="current.image" class="story-dialog__image" alt="story illustration" />
+      </div>
       <div v-if="current?.speaker" class="story-dialog__speaker">{{ current.speaker }}</div>
       <p v-if="current?.text" ref="textRef" class="story-dialog__text">
         {{ typedText }}<span v-if="isTyping" class="story-dialog__cursor" aria-hidden="true">_</span>
@@ -265,6 +268,20 @@ onBeforeUnmount(stopTyping)
   overflow-y: auto;
   padding: 16px 18px;
   cursor: pointer;
+}
+
+.story-dialog__image-wrapper {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.story-dialog__image {
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .story-dialog__speaker {

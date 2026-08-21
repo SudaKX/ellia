@@ -202,6 +202,10 @@ const rootTree: FileNode[] = [
         name: 'init.exe', type: 'file', content: null, storyId: 'opening', children: null,
       },
       {
+        // 可执行剧情文件：双击播放kei的诞生剧情
+        name: 'kei的诞生.exe', type: 'file', content: null, storyId: 'kei-birth', children: null,
+      },
+      {
         // 开场白文件：JDK 触发器欢迎玩家；绑定「第一次」成就，
         // 首次读取（双击/cat）由各入口按节点 achievementId 通用触发
         name: '看这里看这里.txt', type: 'file',

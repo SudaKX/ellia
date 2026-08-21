@@ -60,7 +60,7 @@
 import { markRaw } from 'vue'
 import { Bot } from 'lucide-vue-next'
 
-import StoryDialog from '@/components/desktop/StoryDialog.vue'
+import GalStoryDialog from '@/components/desktop/GalStoryDialog.vue'
 import type { WindowService } from '@/composables/useWindowService'
 
 /** 玩家选项（1 ~ 4 个） */
@@ -93,6 +93,16 @@ export interface StorySlider {
   effect?: (value: number) => void
 }
 
+export interface StoryStageCharacter {
+  id: string
+  image: string
+  position: 'left' | 'center' | 'right'
+  speakerNames: string[]
+  animation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
+  /** 立绘展示范围；top-third 只保留原图顶部三分之一 */
+  crop?: 'full' | 'top-third'
+}
+
 /** 剧情节点（对白 / 多选 / 滑杆） */
 export interface StoryNode {
   /** 节点唯一 id（跳转目标）；缺省由播放器生成 */
@@ -101,6 +111,16 @@ export interface StoryNode {
   speaker?: string
   /** 台词正文（内容数据，不参与 i18n） */
   text?: string
+  /** 节点配图 URL（如 /images/...） */
+  image?: string
+  /** 舞台图像位置；缺省为 center */
+  imagePosition?: 'left' | 'center' | 'right'
+  /** 舞台图像的入场演出；缺省为 fade */
+  imageAnimation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
+  /** 节点进入时并行播放的音频 URL */
+  audio?: string
+  /** 持续显示于舞台中的角色立绘；缺省时继承之前节点的设置 */
+  stageCharacters?: StoryStageCharacter[]
   /** 玩家选项（1~4 个）；与 slider 互斥 */
   choices?: StoryChoice[]
   /** 滑杆调节；与 choices 互斥 */
@@ -117,6 +137,8 @@ export interface StoryDialogOptions {
   glitch?: boolean
   /** 打字速度（每字符毫秒）；默认 30 */
   charDelay?: number
+  /** 自动播放下每句完整台词停留时间（ms） */
+  autoDelay?: number
 }
 
 /** 选项数量上限（创作者约束：不超过 4 个） */
@@ -164,10 +186,10 @@ export function playStoryScript(script: StoryNode[], options: StoryDialogOptions
     payload: {
       titleKey: 'story.dialog.title',
       icon: markRaw(Bot),
-      component: markRaw(StoryDialog),
-      componentProps: { nodes, charDelay: options.charDelay ?? 30 },
-      defaultWidth: 520,
-      defaultHeight: 300,
+      component: markRaw(GalStoryDialog),
+      componentProps: { nodes, charDelay: options.charDelay ?? 30, autoDelay: options.autoDelay ?? 1100 },
+      defaultWidth: 860,
+      defaultHeight: 560,
       placement: 'center',
       mode: 'modal',
       resizable: false,
