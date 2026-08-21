@@ -82,7 +82,7 @@
 
 - [x] 10.1 运行 `pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build`
 - [x] 10.2 运行 `pnpm --dir apps/server test` 确认后端扩展未破坏现有测试
-- [ ] 10.3 手工冒烟：登录 → 项目列表 → 新建项目 → 打开项目 → 多标签编辑 → 锁冲突/释放 → presence 展示 → 文件上传/下载/删除
-- [ ] 10.4 双浏览器验证：字段锁定、实时广播、focus 清除、断线清理
+- [x] 10.3 手工冒烟：登录 → 项目列表 → 新建项目 → 打开项目 → 多标签编辑 → 锁冲突/释放 → presence 展示 → 文件上传/下载/删除
+- [x] 10.4 双浏览器验证：字段锁定、实时广播、focus 清除、断线清理
 - [x] 10.5 更新 `docs/handoff.md` 与 `README.md`：M1.2b/M2 前端完成状态、新增 API/协议说明
 - [x] 10.6 运行 `openspec validate m2-frontend-editor` 确认 change 有效
