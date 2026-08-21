@@ -101,6 +101,8 @@ export interface StoryStageCharacter {
   animation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
   /** 从图像顶部开始、与对话栏上沿对齐的比例，范围 0 ~ 1 */
   anchorY?: number
+  /** 角色级视觉滤镜 */
+  effect?: 'hologram'
 }
 
 /** 剧情节点（对白 / 多选 / 滑杆） */

@@ -78,6 +78,7 @@ export const jaJP = {
       title: 'メッセージ',
       continue: 'クリックして続行',
       submit: '決定',
+      auto: 'AUTO',
     },
   },
   settings: {

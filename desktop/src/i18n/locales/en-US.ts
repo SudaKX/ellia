@@ -76,6 +76,7 @@ export const enUS = {
       title: 'Message',
       continue: 'Click to continue',
       submit: 'Confirm',
+      auto: 'AUTO',
     },
   },
   settings: {

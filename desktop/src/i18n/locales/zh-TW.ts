@@ -78,6 +78,7 @@ export const zhTW = {
       title: '訊息',
       continue: '點擊繼續',
       submit: '確認',
+      auto: 'AUTO',
     },
   },
   settings: {

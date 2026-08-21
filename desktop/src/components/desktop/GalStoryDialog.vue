@@ -184,6 +184,7 @@ onBeforeUnmount(() => {
           :class="[
             'gal-story__portrait',
             `gal-story__portrait--${character.position}`,
+            { 'gal-story__portrait--hologram': character.effect === 'hologram' },
             { 'gal-story__portrait--dimmed': !character.speakerNames.includes(current?.speaker ?? '') },
           ]"
           :style="{ bottom: `${portraitBottoms[character.id] ?? 0}px` }"
@@ -199,6 +200,11 @@ onBeforeUnmount(() => {
           :data-stage-character="character.id"
           @load="handlePortraitLoad(character, $event)"
           />
+          <div
+            v-if="character.effect === 'hologram'"
+            class="gal-story__hologram-overlay"
+            :style="{ maskImage: `url(${character.image})`, WebkitMaskImage: `url(${character.image})` }"
+          ></div>
         </div>
       </TransitionGroup>
     </div>
@@ -210,7 +216,7 @@ onBeforeUnmount(() => {
           type="button"
           @click="cycleAutoSpeed"
         >
-          {{ autoSpeed ? `AUTO ${autoSpeed}X` : 'AUTO' }}
+          {{ autoSpeed ? `${t('story.dialog.auto')} ${autoSpeed}X` : t('story.dialog.auto') }}
         </button>
       </div>
       <div v-if="current?.speaker" class="gal-story__speaker">{{ current.speaker }}</div>
@@ -255,8 +261,10 @@ onBeforeUnmount(() => {
 .gal-story__image--fade { animation: fade 0.32s ease-out both; }
 .gal-story__image--none { animation: none; }
 .gal-story__portrait--dimmed { filter: brightness(.42) saturate(.7) drop-shadow(0 18px 20px color-mix(in srgb, var(--canvas) 70%, transparent)); }
+.gal-story__portrait--hologram { isolation: isolate; opacity: .72; filter: hue-rotate(154deg) saturate(1.6) brightness(1.3) blur(.4px) drop-shadow(4px 0 1px color-mix(in srgb, var(--signal-mint) 80%, transparent)) drop-shadow(-4px 0 1px color-mix(in srgb, var(--signal-red-soft) 65%, transparent)) drop-shadow(0 0 12px color-mix(in srgb, var(--signal-mint) 40%, transparent)); animation: hologram-flicker 1.2s steps(2) infinite, hologram-breathe 3.6s ease-in-out infinite; }
+.gal-story__hologram-overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; mask-size: 100% auto; mask-position: top center; mask-repeat: no-repeat; -webkit-mask-size: 100% auto; -webkit-mask-position: top center; -webkit-mask-repeat: no-repeat; background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--signal-red-soft) 28%, transparent) 0 1px, transparent 1px 3px); mix-blend-mode: screen; animation: hologram-scan 0.8s linear infinite; }
 .gal-story__dialogue { position: absolute; right: 0; bottom: 0; left: 0; min-height: 38%; padding: 38px 28px 24px; border-top: 1px solid color-mix(in srgb, var(--signal-red-border) 68%, var(--line-default)); background: color-mix(in srgb, var(--surface-raised) 82%, transparent); backdrop-filter: blur(8px); cursor: pointer; }
-.gal-story__speaker { position: absolute; top: -18px; left: 26px; padding: 7px 18px; border: 1px solid var(--signal-red-border); background: var(--surface-panel); color: var(--signal-mint); font: 700 14px var(--font-ui); }
+.gal-story__speaker { position: absolute; top: -18px; left: 26px; padding: 7px 18px; border: 1px solid var(--signal-red-border); background: var(--surface-panel); color: var(--signal-red); font: 700 14px var(--font-ui); }
 .gal-story__text { max-height: 132px; margin: 0; overflow-y: auto; font: 17px/1.8 var(--font-ui); white-space: pre-wrap; word-break: break-word; }
 .gal-story__controls { position: absolute; top: 10px; right: 16px; display: flex; gap: 6px; }
 .gal-story__auto-button, .gal-story__choice { border: 1px solid var(--line-default); border-radius: 0; color: var(--text-secondary); background: color-mix(in srgb, var(--surface-panel) 90%, transparent); font: 11px var(--font-mono); }
@@ -275,5 +283,8 @@ onBeforeUnmount(() => {
 @keyframes slide-left { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes slide-right { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes next { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .25; } }
+@keyframes hologram-flicker { 0%, 78% { opacity: .72; transform: translateX(0); } 79% { opacity: .35; transform: translateX(-4px) scaleX(1.02); } 82% { opacity: .8; transform: translateX(3px) scaleX(.98); } 85% { opacity: .55; transform: translateX(-1px); } 88%, 100% { opacity: .72; transform: translateX(0); } }
+@keyframes hologram-breathe { 0%, 100% { opacity: .72; } 50% { opacity: .55; } }
+@keyframes hologram-scan { from { background-position: 0 0; } to { background-position: 0 12px; } }
 
 </style>

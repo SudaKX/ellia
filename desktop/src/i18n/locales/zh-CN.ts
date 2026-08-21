@@ -78,6 +78,7 @@ export const zhCN = {
       title: '消息',
       continue: '点击继续',
       submit: '确认',
+      auto: '自动',
     },
   },
   settings: {

@@ -78,6 +78,7 @@ export const deDE = {
       title: 'Nachricht',
       continue: 'Klicken, um fortzufahren',
       submit: 'Bestätigen',
+      auto: 'AUTO',
     },
   },
   settings: {
