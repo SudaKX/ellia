@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import type { EntityRecord } from '@ellia/puzzle-schema'
 
@@ -26,6 +26,18 @@ const draftString = ref('')
 const draftNumber = ref('')
 const draftBool = ref(false)
 const draftArray = ref<unknown[]>([])
+
+const formatError = computed<string | null>(() => {
+  const spec = props.fieldSpec
+  if (spec.type !== 'string' || !spec.format) return null
+  try {
+    return new RegExp(spec.format).test(draftString.value) ? null : '格式不符合要求'
+  } catch {
+    return '格式配置无效'
+  }
+})
+
+const hasFormatError = computed(() => formatError.value !== null && props.fieldSpec.type === 'string')
 
 function resetDraft(): void {
   const value = props.modelValue
@@ -97,6 +109,7 @@ function defaultValueFor(spec: FieldSpec): unknown {
     :title="`编辑字段：${dataPath.split('@state:')[1] ?? dataPath}`"
     confirm-label="确定"
     cancel-label="取消"
+    :confirm-disabled="formatError !== null"
     @confirm="confirm"
     @cancel="emit('cancel')"
   >
@@ -118,8 +131,10 @@ function defaultValueFor(spec: FieldSpec): unknown {
           v-model="draftString"
           rows="4"
           class="field-edit-dialog__textarea"
+          :class="{ 'field-edit-dialog__textarea--error': hasFormatError }"
           placeholder="输入值"
         />
+        <p v-if="formatError" class="field-edit-dialog__error-text" role="alert">{{ formatError }}</p>
       </template>
 
       <TextField
@@ -195,6 +210,32 @@ function defaultValueFor(spec: FieldSpec): unknown {
   font: inherit;
   font-size: 0.85rem;
   resize: vertical;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.field-edit-dialog__textarea:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary, #6750a4);
+  outline-offset: 1px;
+}
+
+.field-edit-dialog__textarea--error {
+  border-color: var(--md-sys-color-error, #b3261e);
+  box-shadow: 0 0 0 2px var(--md-sys-color-error, #b3261e);
+}
+
+.field-edit-dialog__textarea--error:focus-visible {
+  outline: 2px solid var(--md-sys-color-error, #b3261e);
+  outline-offset: 1px;
+}
+
+.field-edit-dialog__error-text {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--md-sys-color-error, #b3261e);
+  line-height: 1.4;
 }
 
 .field-edit-dialog__bool {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { EditorTab } from '../../stores/editorTabs'
+import { useEntitiesStore } from '../../stores/entities'
 
-defineProps<{
+const props = defineProps<{
   tabs: EditorTab[]
   activeEntityId: string | null
 }>()
@@ -10,6 +11,13 @@ const emit = defineEmits<{
   (e: 'activate', entityId: string): void
   (e: 'close', entityId: string): void
 }>()
+
+const entitiesStore = useEntitiesStore()
+
+function tabTitle(tab: EditorTab): string {
+  const entity = entitiesStore.entities[tab.entityId]
+  return entity?.resource_id ?? tab.title
+}
 </script>
 
 <template>
@@ -24,7 +32,7 @@ const emit = defineEmits<{
       :aria-selected="tab.entityId === activeEntityId"
       @click="emit('activate', tab.entityId)"
     >
-      <span class="editor-tab__title">{{ tab.title }}</span>
+      <span class="editor-tab__title">{{ tabTitle(tab) }}</span>
       <span
         class="editor-tab__close"
         role="button"

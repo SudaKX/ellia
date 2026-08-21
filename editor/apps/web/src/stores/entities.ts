@@ -35,6 +35,7 @@ function readStoredEntities(projectId: string): Record<EntityId, EntityRecord> {
 export const useEntitiesStore = defineStore('entities', () => {
   const projectId = ref<string | null>(null)
   const entities = ref<Record<EntityId, EntityRecord>>({})
+  const deletedEntityIds = ref<Set<EntityId>>(new Set())
   const lastSyncAt = ref<number | null>(null)
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -49,6 +50,7 @@ export const useEntitiesStore = defineStore('entities', () => {
     if (projectId.value !== nextProjectId) {
       projectId.value = nextProjectId
       entities.value = readStoredEntities(nextProjectId)
+      deletedEntityIds.value = new Set()
       lastSyncAt.value = null
     }
     ensureSubscriptions()
@@ -57,6 +59,7 @@ export const useEntitiesStore = defineStore('entities', () => {
   function clear(): void {
     projectId.value = null
     entities.value = {}
+    deletedEntityIds.value = new Set()
     lastSyncAt.value = null
   }
 
@@ -100,6 +103,8 @@ export const useEntitiesStore = defineStore('entities', () => {
       nextEntity.group = message.value as string
     } else if (parsed.root === 'resource_id') {
       nextEntity.resource_id = message.value as string
+    } else if (parsed.root === 'comment') {
+      nextEntity.comment = message.value as string
     }
     entities.value = { ...entities.value, [nextEntity.id]: nextEntity }
     lastSyncAt.value = Date.now()
@@ -126,6 +131,8 @@ export const useEntitiesStore = defineStore('entities', () => {
     const next = { ...entities.value }
     delete next[message.entity_id]
     entities.value = next
+    // 记录被删除的实体 id（用于 UI 提示）
+    deletedEntityIds.value = new Set(deletedEntityIds.value).add(message.entity_id)
     lastSyncAt.value = Date.now()
     scheduleSave()
   }
@@ -158,6 +165,7 @@ export const useEntitiesStore = defineStore('entities', () => {
   return {
     projectId,
     entities,
+    deletedEntityIds,
     lastSyncAt,
     entityList,
     vector,

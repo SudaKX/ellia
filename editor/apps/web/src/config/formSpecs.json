@@ -1,6 +1,5 @@
 {
   "hint": {
-    "stable_id": { "type": "string", "description": "稳定 ID，用于在项目内唯一标识该提示。" },
     "source_asset_id": {
       "type": "string",
       "description": "引用的资产实体 resource_id（asset-path:…），提供提示文件内容（后端 Hint.source 必需）。",
@@ -19,10 +18,10 @@
     },
     "credit_id": {
       "type": "string",
-      "description": "奖励使用的货币类型 resource_id（credit-id:…）。",
+      "description": "购买使用的货币类型 resource_id（credit-id:…）。",
       "namespace": "credit-id"
     },
-    "credit_amount": { "type": "number", "description": "奖励数量（后端要求正整数）。" },
+    "credit_amount": { "type": "number", "description": "货币价格（后端要求正整数）。" },
     "access_rule_block_id": {
       "type": "string",
       "description": "访问规则 Python 代码块 resource_id（python-name:…）。",
@@ -32,18 +31,19 @@
   },
 
   "validation": {
-    "stable_id": { "type": "string", "description": "稳定 ID。" },
-    "validation_id": { "type": "string", "description": "校验器 slug。" },
+    "validation_id": {
+      "type": "string",
+      "description": "公开 API slug；1~64 位，仅限字母、数字、下划线、连字符。",
+      "format": "^[a-zA-Z0-9_-]{1,64}$"
+    },
     "handler_block_id": {
       "type": "string",
       "description": "校验处理 Python 代码块 resource_id（python-name:…）。",
-      "optional": true,
       "namespace": "python-name"
     }
   },
 
   "task": {
-    "task_id": { "type": "string", "description": "任务 ID。" },
     "dependencies": { "type": "array", "description": "依赖的其他任务 ID。", "item": { "type": "string", "description": "依赖的任务 ID。" } },
     "handler_block_id": {
       "type": "string",
@@ -66,7 +66,6 @@
   },
 
   "achievement": {
-    "achievement_id": { "type": "string", "description": "成就 ID。" },
     "secret": { "type": "bool", "description": "是否为隐藏成就。" },
     "display": {
       "type": "object",
@@ -91,20 +90,17 @@
   },
 
   "account-template": {
-    "account_id": { "type": "string", "description": "虚拟账号 ID。" },
     "display_name": { "type": "string", "description": "账号显示名称。" },
     "permission": { "type": "string", "description": "账号权限标识。" },
     "metadata": { "type": "object", "description": "账号扩展元数据。", "inner": {} }
   },
 
   "credit-template": {
-    "credit_id": { "type": "string", "description": "货币 ID。" },
     "display_name": { "type": "string", "description": "货币显示名称。" },
     "metadata": { "type": "object", "description": "货币扩展元数据。", "inner": {} }
   },
 
   "artifact-template": {
-    "artifact_id": { "type": "string", "description": "模板 ID。" },
     "media_type": { "type": "string", "description": "生成文件的媒体类型。" },
     "download_name": { "type": "string", "description": "下载文件名。", "optional": true },
     "generator_block_id": {
@@ -116,7 +112,6 @@
   },
 
   "artifact-node": {
-    "stable_id": { "type": "string", "description": "稳定 ID。" },
     "path": { "type": "string", "description": "节点在文件树中的路径。" },
     "artifact_locator": { "type": "string", "description": "定位生成文件的标识。" },
     "display": {

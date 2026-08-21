@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import {
   ENTITY_KINDS,
-  isValidGroup,
   uiKindFor,
   type EntityKind,
   type EntityState,
@@ -21,6 +20,7 @@ const entitiesStore = useEntitiesStore()
 
 const selectedKind = ref<EntityKind>('hint')
 const idPart = ref('')
+const comment = ref('')
 const stateJson = ref('')
 const busy = ref(false)
 const error = ref<string | null>(null)
@@ -60,26 +60,11 @@ function resetForKind(kind: EntityKind): void {
   const nextTemplate = CREATE_TEMPLATES[kind]
   stateJson.value = JSON.stringify(nextTemplate.default, null, 2)
   idPart.value = nextTemplate.fixed.enable ? nextTemplate.fixed.value : ''
+  comment.value = ''
 }
 
 watch(selectedKind, (kind) => {
   resetForKind(kind)
-})
-
-watch(idPart, (value) => {
-  const currentTemplate = template.value
-  if (!currentTemplate.inject_id.enable) return
-  try {
-    const current = JSON.parse(stateJson.value) as Record<string, unknown>
-    if (typeof current !== 'object' || current === null || Array.isArray(current)) return
-    stateJson.value = JSON.stringify(
-      { ...current, [currentTemplate.inject_id.field]: value.trim() },
-      null,
-      2,
-    )
-  } catch {
-    // 用户正在编辑非 JSON 内容时，不打断输入
-  }
 })
 
 resetForKind(selectedKind.value)
@@ -97,31 +82,12 @@ async function createEntity(): Promise<void> {
     return
   }
 
-  if (!effectiveGroup.value) {
-    error.value = '分组不能为空'
-    return
-  }
-
-  if (!isValidGroup(effectiveGroup.value)) {
-    error.value = '分组必须是合法的 Python 模块名（单段，小写字母/数字/下划线，且不能以数字开头）'
-    return
-  }
-
   let state: Record<string, unknown>
   try {
     state = JSON.parse(stateJson.value) as Record<string, unknown>
   } catch {
     error.value = 'state 必须是合法 JSON'
     return
-  }
-
-  if (typeof state !== 'object' || state === null || Array.isArray(state)) {
-    error.value = 'state 必须是一个 JSON 对象'
-    return
-  }
-
-  if (template.value.inject_id.enable) {
-    state = { ...state, [template.value.inject_id.field]: idPart.value.trim() }
   }
 
   busy.value = true
@@ -132,6 +98,7 @@ async function createEntity(): Promise<void> {
       ui_kind: uiKind.value,
       resource_id: fullResourceId.value,
       state: state as unknown as EntityState,
+      comment: comment.value,
     })
     success.value = `已创建 ${fullResourceId.value}`
     if (successTimer) clearTimeout(successTimer)
@@ -200,6 +167,11 @@ async function createEntity(): Promise<void> {
       </label>
 
       <label class="create-entity-field">
+        <span>注释</span>
+        <textarea v-model="comment" class="create-entity-field__comment" rows="3" placeholder="可选注释" spellcheck="false" />
+      </label>
+
+      <label class="create-entity-field">
         <span>state（JSON）</span>
         <textarea v-model="stateJson" rows="12" spellcheck="false" />
       </label>
@@ -259,6 +231,11 @@ async function createEntity(): Promise<void> {
   border-radius: 6px;
   background: var(--md-sys-color-surface-container, #f3edf7);
   color: var(--md-sys-color-on-surface, #1d1b20);
+}
+
+.create-entity-field__comment {
+  min-height: 60px !important;
+  font-family: inherit !important;
 }
 
 .resource-id-input {

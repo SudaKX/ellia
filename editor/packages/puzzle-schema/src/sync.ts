@@ -45,6 +45,7 @@ export interface CreateMessage {
   /** 完整 resource_id：<namespace>:<id> */
   resource_id: string
   state: EntityState
+  comment?: string
 }
 
 export type PatchOp = 'set' | 'remove'

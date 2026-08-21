@@ -7,6 +7,7 @@ import SplitResizable from '../components/split/ResizableSplit.vue'
 import ToolRail from '../components/tools/ToolRail.vue'
 import CreateEntityPanel from '../components/tools/panels/CreateEntityPanel.vue'
 import FileManagerPanel from '../components/tools/panels/FileManagerPanel.vue'
+import RandomPanel from '../components/tools/panels/RandomPanel.vue'
 
 const layout = useLayoutStore()
 const toolPanel = useToolPanelStore()
@@ -30,6 +31,7 @@ const toolPanel = useToolPanelStore()
         <div class="tool-panel__content">
           <FileManagerPanel v-if="toolPanel.activeTool === 'files'" />
           <CreateEntityPanel v-else-if="toolPanel.activeTool === 'create'" />
+          <RandomPanel v-else-if="toolPanel.activeTool === 'random'" />
           <div v-else class="tool-panel__empty">选择一个工具面板</div>
         </div>
         <ToolRail

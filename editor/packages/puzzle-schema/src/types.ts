@@ -162,7 +162,8 @@ export type ProgressNodeKind = 'normal' | 'branch' | 'merge'
 
 /** 进度节点：纯节点数据，拓扑在 progress-dag 容器中 */
 export interface ProgressNodeState {
-  stable_id: StableId
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
   node_kind: ProgressNodeKind
   triggers_checkpoint: boolean
 }
@@ -171,7 +172,8 @@ export type FileTreeNodeKind = 'directory' | 'file'
 
 /** 文件树节点：纯节点数据，父子拓扑在 file-tree 容器中 */
 export interface FileTreeNodeState {
-  stable_id: StableId
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
   kind: FileTreeNodeKind
   name: string
   display: DisplayField
@@ -214,7 +216,8 @@ export interface HintDisplay {
 }
 
 export interface HintState {
-  stable_id: StableId
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
   /** 来源资产 resource_id（asset-path:…）；mythos Hint.source 为 FileReference，导出时必需 */
   source_asset_id: string
   /** mythos Hint.download_name 必填：安全单路径段 */
@@ -236,7 +239,8 @@ export interface ScriptBody {
 }
 
 export interface ScriptState {
-  stable_id: StableId
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
   revision: number
   body: ScriptBody
   /** 访问规则 python-block resource_id（python-name:…） */
@@ -244,15 +248,17 @@ export interface ScriptState {
 }
 
 export interface ValidationState {
-  stable_id: StableId
-  /** slug 格式（^[a-z0-9]+(?:-[a-z0-9]+)*$） */
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
+  /** 公开 API slug（^[a-zA-Z0-9_-]{1,64}$） */
   validation_id: string
   /** 校验处理 python-block resource_id（python-name:…） */
   handler_block_id?: string
 }
 
 export interface ArtifactTemplateState {
-  artifact_id: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  artifact_id?: string
   media_type: string
   download_name?: string
   /** 生成器 python-block resource_id（python-name:…） */
@@ -260,7 +266,8 @@ export interface ArtifactTemplateState {
 }
 
 export interface ArtifactNodeState {
-  stable_id: StableId
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  stable_id?: StableId
   path: string
   artifact_locator: string
   display: DisplayField
@@ -273,14 +280,16 @@ export interface ArtifactNodeState {
 }
 
 export interface AccountTemplateState {
-  account_id: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  account_id?: string
   display_name: string
   permission: string
   metadata: Record<string, unknown>
 }
 
 export interface CreditTemplateState {
-  credit_id: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  credit_id?: string
   display_name: string
   metadata: Record<string, unknown>
 }
@@ -291,7 +300,8 @@ export interface AchievementDisplay {
 }
 
 export interface AchievementState {
-  achievement_id: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  achievement_id?: string
   secret: boolean
   display: AchievementDisplay
   /** 成就判定 python-block resource_id（python-name:…） */
@@ -301,7 +311,8 @@ export interface AchievementState {
 }
 
 export interface TaskState {
-  task_id: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  task_id?: string
   dependencies: string[]
   /** 任务处理 python-block resource_id（python-name:…） */
   handler_block_id?: string
@@ -317,8 +328,8 @@ export interface EventListenerState {
 
 /** python 代码块（独立实体，slot 决定签名模板，见 python.ts） */
 export interface PythonBlockState {
-  /** 函数名（isPythonName 校验） */
-  name: string
+  /** @deprecated 由 resource_id 提供，导出时解析 */
+  name?: string
   slot: PythonSlot
   /** 用户编写的函数体源码 */
   content: string
@@ -374,6 +385,8 @@ export interface Entity<TKind extends EntityKind = EntityKind> {
   revision: number
   version: number
   state: KindStateMap[TKind]
+  /** 实体注释；可选以兼容旧缓存数据（缺省视为空字符串） */
+  comment?: string
   created_at: string
   updated_at: string
 }
@@ -388,6 +401,8 @@ export interface EntityRecord<TKind extends EntityKind = EntityKind> {
   revision: number
   version: number
   state: KindStateMap[TKind]
+  /** 实体注释；可选以兼容旧缓存数据（缺省视为空字符串） */
+  comment?: string
 }
 
 /** 实体历史快照（entity_history 行） */

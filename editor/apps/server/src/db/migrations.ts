@@ -129,6 +129,14 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 5,
+    up(db) {
+      db.exec(`
+        ALTER TABLE entities ADD COLUMN comment TEXT NOT NULL DEFAULT '';
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: Database.Database): void {

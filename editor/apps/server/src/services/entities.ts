@@ -32,6 +32,7 @@ export interface EntityRow {
   revision: number
   version: number
   state: string
+  comment: string
   created_at: string
   updated_at: string
 }
@@ -42,6 +43,7 @@ export interface CreateEntityInput {
   ui_kind: unknown
   resource_id: string
   state: unknown
+  comment?: string
 }
 
 export interface PatchResult {
@@ -61,6 +63,7 @@ export function toEntity(row: EntityRow): Entity {
     revision: row.revision,
     version: row.version,
     state: JSON.parse(row.state) as KindStateMap[EntityKind],
+    comment: row.comment,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -76,6 +79,7 @@ export function toEntityRecord(entity: Entity): EntityRecord {
     revision: entity.revision,
     version: entity.version,
     state: entity.state,
+    comment: entity.comment,
   }
 }
 
@@ -124,214 +128,166 @@ function assertStringArray(value: unknown, field: string): void {
 /** 按 kind 校验 state 的最小形状（不校验跨实体引用） */
 export function validateStateShape(kind: EntityKind, state: unknown): void {
   if (!isRecord(state)) throw new ApiError(400, 'VALIDATION', 'state 必须是 JSON 对象')
+  const s = state as Record<string, unknown>
+
+  function requiredString(field: string, label: string): void {
+    if (s[field] === undefined || s[field] === null) {
+      throw new ApiError(400, 'VALIDATION', `${label} 必填`)
+    }
+    if (typeof s[field] !== 'string') {
+      throw new ApiError(400, 'VALIDATION', `${label} 必须是字符串`)
+    }
+  }
 
   switch (kind) {
     case 'progress-node': {
-      if ('successors' in state || 'is_entry' in state) {
+      if ('successors' in s || 'is_entry' in s) {
         throw new ApiError(400, 'VALIDATION', 'progress-node 不允许携带拓扑字段')
       }
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'progress-node.stable_id 必填')
-      }
-      if (!['normal', 'branch', 'merge'].includes(state.node_kind as string)) {
+      if (!['normal', 'branch', 'merge'].includes(s.node_kind as string)) {
         throw new ApiError(400, 'VALIDATION', 'progress-node.node_kind 非法')
       }
-      if (typeof state.triggers_checkpoint !== 'boolean') {
+      if (typeof s.triggers_checkpoint !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'progress-node.triggers_checkpoint 必须为布尔')
       }
       return
     }
     case 'file-tree-node': {
-      if ('parent_stable_id' in state || 'parent' in state) {
+      if ('parent_stable_id' in s || 'parent' in s) {
         throw new ApiError(400, 'VALIDATION', 'file-tree-node 不允许携带 parent 挂接字段')
       }
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node.stable_id 必填')
-      }
-      if (!['directory', 'file'].includes(state.kind as string)) {
+      if (!['directory', 'file'].includes(s.kind as string)) {
         throw new ApiError(400, 'VALIDATION', 'file-tree-node.kind 必须为 directory 或 file')
       }
-      if (typeof state.name !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node.name 必填')
-      }
-      if (!isRecord(state.display)) {
+      requiredString('name', 'file-tree-node.name')
+      if (!isRecord(s.display)) {
         throw new ApiError(400, 'VALIDATION', 'file-tree-node.display 必须是对象')
       }
-      if (typeof state.hidden !== 'boolean') {
+      if (typeof s.hidden !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'file-tree-node.hidden 必须为布尔')
       }
       return
     }
     case 'file-tree': {
-      if (state.root_stable_id !== null && typeof state.root_stable_id !== 'string') {
+      if (s.root_stable_id !== null && typeof s.root_stable_id !== 'string') {
         throw new ApiError(400, 'VALIDATION', 'file-tree.root_stable_id 必须为字符串或 null')
       }
-      if (!isRecord(state.children)) {
+      if (!isRecord(s.children)) {
         throw new ApiError(400, 'VALIDATION', 'file-tree.children 必须是 parent → children[] 映射')
       }
-      for (const [parent, children] of Object.entries(state.children)) {
+      for (const [parent, children] of Object.entries(s.children)) {
         if (!parent) throw new ApiError(400, 'VALIDATION', 'file-tree.children 的键不能为空')
         assertStringArray(children, `file-tree.children[${parent}]`)
       }
       return
     }
     case 'progress-dag': {
-      assertStringArray(state.entry_stable_ids, 'progress-dag.entry_stable_ids')
-      if (!isRecord(state.successors)) {
+      assertStringArray(s.entry_stable_ids, 'progress-dag.entry_stable_ids')
+      if (!isRecord(s.successors)) {
         throw new ApiError(400, 'VALIDATION', 'progress-dag.successors 必须是 from → to[] 映射')
       }
-      for (const [from, targets] of Object.entries(state.successors)) {
+      for (const [from, targets] of Object.entries(s.successors)) {
         if (!from) throw new ApiError(400, 'VALIDATION', 'progress-dag.successors 的键不能为空')
         assertStringArray(targets, `progress-dag.successors[${from}]`)
       }
       return
     }
     case 'asset': {
-      if (typeof state.file_id !== 'string' || !state.file_id) {
-        throw new ApiError(400, 'VALIDATION', 'asset.file_id 必填')
-      }
-      if (typeof state.media_type !== 'string' || !state.media_type) {
-        throw new ApiError(400, 'VALIDATION', 'asset.media_type 必填')
-      }
+      requiredString('file_id', 'asset.file_id')
+      requiredString('media_type', 'asset.media_type')
       return
     }
     case 'hint': {
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'hint.stable_id 必填')
-      }
-      if (typeof state.source_asset_id !== 'string' || !state.source_asset_id) {
-        throw new ApiError(400, 'VALIDATION', 'hint.source_asset_id 必填')
-      }
-      if (typeof state.download_name !== 'string' || !state.download_name) {
-        throw new ApiError(400, 'VALIDATION', 'hint.download_name 必填')
-      }
-      if (typeof state.credit_id !== 'string' || !state.credit_id) {
-        throw new ApiError(400, 'VALIDATION', 'hint.credit_id 必填')
-      }
+      requiredString('source_asset_id', 'hint.source_asset_id')
+      requiredString('download_name', 'hint.download_name')
+      requiredString('credit_id', 'hint.credit_id')
       if (
-        typeof state.credit_amount !== 'number' ||
-        !Number.isInteger(state.credit_amount) ||
-        state.credit_amount <= 0
+        typeof s.credit_amount !== 'number' ||
+        !Number.isInteger(s.credit_amount) ||
+        s.credit_amount <= 0
       ) {
         throw new ApiError(400, 'VALIDATION', 'hint.credit_amount 必须为正整数')
       }
-      if (!isRecord(state.display) || typeof state.display.title !== 'string' || !state.display.title) {
+      if (!isRecord(s.display)) {
+        throw new ApiError(400, 'VALIDATION', 'hint.display 必须是对象')
+      }
+      if (s.display.title === undefined || s.display.title === null) {
         throw new ApiError(400, 'VALIDATION', 'hint.display.title 必填')
+      }
+      if (typeof s.display.title !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'hint.display.title 必须是字符串')
       }
       return
     }
     case 'script': {
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'script.stable_id 必填')
-      }
-      if (typeof state.revision !== 'number') {
+      if (typeof s.revision !== 'number') {
         throw new ApiError(400, 'VALIDATION', 'script.revision 必须为数字')
       }
-      if (!isRecord(state.body) || !Array.isArray(state.body.lines)) {
+      if (!isRecord(s.body) || !Array.isArray(s.body.lines)) {
         throw new ApiError(400, 'VALIDATION', 'script.body 必须含 lines 数组')
       }
       return
     }
     case 'validation': {
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'validation.stable_id 必填')
-      }
-      if (typeof state.validation_id !== 'string' || !state.validation_id) {
-        throw new ApiError(400, 'VALIDATION', 'validation.validation_id 必填')
-      }
+      requiredString('validation_id', 'validation.validation_id')
       return
     }
     case 'artifact-template': {
-      if (typeof state.artifact_id !== 'string' || !state.artifact_id) {
-        throw new ApiError(400, 'VALIDATION', 'artifact-template.artifact_id 必填')
-      }
-      if (typeof state.media_type !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'artifact-template.media_type 必填')
-      }
+      requiredString('media_type', 'artifact-template.media_type')
       return
     }
     case 'artifact-node': {
-      if (typeof state.stable_id !== 'string' || !state.stable_id) {
-        throw new ApiError(400, 'VALIDATION', 'artifact-node.stable_id 必填')
-      }
-      if (typeof state.path !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'artifact-node.path 必填')
-      }
-      if (typeof state.artifact_locator !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'artifact-node.artifact_locator 必填')
-      }
-      if (!isRecord(state.display)) {
+      requiredString('path', 'artifact-node.path')
+      requiredString('artifact_locator', 'artifact-node.artifact_locator')
+      if (!isRecord(s.display)) {
         throw new ApiError(400, 'VALIDATION', 'artifact-node.display 必须是对象')
       }
-      if (typeof state.hidden !== 'boolean') {
+      if (typeof s.hidden !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'artifact-node.hidden 必须为布尔')
       }
       return
     }
     case 'account-template': {
-      if (typeof state.account_id !== 'string' || !state.account_id) {
-        throw new ApiError(400, 'VALIDATION', 'account-template.account_id 必填')
-      }
-      if (typeof state.display_name !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'account-template.display_name 必填')
-      }
-      if (typeof state.permission !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'account-template.permission 必填')
-      }
-      if (!isRecord(state.metadata)) {
+      requiredString('display_name', 'account-template.display_name')
+      requiredString('permission', 'account-template.permission')
+      if (!isRecord(s.metadata)) {
         throw new ApiError(400, 'VALIDATION', 'account-template.metadata 必须是对象')
       }
       return
     }
     case 'credit-template': {
-      if (typeof state.credit_id !== 'string' || !state.credit_id) {
-        throw new ApiError(400, 'VALIDATION', 'credit-template.credit_id 必填')
-      }
-      if (typeof state.display_name !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'credit-template.display_name 必填')
-      }
-      if (!isRecord(state.metadata)) {
+      requiredString('display_name', 'credit-template.display_name')
+      if (!isRecord(s.metadata)) {
         throw new ApiError(400, 'VALIDATION', 'credit-template.metadata 必须是对象')
       }
       return
     }
     case 'achievement': {
-      if (typeof state.achievement_id !== 'string' || !state.achievement_id) {
-        throw new ApiError(400, 'VALIDATION', 'achievement.achievement_id 必填')
-      }
-      if (typeof state.secret !== 'boolean') {
+      if (typeof s.secret !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'achievement.secret 必须为布尔')
       }
-      if (!isRecord(state.display)) {
+      if (!isRecord(s.display)) {
         throw new ApiError(400, 'VALIDATION', 'achievement.display 必须是对象')
       }
       return
     }
     case 'task': {
-      if (typeof state.task_id !== 'string' || !state.task_id) {
-        throw new ApiError(400, 'VALIDATION', 'task.task_id 必填')
-      }
-      assertStringArray(state.dependencies, 'task.dependencies')
+      assertStringArray(s.dependencies, 'task.dependencies')
       return
     }
     case 'event-listener': {
-      if (typeof state.event_type !== 'string' || !state.event_type) {
-        throw new ApiError(400, 'VALIDATION', 'event-listener.event_type 必填')
-      }
-      if (typeof state.priority !== 'number') {
+      requiredString('event_type', 'event-listener.event_type')
+      if (typeof s.priority !== 'number') {
         throw new ApiError(400, 'VALIDATION', 'event-listener.priority 必须为数字')
       }
-      assertStringArray(state.dependencies, 'event-listener.dependencies')
+      assertStringArray(s.dependencies, 'event-listener.dependencies')
       return
     }
     case 'python-block': {
-      if (typeof state.name !== 'string' || !state.name) {
-        throw new ApiError(400, 'VALIDATION', 'python-block.name 必填')
-      }
-      if (!(PYTHON_SLOTS as readonly string[]).includes(state.slot as string)) {
+      if (!(PYTHON_SLOTS as readonly string[]).includes(s.slot as string)) {
         throw new ApiError(400, 'VALIDATION', 'python-block.slot 非法')
       }
-      if (typeof state.content !== 'string') {
+      if (typeof s.content !== 'string') {
         throw new ApiError(400, 'VALIDATION', 'python-block.content 必须为字符串')
       }
       return
@@ -353,10 +309,11 @@ export function createEntity(
 
   const now = new Date().toISOString()
   const id = randomUUID()
+  const comment = input.comment ?? ''
   try {
     db.prepare(
-      `INSERT INTO entities (id, project_id, "group", kind, ui_kind, resource_id, revision, version, state, created_at, updated_at)
-       VALUES (@id, @project_id, @group, @kind, @ui_kind, @resource_id, 1, 1, @state, @now, @now)`,
+      `INSERT INTO entities (id, project_id, "group", kind, ui_kind, resource_id, revision, version, state, comment, created_at, updated_at)
+       VALUES (@id, @project_id, @group, @kind, @ui_kind, @resource_id, 1, 1, @state, @comment, @now, @now)`,
     ).run({
       id,
       project_id: projectId,
@@ -365,6 +322,7 @@ export function createEntity(
       ui_kind: uiKind,
       resource_id: resourceId,
       state: JSON.stringify(input.state),
+      comment,
       now,
     })
   } catch (error) {
@@ -411,6 +369,7 @@ interface AppliedPatch {
   state: string
   group: string
   resource_id: string
+  comment: string
   op: PatchOp
   value: unknown
 }
@@ -445,24 +404,31 @@ export function applyDataPath(
       state: JSON.stringify(nextState),
       group: row.group,
       resource_id: row.resource_id,
+      comment: row.comment,
       op: resolvedOp,
       value: resolvedOp === 'remove' ? undefined : value,
     }
   }
   if (resolvedOp === 'remove') {
-    throw new ApiError(400, 'VALIDATION', 'group/resource_id 不支持 remove 操作')
+    throw new ApiError(400, 'VALIDATION', 'group/resource_id/comment 不支持 remove 操作')
   }
   if (parsed.root === 'group') {
     if (typeof value !== 'string' || !isValidGroup(value)) {
       throw new ApiError(400, 'VALIDATION', 'group 必须是 Python 模块路径段格式')
     }
-    return { state: row.state, group: value, resource_id: row.resource_id, op: resolvedOp, value }
+    return { state: row.state, group: value, resource_id: row.resource_id, comment: row.comment, op: resolvedOp, value }
+  }
+  if (parsed.root === 'comment') {
+    if (typeof value !== 'string') {
+      throw new ApiError(400, 'VALIDATION', 'comment 必须是字符串')
+    }
+    return { state: row.state, group: row.group, resource_id: row.resource_id, comment: value, op: resolvedOp, value }
   }
   // resource_id
   if (typeof value !== 'string' || !isValidResourceIdForKind(row.kind, value)) {
     throw new ApiError(400, 'VALIDATION', 'resource_id 格式非法或命名空间与 kind 不匹配')
   }
-  return { state: row.state, group: row.group, resource_id: value, op: resolvedOp, value }
+  return { state: row.state, group: row.group, resource_id: value, comment: row.comment, op: resolvedOp, value }
 }
 
 export function patchEntity(
@@ -506,13 +472,14 @@ export function patchEntity(
     db.prepare(
       `UPDATE entities
        SET "group" = @group, resource_id = @resource_id, state = @state,
-           revision = @revision, version = @version, updated_at = @updated_at
+           comment = @comment, revision = @revision, version = @version, updated_at = @updated_at
        WHERE id = @id`,
     ).run({
       id: entityId,
       group: applied.group,
       resource_id: applied.resource_id,
       state: applied.state,
+      comment: applied.comment,
       revision: row.revision + 1,
       version: row.version + 1,
       updated_at: now,

@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { EntityRecord, PresenceUser } from '@ellia/puzzle-schema'
 
 import HashBadge from '../ui/HashBadge.vue'
 import UserBadge from '../presence/UserBadge.vue'
 
-defineProps<{
+const props = defineProps<{
   entity: EntityRecord
   users: PresenceUser[]
 }>()
@@ -12,11 +13,18 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'open', entity: EntityRecord): void
 }>()
+
+const commentFirstLine = computed(() => {
+  const comment = props.entity.comment
+  if (!comment) return ''
+  return comment.split('\n')[0] ?? ''
+})
 </script>
 
 <template>
   <button class="entity-card" type="button" @click="emit('open', entity)">
     <div class="entity-card__title">{{ entity.resource_id }}</div>
+    <div v-if="commentFirstLine" class="entity-card__comment" :title="entity.comment">{{ commentFirstLine }}</div>
     <div class="entity-card__meta">
       <HashBadge :value="entity.kind" />
       <span class="badge badge--secondary">{{ entity.group }}</span>
@@ -60,6 +68,16 @@ const emit = defineEmits<{
   font-size: 0.9rem;
   word-break: break-all;
   width: 100%;
+}
+
+.entity-card__comment {
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  line-height: 1.4;
 }
 
 .entity-card__meta {

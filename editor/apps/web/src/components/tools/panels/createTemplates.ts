@@ -8,10 +8,6 @@ export interface CreateTemplate {
     enable: boolean
     value: string
   }
-  inject_id: {
-    enable: boolean
-    field: string
-  }
   default: Record<string, unknown>
   comment: {
     description: string

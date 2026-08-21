@@ -240,6 +240,7 @@ function handleCreate(ws: WebSocket, context: ConnectionContext, message: Extrac
         ui_kind: message.ui_kind,
         resource_id: message.resource_id,
         state: message.state,
+        comment: message.comment,
       },
       context.userId,
     )

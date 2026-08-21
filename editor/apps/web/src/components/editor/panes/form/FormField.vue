@@ -37,6 +37,9 @@ const holderColor = computed(() =>
 const fieldPresence = computed(() => presence.userAtPath(props.entity.id, props.dataPath))
 const isNonObject = computed(() => props.fieldSpec.type !== 'object')
 const isUnset = computed(() => Boolean(props.fieldSpec.optional && props.modelValue === undefined))
+const isEmptyString = computed(
+  () => props.fieldSpec.type === 'string' && props.modelValue === '',
+)
 
 const entitiesStore = useEntitiesStore()
 const editorTabsStore = useEditorTabsStore()
@@ -56,7 +59,7 @@ const displayValue = computed(() => {
       return Array.isArray(value) ? `${value.length} 项` : '（空）'
     case 'string':
     case 'number':
-      return value === undefined || value === null || value === '' ? '（空）' : String(value)
+      return value === undefined || value === null ? '（空）' : String(value)
     default:
       return ''
   }
@@ -72,7 +75,7 @@ const fullValueText = computed(() => {
       return Array.isArray(value) ? JSON.stringify(value, null, 2) : '（空）'
     case 'string':
     case 'number':
-      return value === undefined || value === null || value === '' ? '（空）' : String(value)
+      return value === undefined || value === null ? '（空）' : String(value)
     default:
       return ''
   }
@@ -288,7 +291,10 @@ function openReferencedEntity(): void {
         <button
           ref="valueRef"
           class="form-field__value"
-          :class="{ 'form-field__value--unset': isUnset }"
+          :class="{
+            'form-field__value--unset': isUnset,
+            'form-field__value--empty-string': isEmptyString,
+          }"
           type="button"
           :disabled="lockedByOther || busy"
           @click="onValueClick"
@@ -404,12 +410,12 @@ function openReferencedEntity(): void {
 
 .form-field__main {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
 }
 
 .form-field__info {
-  flex: 0 1 max-content;
+  flex: 1 1 min-content;
   min-width: 0;
   display: grid;
   gap: 2px;
@@ -432,6 +438,7 @@ function openReferencedEntity(): void {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant, #49454f);
   line-height: 1.4;
+  max-width: 320px;
 }
 
 .form-field__value-area {
@@ -492,5 +499,9 @@ function openReferencedEntity(): void {
 .form-field__value--unset {
   color: var(--md-sys-color-on-surface-variant, #49454f);
   border-style: dashed;
+}
+
+.form-field__value--empty-string {
+  border-color: var(--app-warning, #8f5c00);
 }
 </style>

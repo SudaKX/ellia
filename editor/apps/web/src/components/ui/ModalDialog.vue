@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue'
+
 const props = withDefaults(
   defineProps<{
     open: boolean
@@ -8,6 +10,7 @@ const props = withDefaults(
     showCancel?: boolean
     danger?: boolean
     busy?: boolean
+    confirmDisabled?: boolean
   }>(),
   {
     confirmLabel: '确认',
@@ -15,6 +18,7 @@ const props = withDefaults(
     showCancel: true,
     danger: false,
     busy: false,
+    confirmDisabled: false,
   },
 )
 
@@ -23,15 +27,40 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-function onOverlayClick(): void {
-  if (!props.busy) emit('cancel')
+const dialogRef = ref<HTMLElement | null>(null)
+
+/** 按下和松开都在弹窗内容之外才关闭 */
+let downOnDialog = false
+
+function onOverlayPointerDown(event: PointerEvent): void {
+  downOnDialog = dialogRef.value?.contains(event.target as Node) ?? false
 }
+
+function onOverlayPointerUp(event: PointerEvent): void {
+  if (props.busy) return
+  // 如果鼠标离开浏览器窗口，release 事件的 target 可能是 document.body 等，不触发关闭
+  if (!event.target || !(event.target instanceof Node)) return
+  const upOnDialog = dialogRef.value?.contains(event.target as Node) ?? false
+  if (!downOnDialog && !upOnDialog) {
+    emit('cancel')
+  }
+}
+
+onBeforeUnmount(() => {
+  downOnDialog = false
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="modal-overlay" @click.self="onOverlayClick">
+    <div
+      v-if="open"
+      class="modal-overlay"
+      @pointerdown="onOverlayPointerDown"
+      @pointerup="onOverlayPointerUp"
+    >
       <div
+        ref="dialogRef"
         class="modal-dialog"
         role="dialog"
         aria-modal="true"
@@ -60,7 +89,7 @@ function onOverlayClick(): void {
             class="btn"
             :class="danger ? 'btn--danger' : 'btn--primary'"
             type="button"
-            :disabled="busy"
+            :disabled="busy || confirmDisabled"
             @click="emit('confirm')"
           >
             {{ confirmLabel }}

@@ -12,6 +12,7 @@ const emit = defineEmits<{
 const tools: Array<{ id: ToolId; label: string; icon: string }> = [
   { id: 'files', label: '文件管理', icon: '📁' },
   { id: 'create', label: '创建实体', icon: '➕' },
+  { id: 'random', label: '随机生成', icon: '🎲' },
 ]
 </script>
 

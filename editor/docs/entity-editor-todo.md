@@ -1,7 +1,7 @@
 # 实体编辑器细化 TODO
 
 > 目标：按实体类型逐个细化“字段定义 / 创建表单 / 专用编辑器”，提升字段级锁、在场提示和创建体验。
-> 状态：进行中；hint 已完成字段/结构检查；validation 字段/后端检查已完成，按顺序继续创建表单与编辑器。
+> 状态：进行中；hint 已完成字段/结构检查；validation 已完成字段/后端检查、创建表单/编辑器调整。
 
 ## 推荐处理顺序
 
@@ -51,8 +51,8 @@
     - `validation_id`：公开 API slug，`POST /api/v1/validations/{validation_id}/attempts` 使用；后端规则 `^[a-z0-9][a-z0-9-]{0,63}$`，全局唯一
     - `handler`：异步 `(context: ValidationContext, payload) -> ValidationResult`；编辑器用 `handler_block_id` 引用 `python-block`（slot=`validation_handler`），导出时生成 handler
     - handler 可在事务内推进 progress、发放账号/资产、写 followups；`context.reject(reason, details)` → HTTP 409 Problem Details；返回 `accepted=false` 为 HTTP 200
-  - 注意：前端 `VALIDATION_ID_RE`（`^[a-z0-9]+(?:-[a-z0-9]+)*$`）比后端严格，但缺少 64 字符上限；建议对齐后端
-- [ ] 创建表单：`validation_id` slug 校验（对齐后端 regex + ≤64；默认 `handler_block_id` 可选）
+  - 注意：前端 `VALIDATION_ID_RE`（`^[a-z0-9]+(?:-[a-z0-9]+)*$`）比后端严格，但缺少 64 字符上限；已对齐为 `^[a-zA-Z0-9_-]{1,64}$`
+- [x] 创建表单：`validation_id` slug 校验（已对齐后端 regex + ≤64）
 - [ ] 编辑器：结构化表单，handler 引用选择（仅列出 `slot='validation_handler'` 的 python-block）
 
 ### 3. task

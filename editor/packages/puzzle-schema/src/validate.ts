@@ -90,7 +90,7 @@ export function isValidResourceIdForKind(kind: EntityKind, resourceId: string): 
 
 export interface ParsedDataPath {
   entity_id: string
-  root: 'state' | 'group' | 'resource_id'
+  root: 'state' | 'group' | 'resource_id' | 'comment'
   json_path: string
 }
 
@@ -102,7 +102,7 @@ function isValidJsonPointer(value: string): boolean {
 
 /**
  * 解析 data_path：`<entity_id>@<root>:<json_path>`。
- * group/resource_id 的 json_path 必须为空；state 的 json_path 必须为合法 JSON Pointer。
+ * group/resource_id/comment 的 json_path 必须为空；state 的 json_path 必须为合法 JSON Pointer。
  * 若传入 expectedEntityId，则 entity_id 部分必须一致。
  */
 export function parseDataPath(
@@ -118,8 +118,8 @@ export function parseDataPath(
   if (colon < 0) return null
   const root = rest.slice(0, colon)
   const jsonPath = rest.slice(colon + 1)
-  if (root !== 'state' && root !== 'group' && root !== 'resource_id') return null
-  if (root === 'group' || root === 'resource_id') {
+  if (root !== 'state' && root !== 'group' && root !== 'resource_id' && root !== 'comment') return null
+  if (root === 'group' || root === 'resource_id' || root === 'comment') {
     if (jsonPath !== '') return null
   } else if (!isValidJsonPointer(jsonPath)) {
     return null
