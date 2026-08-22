@@ -85,7 +85,7 @@ CREATE INDEX idx_entities_group ON entities(project_id, group, kind);
 ```
 
 - **物理删除**：`DELETE` 直接移除行；`entity_history` 通过 `ON DELETE CASCADE` 一并清除。
-- `resource_id` 项目内**全局唯一**，唯一性作用于**完整字符串（含命名空间前缀）**：`stable-id:main` 与 `account-id:main` 是两个不同的 resource_id，可以共存；同一命名空间内 id 部分不可重复。其中 `stable-id` 命名空间横跨 6 类 kind，天然满足 mythos「stable_id 全项目唯一」的硬约束。
+- `resource_id` 项目内**全局唯一**，唯一性作用于**完整字符串（含命名空间前缀）**：`stable-id:main` 与 `account:main` 是两个不同的 resource_id，可以共存；同一命名空间内 id 部分不可重复。其中 `stable-id` 命名空间横跨 4 类 kind，天然满足 mythos「stable_id 全项目唯一」的硬约束。
 - 删除后重建同名 `resource_id` 自然可行（旧行已不存在）。
 
 ### 3.2 kind（后端语义）目录
@@ -93,9 +93,9 @@ CREATE INDEX idx_entities_group ON entities(project_id, group, kind);
 沿用并扩展 `@ellia/puzzle-schema` 的 `ENTITY_KINDS` 至 16 种，**kind 只归后端使用**：
 
 ```
-progress-node / file-tree-node / file-tree / progress-dag / asset /
-hint / script / validation / artifact-template / artifact-node / account-template /
-credit-template / achievement / task / event-listener / python-block
+progress-node / file-node / file-tree / progress-dag / asset /
+hint / script / validation / artifact / artifact-node / account /
+credit / achievement / task / listener / code
 ```
 
 ### 3.3 ui_kind（前端展示类型）目录
@@ -105,13 +105,12 @@ credit-template / achievement / task / event-listener / python-block
 | ui_kind | 渲染组件 | kind 映射 |
 | --- | --- | --- |
 | `dag-node` | 进度 DAG 节点表单 | progress-node |
-| `tree-node` | 文件树节点表单 | file-tree-node |
 | `file-tree` | 文件树结构编辑器（根/父子排序） | file-tree |
 | `progress-dag` | DAG 结构编辑器（入口与边） | progress-dag |
 | `asset` | 文件引用 + 内容预览 | asset |
 | `script` | 脚本表单（含 CodeMirror 行编辑） | script |
-| `code` | 纯代码编辑器（Python） | python-block |
-| `form` | 通用结构化表单（schema 由 kind 驱动） | hint / validation / artifact-template / artifact-node / account-template / credit-template / achievement / task / event-listener |
+| `code` | 纯代码编辑器（Python） | code |
+| `form` | 通用结构化表单（schema 由 kind 驱动） | hint / validation / artifact / artifact-node / account / credit / achievement / task / listener |
 
 规则：
 
@@ -127,23 +126,27 @@ credit-template / achievement / task / event-listener / python-block
 
 | namespace | 包含 kind | 校验 |
 | --- | --- | --- |
-| `stable-id` | progress-node / file-tree-node / hint / script / validation / artifact-node | id 非空、无空白 |
+| `stable-id` | hint / script | id 非空、无空白 |
+| `validation` | validation | id 非空、无空白 |
 | `file-tree` | file-tree | id 非空、无空白 |
 | `progress-dag` | progress-dag | id 非空、无空白 |
-| `asset-path` | asset | id 为规范相对路径：非空、不以 `/` 开头、无 `\`/`:`、无 `.`/`..` 路径段（对齐 mythos `is_canonical_source_relative_path`） |
-| `artifact-id` | artifact-template | id 非空、无空白 |
-| `account-id` | account-template | id 非空、无空白 |
-| `credit-id` | credit-template | id 非空、无空白 |
-| `achievement-id` | achievement | id 非空、无空白 |
-| `task-id` | task | id 非空、无空白 |
-| `listener-id` | event-listener | id 非空、无空白 |
-| `python-name` | python-block | id 满足 `isPythonName` |
+| `asset` | asset | id 非空、无空白 |
+| `artifact` | artifact | id 非空、无空白 |
+| `inode` | artifact-node / file-node | id 非空、无空白 |
+| `pnode` | progress-node | id 非空、无空白 |
+| `account` | account | id 非空、无空白 |
+| `credit` | credit | id 非空、无空白 |
+| `achievement` | achievement | id 非空、无空白 |
+| `task` | task | id 非空、无空白 |
+| `listener` | listener | id 非空、无空白 |
+| `code` | code | id 满足 `isPythonName` |
 
 说明：
 
-- `event-listener` 通过 `listener-id:<id>` 获得显式身份（前端自动建议 `evt_<event_type>_<priority>`，用户可改）。
+- `listener` 通过 `listener:<id>` 获得显式身份（前端自动建议 `evt_<event_type>_<priority>`，用户可改）。
 - `validation` 的 id 部分 = stable_id；其 `validation_id` 仍按 slug 规则校验。
-- `python-block` 的 id 部分 = 函数名，保证导出为模块级函数时不撞名。
+- `task` 的 id 部分即 mythos 的 task_id。
+- `code` 的 id 部分 = 函数名，保证导出为模块级函数时不撞名。
 - 前端创建表单固定展示前缀、只让用户填写 id 部分；提交时由前端拼成完整 `resource_id`。
 - 修改 resource_id（patch 根选择器 `resource_id`）时，新值前缀必须与当前 kind 的命名空间一致。
 
@@ -160,11 +163,11 @@ credit-template / achievement / task / event-listener / python-block
 
 | 调整 | 内容 |
 | --- | --- |
-| `FileTreeNodeState` | 仅节点数据：`{stable_id, kind, name, display, hidden, download_name, source_asset_id?, access_rule_block_id?}`；不含 parent 挂接 |
-| `FileTreeState`（新增 kind） | `{root_stable_id, children: Record<parent_stable_id, child_stable_id[]>}`：整棵树拓扑与排序；节点只按 stable_id 引用 |
-| `ProgressNodeState` | 仅节点数据：`{stable_id, node_kind, triggers_checkpoint}`；移除 `successors` 与 `is_entry` |
+| `FileTreeNodeState` | 仅节点数据：`{stable_id, display, hidden, download_name, source_asset?, access_rule?}`；不含 parent/kind/path/children/name |
+| `FileTreeState`（新增 kind） | `{rootId, nodes: Record<TreeNodeId, FileTreeNode>}`：扁平节点表；`FileTreeNode` 含 `id/name/inode/parent/order` |
+| `ProgressNodeState` | 仅节点数据：`{how?, mode?, triggers_checkpoint}`；移除 `successors` 与 `is_entry` |
 | `ProgressDagState`（新增 kind） | `{entry_stable_ids, successors: Record<from_stable_id, to_stable_id[]>}`：DAG 全部拓扑与入口 |
-| `AssetState` | 与 file-reference 合并后：`{ file_id, media_type }`；路径身份由 resource_id（`asset-path:<相对路径>`）承载，对齐 mythos `FileReference(module, relative_path, media_type)` |
+| `AssetState` | `{ source_reference?, file_reference?, media_type }`；引用当前文件或后续 source，module/path 由导出时生成 |
 | `EventListenerState` | 身份由列 `resource_id` 承载，state 内容不变 |
 | 其他 state | 暂不修改；字段以“覆盖/可推导 mythos 所需”为准，后续可调 |
 
@@ -234,7 +237,7 @@ app_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 - 文件数据 = 单层映射 `UUID → bytes`，存本地目录 `FILE_DATA_DIR`（默认 `data/files`），**不进 SQLite**。
 - 文件内容**不可变**（write-once）：文本修改 = 上传新 bytes 得新 `file_id`，实体 patch 更新引用。
 - 文件**元数据**存 SQL `files` 表（UUID 主键）：原始文件名、媒体类型、size、sha256、上传者、时间。
-- 文件引用并入 `asset` 实体：`state = {file_id, media_type}`，`resource_id = asset-path:<相对路径>`（对应 mythos `FileReference(module, relative_path, media_type)`，module 由所属 project 的 module_id 提供）；file-tree-node / hint 通过 entity id 引用 asset。多个 asset 可指向同一 `file_id`（复用同一份字节）。
+- 文件引用并入 `asset` 实体：`state = {source_reference?, file_reference?, media_type}`，`resource_id = asset:<id>`；file-node / hint 通过 entity id 引用 asset。多个 asset 可指向同一 `file_reference`（复用同一份字节）。
 
 ### 4.2 files 表（migration v3）
 
@@ -487,7 +490,7 @@ POST   /api/files                    GET /api/files/:file_id      DELETE /api/fi
 
 - 左侧实体树：第一层 **group**，第二层按 `REGISTRY_OF_KIND` 分组，叶子为实体；删除/新建实体入口。
 - 中间：按 `ui_kind` 查组件注册表渲染：
-  - `dag-node` / `progress-dag` / `tree-node` / `file-tree` / `script` / `code` / `asset` / `form`
+  - `dag-node` / `progress-dag` / `file-tree` / `script` / `code` / `asset` / `form`
   - 未知 ui_kind 回退 `form` + JSON 只读预览。
 - 右侧：历史面板（`history` 读取 + `rollback` 按钮）、文件上传/下载/手动删除。
 - 底部：连接状态、在线成员与 focus 位置、锁提示（“user 正在编辑 state:/display/label”）。
@@ -570,7 +573,7 @@ ENTITY_HISTORY_LIMIT=20             # 每实体历史快照上限 N（建库时�
 
 1. `resource_id` 唯一性作用于完整字符串（含命名空间前缀），不同命名空间的 id 部分可重复；同一命名空间内唯一，`stable-id` 命名空间跨 6 类 kind（§3.1/§3.4）。
 2. `ui_kind` 六值目录与 kind 映射（§3.3）；创建必填、服务端校验。
-3. `group` 默认 `main`、Python 模块路径段格式（§3.5）。
+3. `group` 默认 `main`、单段 Python 模块名（§3.5）。
 4. data_path 中 `group`/`resource_id` 的 json_path 为空（`...@group:` 形式）（§5.1）。
 5. 删除即物理删除并级联清除历史（§3.8/§6.6）。
 6. 锁无 TTL，仅靠提交/失焦/unlock/断线释放（§5.4）。
@@ -580,7 +583,7 @@ ENTITY_HISTORY_LIMIT=20             # 每实体历史快照上限 N（建库时�
 10. 心跳 30s / 服务端 90s 超时（§6.1）。
 11. 文件元数据仅存 `original_name/media_type/size/sha256/uploaded_by/created_at`，不提供元数据编辑与列表端点（§4.2）。
 12. `file-tree` 与 `progress-dag` 约定每个项目各一个（resource_id 建议 `file-tree:main` / `progress-dag:main`），但服务端不强制检查数量；节点与拓扑分离（§3.3/§3.6）。
-13. file-reference 与 asset 已合并：`asset.state = {file_id, media_type}`，路径身份在 `asset-path:<相对路径>`；多个 asset 可共享同一 `file_id`（§3.4/§3.6/§4.1）。
+13. file-reference 与 asset 已合并：`asset.state = {source_reference?, file_reference?, media_type}`，命名空间为 `asset`；多个 asset 可共享同一 `file_reference`（§3.4/§3.6/§4.1）。
 
 ---
 
@@ -607,5 +610,5 @@ ENTITY_HISTORY_LIMIT=20             # 每实体历史快照上限 N（建库时�
 | 修订 3 | create 必须携带 ui_kind | §3.3/§6.2 |
 | 修订 4 | data_path 改为 `<entity_id>@<root>:<json_path>` | §5.1 |
 | 修订 5 | 文件元数据入 SQL + 手动删除端点，无 GC | §4 |
-| 修订 6 | file-reference 与 asset 合并：asset.state={file_id, media_type}，路径由 asset-path resource_id 承载；手动删除不检查悬空引用 | §3.2–3.6/§4 |
+| 修订 6 | file-reference 与 asset 合并：asset.state={source_reference?, file_reference?, media_type}，命名空间为 asset；手动删除不检查悬空引用 | §3.2–3.6/§4 |
 | 修订 7 | 新增 `file-tree`/`progress-dag` 容器 kind；节点实体去拓扑化 | §3.2–3.6 |

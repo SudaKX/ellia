@@ -86,8 +86,8 @@
 ## 4. 方案要点速览（v1 详见 plan-v1.md；数据/同步以 plan-v2.md 为准）
 
 - **仓库**：editor 根为 pnpm workspace（`pnpm-workspace.yaml`: `apps/*`, `packages/*`）；现有 `src/`、`index.html`、`vite.config.*` 移入 `apps/web/`。
-- **共享包** `@ellia/puzzle-schema`：`types.ts`（16 种实体 kind + 11 注册表 + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap）、`sync.ts`（WS v2 协议消息）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/resource_id/group/data_path 校验）、`exporter/`（导出占位，延后）。
-- **实体种类**：`progress-node`、`file-tree-node`、`file-tree`、`progress-dag`、`asset`、`hint`、`script`、`validation`、`artifact-template`、`artifact-node`、`account-template`、`credit-template`、`achievement`、`task`、`event-listener`、`python-block`。节点只存数据，树/DAG 拓扑在 `file-tree`/`progress-dag` 容器中；`asset.state={file_id,media_type}`，路径身份在 `resource_id`（`asset-path:<相对路径>`）。
+- **共享包** `@ellia/puzzle-schema`：`types.ts`（16 种实体 kind + 11 注册表 + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap）、`sync.ts`（WS v2 协议消息）、`python.ts`（Python 名称规则）、`validate.ts`（module_id/resource_id/group/data_path 校验）、`exporter/`（导出占位，延后）。
+- **实体种类**：`progress-node`、`file-node`、`file-tree`、`progress-dag`、`asset`、`hint`、`script`、`validation`、`artifact`、`artifact-node`、`account`、`credit`、`achievement`、`task`、`listener`、`code`。节点只存数据，树/DAG 拓扑在 `file-tree`/`progress-dag` 容器中；`asset.state={source_reference?,file_reference?,media_type}`，命名空间为 `asset`。
 - **SQLite 表**：`users`、`invite_codes`、`sessions`、`projects`、`entities`（revision/version 双计数器 + JSON state）、`entity_history`（每实体 ≤N 快照，N 固化在 app_meta）、`files`（UUID 主键元数据；字节在 `FILE_DATA_DIR/<uuid>`）。
 - **WS 协议 v2**：`/ws/projects/:id` 经 cookie 会话认证；`join{vector}`→`sync`（revision 向量全量 diff + removed_ids）；`create/patch/delete/rollback/history`；`lock/unlock` 字段锁（每连接 1 把、断线清理）；`focus/presence` 在场；`ping/pong`。
 - **REST**：auth（register/login/logout/me）、admin（invites/users）、projects（CRUD）、files（POST/GET/DELETE `/api/files`，手动删除无条件、允许悬空 file_id）；`/export` 延后。
@@ -108,7 +108,7 @@
     - REST：`GET/POST /api/projects`、`GET/PATCH /api/projects/:id`；`GET/POST/GET/DELETE /api/files`（列表/上传/下载/手动删除）；
     - WS v2 `/ws/projects/:id`：cookie 会话认证、join/sync 全量 diff、create/patch/delete/rollback/history、字段锁（每连接 1 把）、focus/presence/clear focus、ref 回传、心跳；
     - 实体：16 kind、`revision`/`version` 双计数器、每实体 ≤N 历史快照（N 固化 app_meta）、物理删除级联历史。
-  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（16 种实体 kind + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap + Entity/EntityRecord/Project/FileRecord/ApiFileRecord/FileListResponse）、`sync.ts`（SYNC_PROTOCOL_VERSION=2 消息全集，含 clear focus 与 ref 回传）、`python.ts`（9 种 slot 签名模板）、`validate.ts`（module_id/validation_id/stable_id/resource_id/group/data_path）、`exporter/`（导出占位，延后）。
+  - `packages/puzzle-schema/`（`@ellia/puzzle-schema`，源码直出 exports）：`types.ts`（16 种实体 kind + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap + Entity/EntityRecord/Project/FileRecord/ApiFileRecord/FileListResponse）、`sync.ts`（SYNC_PROTOCOL_VERSION=2 消息全集，含 clear focus 与 ref 回传）、`python.ts`（Python 名称规则）、`validate.ts`（module_id/validation_id/stable_id/resource_id/group/data_path）、`exporter/`（导出占位，延后）。
 - 已产出文档：`editor/docs/plan-v1.md`（v1 方案）、`editor/docs/plan-v2.md`（数据/同步修订，**当前实施依据**）、`editor/docs/m1-plan.md`、本文档。
 - **M0 已复核通过**：`pnpm install --frozen-lockfile`、`pnpm type-check`、`pnpm build` 全部通过；`pnpm dev` 冒烟通过。
 - **OpenSpec**：`m1-backend-auth`、`m1-frontend-auth`、`m2-backend-sync` 三个 change 均已实现并归档；当前 active change 为 `m2-frontend-editor`（前端编辑器 + 文件列表 API + WS 协议扩展）；主 specs 已同步（`user-management`、`auth-web`、`projects`、`entity-sync`、`file-storage`）。

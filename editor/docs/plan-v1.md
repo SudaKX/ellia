@@ -51,40 +51,26 @@ editor/
 
 | 实体 kind | 对应注册表 | 声明字段（state JSON） | Python 引用 |
 | --- | --- | --- | --- |
-| `progress-node` | progress | `stable_id, node_kind(normal/branch/merge), successors[], is_entry, triggers_checkpoint` | — |
-| `file-tree-node` | files | `stable_id, kind(directory/file), name, display{label,description,icon,sort_order}, hidden, download_name` | `access_rule` |
+| `progress-node` | progress | `how?, mode?, triggers_checkpoint` | — |
+| `file-node` | files | `stable_id, display{label,description,icon,sort_order}, hidden, download_name, source_asset?, access_rule?` | — |
 | `asset` | files/hints 源 | `path, media_type, text?`（文本）/ 二进制存 blob 表 | — |
 | `hint` | hints | `stable_id, source(asset ref), download_name, display{title,teaser,icon,sort_order}, credit_id, credit_amount` | `access_rule` |
 | `script` | scripts | `stable_id, revision, body{kind, lines[], input?, validation_id?}` | `access_rule` |
 | `validation` | validations | `stable_id, validation_id` | `handler` |
-| `artifact-template` | artifacts | `artifact_id, media_type, download_name` | `generator` |
-| `artifact-node` | artifacts | `stable_id, path, artifact_locator, display, hidden, download_name` | `access_rule, node_generator` |
-| `account-template` | accounts | `account_id, display_name, permission, metadata` | — |
-| `credit-template` | credits | `credit_id, display_name, metadata`（VTB 为内置，不可编辑） | — |
+| `artifact` | artifacts | `artifact_id, media_type, download_name` | `generator` |
+| `artifact-node` | artifacts | `stable_id, artifact, display, hidden, download_name` | `access_rule, node_generator` |
+| `account` | accounts | `account_id, display_name, permission, metadata` | — |
+| `credit` | credits | `credit_id, display_name, metadata`（VTB 为内置，不可编辑） | — |
 | `achievement` | achievements | `achievement_id, secret, display{title,description}` | `predicate, reward` |
 | `task` | tasks | `task_id, dependencies[]` | `handler` |
-| `event-listener` | events | `event_type, priority, dependencies[]` | `listener` |
-| `python-block` | （代码） | `name, slot, content` | — |
+| `listener` | events | `event_type, priority, dependencies[]` | `listener` |
+| `code` | （代码） | `name, content` | — |
 
-**Python 代码块是独立实体**：与宿主条目一对一绑定（如 `file-tree-node` 的 `access_rule` 引用一个 `python-block`），代码编辑与结构编辑互不覆盖。slot 决定签名模板（见 §3.2）。额外支持无宿主引用的自由辅助函数（导出时保留为模块级函数）。
+**Python 代码块是独立实体**：与宿主条目一对一绑定（如 `file-node` 的 `access_rule` 引用一个 `code`），代码编辑与结构编辑互不覆盖。额外支持无宿主引用的自由辅助函数（导出时保留为模块级函数）。
 
-### 3.2 Python 代码块 slot 与签名模板
+### 3.2 Python 代码块（已移除 slot）
 
-编辑器提供签名模板（无语法检查，仅高亮 + 模板提示）：
-
-```
-access_rule:          def {name}(player: Player) -> bool
-validation_handler:   async def {name}(context: ValidationContext, payload) -> ValidationResult
-artifact_generator:   async def {name}(player: Player) -> RawArtifact
-node_generator:       async def {name}(player, meta, node: ArtifactNode) -> ArtifactNode
-achievement_predicate: def {name}(player: Player) -> bool
-achievement_reward:   async def {name}(player: Player) -> None
-task_handler:         async def {name}(context: TaskContext) -> None
-event_listener:       async def {name}(context: EventContext) -> None
-free:                 任意模块级函数
-```
-
-导出器负责添加 `@_handler(...)` 装饰器与 imports；用户只写函数体。
+`slot` 已移除，编辑器只保存 `content`（Python 源码）。导出器负责添加 `@_handler(...)` 装饰器与 imports；用户只写函数体。
 
 ### 3.3 SQLite 表
 
@@ -150,17 +136,17 @@ POST /api/projects/:id/export # 生成并下载 zip
 
 ```text
 puzzles/<module_id>/__init__.py     # 由模板生成：imports、MODULE_ID、_handler、
-                                    # python-block 函数体（自动加 @_handler 装饰器）、
+                                    # code 函数体（自动加 @_handler 装饰器）、
                                     # register() 中按固定顺序调用各 Registry
 puzzles/<module_id>/assets/**       # 全部资产（文本/二进制原样）
-puzzles/<module_id>/assets/file-tree.json  # 由 file-tree-node 实体生成 manifest
+puzzles/<module_id>/assets/file-tree.json  # 由 file-node 实体生成 manifest
 puzzles/__init__.py                 # 合并版：项目 deploy_baseline + 本模块幂等合并
 README.txt                          # 部署说明（放置位置、重启 mythos）
 ```
 
 要点：
 
-- `file-tree-node` 的 `access_rule` 引用 → `access_rules={名: 函数}` 映射 + manifest 中写规则名。
+- `file-node` 的 `access_rule` 引用 → `access_rules={名: 函数}` 映射 + manifest 中写规则名。
 - 无 `deploy_baseline` 时降级：只导出模块目录 + `register_all.patch` 片段文件。
 - 不做导出校验（与决策一致）；模块目录内不包含 mythos 框架代码。
 

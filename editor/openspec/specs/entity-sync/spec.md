@@ -65,11 +65,11 @@
 
 ### Requirement: asset 与文件引用关系
 
-`asset` kind 的 state SHALL 为 `{file_id, media_type}`；其 resource_id 的 id 部分 MUST 是规范相对路径（非空、不以 `/` 开头、不含 `\` 与 `:`、无 `.`/`..` 路径段），前缀为 `asset-path`。系统 SHALL NOT 校验 `file_id` 是否存在于 files 表（允许悬空引用），也 SHALL NOT 限制多个 asset 引用同一个 `file_id`（允许复用同一份字节）。
+`asset` kind 的 state SHALL 为 `{source_reference?, file_reference?, media_type}`；其 resource_id 前缀为 `asset`，id 部分非空、无空白。系统 SHALL NOT 校验 `file_reference` 是否存在于 files 表（允许悬空引用），也 SHALL NOT 限制多个 asset 引用同一个 `file_reference`（允许复用同一份字节）。
 
 #### Scenario: 创建 asset 允许悬空 file_id
 
-- **WHEN** 客户端发送 `create {kind:"asset", ui_kind:"asset", resource_id:"asset-path:assets/public/a.txt", state:{file_id:"<任意UUID>", media_type:"text/plain"}}`，而 files 表中没有该 file_id
+- **WHEN** 客户端发送 `create {kind:"asset", ui_kind:"asset", resource_id:"asset:a", state:{file_reference:"<任意UUID>", media_type:"text/plain"}}`，而 files 表中没有该 file_id
 - **THEN** 创建成功，`revision` 与 `version` 均为 1
 
 #### Scenario: 多个 asset 复用同一 file_id
@@ -77,29 +77,54 @@
 - **WHEN** 客户端先后创建两个 asset，其 state 中的 `file_id` 相同
 - **THEN** 两个 asset 均创建成功，系统不进行去重或独占校验
 
-#### Scenario: asset-path 路径非法
+#### Scenario: asset 缺少 media_type
 
-- **WHEN** 客户端发送 resource_id 为 `asset-path:../a.txt` 或含 `\`、`:` 的 create
+- **WHEN** 客户端发送 asset 的 create，其 state 缺少 `media_type`
 - **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
 
 ### Requirement: file-tree 与 progress-dag 容器
 
-`file-tree` kind 的 state SHALL 为 `{root_stable_id, children}`，其中 `children` 为 `parent stable_id → 有序 child stable_id 列表` 的映射；`progress-dag` kind 的 state SHALL 为 `{entry_stable_ids, successors}`，其中 `successors` 为 `from stable_id → 有序 to stable_id 列表` 的映射。`file-tree-node` state SHALL NOT 包含 parent 挂接字段；`progress-node` state SHALL NOT 包含 `successors` 或 `is_entry` 字段。系统 SHALL NOT 强制容器数量，也 SHALL NOT 校验拓扑中引用的 stable_id 是否存在（允许悬空）。
+`file-tree` kind 的 state SHALL 为 `{rootId, nodes}`，其中 `nodes` 为 `TreeNodeId → FileTreeNode` 的扁平节点表，`FileTreeNode` SHALL 包含 `id/name/isDirectory/inode/parent/order`。`isDirectory=true` 的节点 SHALL 将 `inode` 置为 `null`，且可作为父节点；`isDirectory=false` 的节点 SHALL 指定非空 `inode` 引用已有 `file-node`/`artifact-node` 实体，且 SHALL NOT 作为任何节点的父节点。同级节点的 `name` SHALL 唯一；非根节点 SHALL 指定 `parent`；根节点 SHALL 为 `isDirectory=true`、`name="/"`、`inode=null`、`parent=null`。`progress-dag` kind 的 state SHALL 为 `{entry_stable_ids, successors}`，其中 `successors` 为 `from stable_id → 有序 to stable_id 列表` 的映射。`file-node` state SHALL NOT 包含 parent 挂接字段；`progress-node` state SHALL NOT 包含 `successors` 或 `is_entry` 字段。系统 SHALL NOT 强制容器数量，也 SHALL NOT 校验 inode 引用的实体是否存在（允许悬空）。
 
 #### Scenario: 创建文件树容器
 
-- **WHEN** 客户端发送 `create {kind:"file-tree", ui_kind:"file-tree", resource_id:"file-tree:main", state:{root_stable_id:null, children:{}}}`
+- **WHEN** 客户端发送 `create {kind:"file-tree", ui_kind:"file-tree", resource_id:"file-tree:main", state:{rootId:"root", nodes:{root:{id:"root",name:"/",isDirectory:true,inode:null,parent:null,order:0}}}}`
 - **THEN** 创建成功，revision 与 version 均为 1
+
+#### Scenario: 文件夹不允许携带 inode
+
+- **WHEN** 客户端创建 file-tree，其中某个 `isDirectory:true` 节点的 `inode` 不为 `null`
+- **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
+
+#### Scenario: 文件节点必须携带 inode
+
+- **WHEN** 客户端创建 file-tree，其中某个 `isDirectory:false` 节点缺少 `inode` 或 `inode` 为空
+- **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
+
+#### Scenario: 文件节点不能包含子节点
+
+- **WHEN** 客户端创建 file-tree，其中某个 `isDirectory:false` 节点被其他节点作为 `parent`
+- **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
+
+#### Scenario: 同级节点名称重复被拒绝
+
+- **WHEN** 客户端创建 file-tree，其中同一 `parent` 下存在两个 `name` 相同的节点
+- **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
+
+#### Scenario: 非根节点缺少 parent 被拒绝
+
+- **WHEN** 客户端创建 file-tree，其中非根节点的 `parent` 为 `null`
+- **THEN** 服务端返回 `error {code: "VALIDATION"}`，不创建实体
 
 #### Scenario: 节点不携带拓扑
 
-- **WHEN** 客户端发送不含 parent 字段的 `file-tree-node` 创建请求，或发送不含 `successors`/`is_entry` 的 `progress-node` 创建请求
-- **THEN** 创建成功；树结构只能通过 file-tree 的 `children` 表达，DAG 拓扑只能通过 progress-dag 的 `successors`/`entry_stable_ids` 表达
+- **WHEN** 客户端发送不含 parent 字段的 `file-node` 创建请求，或发送不含 `successors`/`is_entry` 的 `progress-node` 创建请求
+- **THEN** 创建成功；树结构只能通过 file-tree 的 `nodes` 表达，DAG 拓扑只能通过 progress-dag 的 `successors`/`entry_stable_ids` 表达
 
 #### Scenario: 拓扑引用允许悬空
 
-- **WHEN** 客户端发送 `progress-dag` 的 create，其 `successors`/`entry_stable_ids` 引用了不存在的 stable_id
-- **THEN** 创建成功，不要求被引用节点已存在
+- **WHEN** 客户端发送 `progress-dag` 的 create，其 `successors`/`entry_stable_ids` 引用了不存在的 stable_id，或 file-tree 的 `inode` 引用了不存在的实体
+- **THEN** 创建成功，不要求被引用节点/实体已存在
 
 ### Requirement: 字段锁
 
