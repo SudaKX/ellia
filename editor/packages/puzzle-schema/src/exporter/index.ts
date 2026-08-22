@@ -1,10 +1,10 @@
 // @ellia/puzzle-schema/exporter — 导出生成器（纯函数，M3 实现）
 // 产物（plan-v1.md §6）：
 //   puzzles/<module_id>/__init__.py    模板生成：imports、MODULE_ID、_handler、
-//                                       python-block 函数体（自动加 @_handler 装饰器）、
+//                                       code 函数体（自动加 @_handler 装饰器）、
 //                                       register() 按固定顺序调用各 Registry
 //   puzzles/<module_id>/assets/**      全部资产原样
-//   puzzles/<module_id>/assets/file-tree.json  由 file-tree-node 实体生成 manifest
+//   puzzles/<module_id>/assets/file-tree.json  由 file-node 实体生成 manifest
 //   puzzles/__init__.py                合并版：deploy_baseline + 本模块幂等合并
 //   README.txt                         部署说明
 // 导出前不做校验（与方案一致）。
@@ -24,7 +24,7 @@ function notImplemented(fn: string): never {
   throw new Error(`[puzzle-schema/exporter] ${fn} 尚未实现（M3）`)
 }
 
-/** file-tree-node / asset 实体 → file-tree.json manifest 文本（schema_version: 1） */
+/** file-node / asset 实体 → file-tree.json manifest 文本（schema_version: 1） */
 export function buildFileTreeManifest(
   _moduleId: string,
   _fileTreeNodes: unknown[],
@@ -33,7 +33,7 @@ export function buildFileTreeManifest(
   return notImplemented('buildFileTreeManifest')
 }
 
-/** python-block 实体 → puzzles/<module_id>/__init__.py 文本 */
+/** code 实体 → puzzles/<module_id>/__init__.py 文本 */
 export function buildModuleInit(
   _moduleId: string,
   _pythonBlocks: unknown[],

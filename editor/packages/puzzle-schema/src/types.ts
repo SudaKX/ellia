@@ -2,7 +2,7 @@
 // 16 种实体 kind 的声明数据 TS 类型 + 编辑器实体模型。
 // 实体是同步、版本号、历史快照的基本单位；state 为权威当前状态。
 
-import type { PythonSlot } from './python.js'
+
 
 /** 实体 id（内部 UUID） */
 export type EntityId = string
@@ -29,49 +29,48 @@ export type RegistryName = (typeof REGISTRY_NAMES)[number]
 /** 实体种类（同步与版本的基本单位）；节点与拓扑分离，容器承载结构 */
 export const ENTITY_KINDS = [
   'progress-node',
-  'file-tree-node',
+  'file-node',
   'file-tree',
   'progress-dag',
   'asset',
   'hint',
   'script',
   'validation',
-  'artifact-template',
+  'artifact',
   'artifact-node',
-  'account-template',
-  'credit-template',
+  'account',
+  'credit',
   'achievement',
   'task',
-  'event-listener',
-  'python-block',
+  'listener',
+  'code',
 ] as const
 
 export type EntityKind = (typeof ENTITY_KINDS)[number]
 
-/** kind → 注册表 映射（实体树分组用）；python-block 是代码实体，不属于任何注册表 */
+/** kind → 注册表 映射（实体树分组用）；code 是代码实体，不属于任何注册表 */
 export const REGISTRY_OF_KIND: Record<EntityKind, RegistryName | 'code'> = {
   'progress-node': 'progress',
   'progress-dag': 'progress',
-  'file-tree-node': 'files',
+  'file-node': 'files',
   'file-tree': 'files',
   asset: 'files',
   hint: 'hints',
   script: 'scripts',
   validation: 'validations',
-  'artifact-template': 'artifacts',
+  artifact: 'artifacts',
   'artifact-node': 'artifacts',
-  'account-template': 'accounts',
-  'credit-template': 'credits',
+  account: 'accounts',
+  credit: 'credits',
   achievement: 'achievements',
   task: 'tasks',
-  'event-listener': 'events',
-  'python-block': 'code',
+  listener: 'events',
+  code: 'code',
 }
 
 /** 前端展示类型（ui_kind）：决定前端用哪个组件渲染该实体 */
 export const UI_KINDS = [
   'dag-node',
-  'tree-node',
   'file-tree',
   'progress-dag',
   'asset',
@@ -86,14 +85,18 @@ export type UiKind = (typeof UI_KINDS)[number]
 export const RESOURCE_NAMESPACES = [
   'stable-id',
   'hint',
-  'asset-path',
-  'artifact-id',
-  'account-id',
-  'credit-id',
-  'achievement-id',
-  'task-id',
-  'listener-id',
-  'python-name',
+  'asset',
+  'artifact',
+  'inode',
+  'pnode',
+  'source',
+  'account',
+  'credit',
+  'achievement',
+  'validation',
+  'task',
+  'listener',
+  'code',
   'file-tree',
   'progress-dag',
 ] as const
@@ -103,39 +106,39 @@ export type ResourceNamespace = (typeof RESOURCE_NAMESPACES)[number]
 /** kind → 前端展示类型（第一版一对一映射） */
 const UI_KIND_OF_KIND: Record<EntityKind, UiKind> = {
   'progress-node': 'dag-node',
-  'file-tree-node': 'tree-node',
+  'file-node': 'form',
   'file-tree': 'file-tree',
   'progress-dag': 'progress-dag',
   asset: 'asset',
   hint: 'form',
   script: 'script',
   validation: 'form',
-  'artifact-template': 'form',
+  artifact: 'form',
   'artifact-node': 'form',
-  'account-template': 'form',
-  'credit-template': 'form',
+  account: 'form',
+  credit: 'form',
   achievement: 'form',
   task: 'form',
-  'event-listener': 'form',
-  'python-block': 'code',
+  listener: 'form',
+  code: 'code',
 }
 
 /** kind → resource_id 命名空间 */
 const NAMESPACE_OF_KIND: Record<EntityKind, ResourceNamespace> = {
-  'progress-node': 'stable-id',
-  'file-tree-node': 'stable-id',
+  'progress-node': 'pnode',
+  'file-node': 'inode',
   hint: 'hint',
   script: 'stable-id',
-  validation: 'stable-id',
-  'artifact-node': 'stable-id',
-  asset: 'asset-path',
-  'artifact-template': 'artifact-id',
-  'account-template': 'account-id',
-  'credit-template': 'credit-id',
-  achievement: 'achievement-id',
-  task: 'task-id',
-  'event-listener': 'listener-id',
-  'python-block': 'python-name',
+  validation: 'validation',
+  'artifact-node': 'inode',
+  asset: 'asset',
+  artifact: 'artifact',
+  account: 'account',
+  credit: 'credit',
+  achievement: 'achievement',
+  task: 'task',
+  listener: 'listener',
+  code: 'code',
   'file-tree': 'file-tree',
   'progress-dag': 'progress-dag',
 }
@@ -158,38 +161,51 @@ export interface DisplayField {
   sort_order?: number
 }
 
-export type ProgressNodeKind = 'normal' | 'branch' | 'merge'
+export type ProgressNodeMode = 'and' | 'or'
 
 /** 进度节点：纯节点数据，拓扑在 progress-dag 容器中 */
 export interface ProgressNodeState {
-  /** @deprecated 由 resource_id 提供，导出时解析 */
-  stable_id?: StableId
-  node_kind: ProgressNodeKind
+  /** branch 目标选择 code 实体（entity id）；可选，导出器决定如何使用 */
+  how?: EntityId
+  /** merge 合并模式；可选，导出器决定如何使用 */
+  mode?: ProgressNodeMode
   triggers_checkpoint: boolean
 }
 
-export type FileTreeNodeKind = 'directory' | 'file'
-
-/** 文件树节点：纯节点数据，父子拓扑在 file-tree 容器中 */
+/** 文件树节点：纯静态节点数据，父子拓扑在 file-tree 容器中 */
 export interface FileTreeNodeState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   stable_id?: StableId
-  kind: FileTreeNodeKind
-  name: string
   display: DisplayField
   hidden: boolean
   download_name?: string
-  /** file 节点指向资产库中的 asset 实体 resource_id（asset-path:…） */
-  source_asset_id?: string
-  /** access_rule 引用 python-block 实体 resource_id（python-name:…） */
-  access_rule_block_id?: string
+  /** file 节点指向资产库中的 asset 实体（entity id） */
+  source_asset?: EntityId
+  /** access_rule 引用 code 实体（entity id） */
+  access_rule?: EntityId
 }
 
-/** 文件树容器：持有整棵树拓扑与排序；节点只按 stable_id 引用 */
+/** file-tree 内部节点：独立于 file-node 实体，id 是树内 UUID */
+export interface FileTreeNode {
+  /** 树节点 UUID；根节点固定为 "root" */
+  id: string
+  /** 规范路径段，如 "assets"；根节点为 "/" */
+  name: string
+  /** 是否为文件夹；文件夹不附加 inode，文件必须附加 inode */
+  isDirectory: boolean
+  /** 链接到 inode:xxx 的 file-node/artifact-node 实体 id；文件夹为 null，文件必填 */
+  inode: EntityId | null
+  /** 父节点 id；根节点为 null */
+  parent: string | null
+  /** 同级排序，运行时按 order 升序 */
+  order: number
+}
+
+/** 文件树容器：扁平节点表，直接以 TreeNodeId 寻址 */
 export interface FileTreeState {
-  root_stable_id: StableId | null
-  /** parent stable_id → 有序 child stable_id 列表 */
-  children: Record<StableId, StableId[]>
+  rootId: string
+  /** TreeNodeId → FileTreeNode */
+  nodes: Record<string, FileTreeNode>
 }
 
 /** 进度 DAG 容器：持有全部拓扑与入口；节点只按 stable_id 引用 */
@@ -199,10 +215,12 @@ export interface ProgressDagState {
   successors: Record<StableId, StableId[]>
 }
 
-/** 资产：file-reference 已并入 asset；路径身份由 resource_id（asset-path:<相对路径>）承载 */
+/** 资产：文件引用 + 可选的 source 引用；命名空间为 asset */
 export interface AssetState {
-  /** 指向 files 表（UUID）；允许悬空 */
-  file_id: string
+  /** source 引用（后续使用；可选） */
+  source_reference?: EntityId
+  /** 指向 files 表（UUID）；可选，与 source_reference 至少填一个 */
+  file_reference?: string
   /** 与 mythos FileReference.media_type 对齐 */
   media_type: string
 }
@@ -218,16 +236,16 @@ export interface HintDisplay {
 export interface HintState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   stable_id?: StableId
-  /** 来源资产 resource_id（asset-path:…）；mythos Hint.source 为 FileReference，导出时必需 */
-  source_asset_id: string
+  /** 来源资产实体（entity id）；mythos Hint.source 为 FileReference，导出时必需 */
+  source_asset_id: EntityId
   /** mythos Hint.download_name 必填：安全单路径段 */
   download_name: string
   display: HintDisplay
-  /** 必须已注册的 credit-template resource_id（credit-id:…；编辑器表单做即时提示） */
-  credit_id: string
+  /** 必须已注册的 credit 实体（entity id） */
+  credit_id: EntityId
   credit_amount: number
-  /** 访问规则 python-block resource_id（python-name:…） */
-  access_rule_block_id?: string
+  /** 访问规则 code 实体（entity id） */
+  access_rule?: EntityId
 }
 
 /** 脚本 body 骨架；细节后续对照 mythos Script 定义细化 */
@@ -243,8 +261,8 @@ export interface ScriptState {
   stable_id?: StableId
   revision: number
   body: ScriptBody
-  /** 访问规则 python-block resource_id（python-name:…） */
-  access_rule_block_id?: string
+  /** 访问规则 code 实体（entity id） */
+  access_rule?: EntityId
 }
 
 export interface ValidationState {
@@ -252,8 +270,8 @@ export interface ValidationState {
   stable_id?: StableId
   /** 公开 API slug（^[a-zA-Z0-9_-]{1,64}$） */
   validation_id: string
-  /** 校验处理 python-block resource_id（python-name:…） */
-  handler_block_id?: string
+  /** 校验处理 code 实体（entity id） */
+  handler_block_id?: EntityId
 }
 
 export interface ArtifactTemplateState {
@@ -261,29 +279,29 @@ export interface ArtifactTemplateState {
   artifact_id?: string
   media_type: string
   download_name?: string
-  /** 生成器 python-block resource_id（python-name:…） */
-  generator_block_id?: string
+  /** 生成器 code 实体（entity id） */
+  generator?: EntityId
 }
 
 export interface ArtifactNodeState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   stable_id?: StableId
-  path: string
-  artifact_locator: string
+  /** 所属 artifact 实体（entity id） */
+  artifact: EntityId
   display: DisplayField
   hidden: boolean
   download_name?: string
-  /** 访问规则 python-block resource_id（python-name:…） */
-  access_rule_block_id?: string
-  /** 节点生成器 python-block resource_id（python-name:…） */
-  node_generator_block_id?: string
+  /** 访问规则 code 实体（entity id） */
+  access_rule?: EntityId
+  /** 节点生成器 code 实体（entity id） */
+  node_generator: EntityId
 }
 
 export interface AccountTemplateState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   account_id?: string
   display_name: string
-  permission: string
+  permission: number
   metadata: Record<string, unknown>
 }
 
@@ -294,43 +312,57 @@ export interface CreditTemplateState {
   metadata: Record<string, unknown>
 }
 
-export interface AchievementDisplay {
-  title: string
-  description?: string
-}
-
 export interface AchievementState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   achievement_id?: string
-  secret: boolean
-  display: AchievementDisplay
-  /** 成就判定 python-block resource_id（python-name:…） */
-  predicate_block_id?: string
-  /** 成就奖励 python-block resource_id（python-name:…） */
-  reward_block_id?: string
+  /** 是否达成后立即发放奖励；默认 false */
+  immediate: boolean
+  /** 成就元数据，例如 title / description */
+  meta: Record<string, unknown>
+  /** 成就判定 code 实体（entity id），可选 */
+  condition?: EntityId
+  /** 成就奖励 code 实体（entity id），必填 */
+  effect: EntityId
 }
 
 export interface TaskState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   task_id?: string
-  dependencies: string[]
-  /** 任务处理 python-block resource_id（python-name:…） */
-  handler_block_id?: string
+  /** PlayerInterfaces 位掩码；第 i 位对应 formSpecs enums[i] */
+  dependencies: number
+  /** 任务处理 code 实体（entity id） */
+  handler_block_id: EntityId
 }
+
+export const EVENT_LISTENER_TYPES = [
+  { value: 'player.constructed', label: 'PlayerConstructedEvent' },
+  { value: 'player.deconstructing', label: 'PlayerDeconstructingEvent' },
+  { value: 'account.login', label: 'VirtualAccountLoggedInEvent' },
+] as const
+
+export type EventListenerType = (typeof EVENT_LISTENER_TYPES)[number]['value']
+
+export const EVENT_LISTENER_PRIORITIES = [
+  { value: 'early', label: 'early' },
+  { value: 'default', label: 'default' },
+  { value: 'late', label: 'late' },
+] as const
+
+export type EventListenerPriority = (typeof EVENT_LISTENER_PRIORITIES)[number]['value']
 
 export interface EventListenerState {
-  event_type: string
-  priority: number
-  dependencies: string[]
-  /** 事件监听 python-block resource_id（python-name:…） */
-  listener_block_id?: string
+  event_type: EventListenerType
+  priority: EventListenerPriority
+  /** PlayerInterfaces 位掩码；第 i 位对应 formSpecs enums[i] */
+  dependencies: number
+  /** 事件监听 code 实体（entity id） */
+  listener_block_id: EntityId
 }
 
-/** python 代码块（独立实体，slot 决定签名模板，见 python.ts） */
-export interface PythonBlockState {
+/** 代码块（独立实体，content 为 Python 源码） */
+export interface CodeBlockState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   name?: string
-  slot: PythonSlot
   /** 用户编写的函数体源码 */
   content: string
 }
@@ -352,26 +384,26 @@ export type EntityState =
   | AchievementState
   | TaskState
   | EventListenerState
-  | PythonBlockState
+  | CodeBlockState
 
 /** kind → state 的精确映射（强类型同步层用） */
 export interface KindStateMap {
   'progress-node': ProgressNodeState
-  'file-tree-node': FileTreeNodeState
+  'file-node': FileTreeNodeState
   'file-tree': FileTreeState
   'progress-dag': ProgressDagState
   asset: AssetState
   hint: HintState
   script: ScriptState
   validation: ValidationState
-  'artifact-template': ArtifactTemplateState
+  'artifact': ArtifactTemplateState
   'artifact-node': ArtifactNodeState
-  'account-template': AccountTemplateState
-  'credit-template': CreditTemplateState
+  account: AccountTemplateState
+  'credit': CreditTemplateState
   achievement: AchievementState
   task: TaskState
-  'event-listener': EventListenerState
-  'python-block': PythonBlockState
+  listener: EventListenerState
+  code: CodeBlockState
 }
 
 /** 实体（DB entities 行；revision 为同步锚点，version 为谱系指针） */
@@ -405,9 +437,12 @@ export interface EntityRecord<TKind extends EntityKind = EntityKind> {
   comment?: string
 }
 
-/** 实体历史快照（entity_history 行） */
+/** 实体历史快照（entity_history 行；state 列存 {group, resource_id, comment, state}） */
 export interface EntityHistoryEntry {
   version: number
+  group: string
+  resource_id: string
+  comment: string
   state: EntityState
   author_id: string
   created_at: string
@@ -432,6 +467,7 @@ export interface FileRecord {
   id: string
   original_name: string | null
   media_type: string
+  module: string | null
   size: number
   sha256: string
   uploaded_by: string
@@ -443,6 +479,7 @@ export interface ApiFileRecord {
   file_id: string
   original_name: string | null
   media_type: string
+  module: string | null
   size: number
   sha256: string
   uploaded_by: string

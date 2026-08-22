@@ -52,6 +52,18 @@ export function isCanonicalRelativePath(value: string): boolean {
   )
 }
 
+/** 安全下载文件名：非空、可打印 ASCII、不含 " / \ */
+export function isSafeDownloadName(value: string): boolean {
+  if (typeof value !== 'string' || value.length === 0) return false
+  for (const character of value) {
+    const code = character.charCodeAt(0)
+    if (code < 32 || code > 126 || character === '"' || character === '/' || character === '\\') {
+      return false
+    }
+  }
+  return true
+}
+
 /** entity group：Python 模块名单段，默认 main */
 export const GROUP_RE = /^[a-z_][a-z0-9_]*$/
 
@@ -66,8 +78,8 @@ export interface ParsedResourceId {
 
 /**
  * 解析 resource_id（<namespace>:<id>，按第一个 `:` 分隔）。
- * id 部分不允许再含 `:`、不允许空白；asset-path 额外校验规范相对路径；
- * python-name 额外校验 Python 函数名。返回 null 表示非法。
+ * id 部分不允许再含 `:`、不允许空白；code 额外校验 Python 函数名。
+ * 返回 null 表示非法。
  */
 export function parseResourceId(value: string): ParsedResourceId | null {
   if (typeof value !== 'string' || value.length > 128) return null
@@ -77,8 +89,7 @@ export function parseResourceId(value: string): ParsedResourceId | null {
   const id = value.slice(colon + 1)
   if (!(RESOURCE_NAMESPACES as readonly string[]).includes(namespace)) return null
   if (id.includes(':') || /\s/.test(id)) return null
-  if (namespace === 'asset-path' && !isCanonicalRelativePath(id)) return null
-  if (namespace === 'python-name' && !isPythonName(id)) return null
+  if (namespace === 'code' && !isPythonName(id)) return null
   return { namespace, id } as ParsedResourceId
 }
 

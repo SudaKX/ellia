@@ -20,6 +20,9 @@ export interface PresenceUser {
 
 export interface HistoryEntry {
   version: number
+  group: string
+  resource_id: string
+  comment: string
   state: EntityState
   author_id: string
   created_at: string
@@ -172,6 +175,9 @@ export interface RolledBackMessage {
   entity_id: EntityId
   revision: number
   version: number
+  group: string
+  resource_id: string
+  comment: string
   state: EntityState
   author: AuthorInfo
 }
