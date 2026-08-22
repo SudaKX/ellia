@@ -153,6 +153,20 @@ def test_task_registry_freezes_handler_identity_and_snapshot() -> None:
         registry.task("test.invalid")(lambda _context: None)
 
 
+def test_task_registry_accepts_relaxed_task_ids() -> None:
+    registry = TaskRegistry()
+
+    async def handler(_context) -> None:
+        return None
+
+    for task_id in ("Task.ID", "UPPER_Case-1", "under_score", "a"):
+        registry.register(task_id, handler)
+
+    for task_id in ("", "has space", "has:colon"):
+        with pytest.raises(RegistryError):
+            registry.register(task_id, handler)
+
+
 async def test_read_only_task_interface_rejects_mutation(session) -> None:
     async def handler(_context) -> None:
         return None

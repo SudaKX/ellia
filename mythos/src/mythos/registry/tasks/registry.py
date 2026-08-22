@@ -8,7 +8,7 @@ from mythos.registry.errors import DuplicateStableIdError, RegistryError, Regist
 from mythos.registry.tasks.catalog import TaskCatalog
 from mythos.registry.tasks.definitions import TaskDefinition, TaskHandler
 
-_TASK_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_TASK_ID_PATTERN = re.compile(r"^[^\s:]{1,128}$")
 
 
 class TaskRegistry:
@@ -60,7 +60,10 @@ class TaskRegistry:
     @staticmethod
     def _validate_task_id(task_id: str) -> None:
         if not isinstance(task_id, str) or not _TASK_ID_PATTERN.fullmatch(task_id):
-            raise RegistryError("Task IDs must be lowercase slugs up to 128 characters.")
+            raise RegistryError(
+                "Task IDs must be non-empty slugs without whitespace or colons, "
+                "up to 128 characters."
+            )
 
     @staticmethod
     def _validate_dependencies(dependencies: PlayerInterfaces) -> None:
