@@ -201,11 +201,11 @@ const askAiOverrideImage = ref<string | null>(null)
 /** Live2D 窗口的运行时 ID — 暂时隐藏 */
 // const live2dWindowId = ref<string | null>(null)
 
-/** kei 表情图片列表：与语音/台词一一对应 */
-const KEI_IMAGES = [
-  '/console/images/kei/kei_awkward2.webp',    // 对应 ogg1 + 台词1
-  '/console/images/kei/kei_veryawkward.webp', // 对应 ogg2 + 台词2
-  '/console/images/kei/kei_大急.webp',         // 对应 ogg3 + 台词3
+/** ellia 表情图片列表：与语音/台词一一对应（形象统一为 ellia，语音仍用 kei） */
+const ELLIA_IMAGES = [
+  '/console/images/ellia_little/ellia_normal.png',  // 对应 ogg1 + 台词1
+  '/console/images/ellia_little/ellia_happy.png',   // 对应 ogg2 + 台词2
+  '/console/images/ellia_little/ellia_angry.png',   // 对应 ogg3 + 台词3
 ]
 
 /** 标题栏轮换台词：基于 i18n 的 reactive 数组 */
@@ -291,7 +291,7 @@ function initAiWindow() {
       icon: markRaw(Bot),
       component: markRaw(AiAssistant),
       componentProps: {
-        images: KEI_IMAGES,
+        images: ELLIA_IMAGES,
         titles: KEI_TITLES.value,
         voices: KEI_VOICES,
         onSetTitle: (text: string) => { aiTitle.value = text },
@@ -482,8 +482,8 @@ function handleAskAi() {
   // console.log('[ContextMenu] 所在窗口元素:', windowEl)
 
   // 强制切换 AI 窗口差分和台词
-  askAiOverrideImage.value = '/console/images/kei/kei_smile1.webp'
-  aiTitle.value = 'kei不知道哦'
+  askAiOverrideImage.value = '/console/images/ellia_little/ellia_happy.png'
+  aiTitle.value = 'ellia不知道哦'
 }
 
 /** 点击菜单外部关闭 */

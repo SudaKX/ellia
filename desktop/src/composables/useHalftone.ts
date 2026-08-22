@@ -23,7 +23,7 @@
  * 窗口缩放       → paintToDisplay(currentUrl)  — 仅一次 drawImage，不重算
  * ```
  *
- * 主画布分辨率 = 原图 naturalWidth × naturalHeight，
+ * 主画布分辨率 = 裁切区域尺寸（未裁切时 = 原图 naturalWidth × naturalHeight），
  * 保证采样精度，缩放时由浏览器原生 drawImage 处理。
  *
  * ## 使用方式
@@ -38,6 +38,18 @@
 
 import { shallowRef } from 'vue'
 
+/** 裁切区域：相对原图的比例坐标（0~1），换算像素时四舍五入并钳制在图内 */
+export interface HalftoneCrop {
+  /** 裁切区左上角 X 比例 */
+  x: number
+  /** 裁切区左上角 Y 比例 */
+  y: number
+  /** 裁切区宽度比例 */
+  width: number
+  /** 裁切区高度比例 */
+  height: number
+}
+
 export interface HalftoneOptions {
   /** 网格间距（CSS px），默认 3 */
   dotSpacing?: number
@@ -45,6 +57,8 @@ export interface HalftoneOptions {
   maxRadius?: number
   /** 最亮区域圆点最小半径（CSS px），默认 0.6 */
   minRadius?: number
+  /** 可选裁切区域（相对原图比例），默认全图 */
+  crop?: HalftoneCrop
 }
 
 const DEFAULTS: Required<HalftoneOptions> = {
@@ -117,48 +131,54 @@ export function useHalftone(options?: HalftoneOptions) {
 
     const imgW = image.naturalWidth
     const imgH = image.naturalHeight
-    const { canvas: masterCanvas, ctx: masterCtx } = createMaster(imgW, imgH)
+    // 可选裁切：相对原图比例（0~1），默认全图；像素坐标四舍五入并钳制在图内
+    const crop = opts.crop ?? { x: 0, y: 0, width: 1, height: 1 }
+    const cropX = Math.max(0, Math.round(crop.x * imgW))
+    const cropY = Math.max(0, Math.round(crop.y * imgH))
+    const cropW = Math.max(1, Math.min(imgW - cropX, Math.round(crop.width * imgW)))
+    const cropH = Math.max(1, Math.min(imgH - cropY, Math.round(crop.height * imgH)))
+    const { canvas: masterCanvas, ctx: masterCtx } = createMaster(cropW, cropH)
 
-    // Step 2: 在原图分辨率空间采样
+    // Step 2: 在原图分辨率空间采样（仅裁切区域，masterCanvas 尺寸 = 裁切区域）
     const offscreen = document.createElement('canvas')
     offscreen.width = imgW
     offscreen.height = imgH
     const offCtx = offscreen.getContext('2d')!
     offCtx.drawImage(image, 0, 0)
-    const imageData = offCtx.getImageData(0, 0, imgW, imgH)
+    const imageData = offCtx.getImageData(cropX, cropY, cropW, cropH)
     const pixels = imageData.data
 
     // Step 3: 清空主画布（透明），只靠格子 fillRect 覆盖角色区域
-    masterCtx!.clearRect(0, 0, imgW, imgH)
+    masterCtx!.clearRect(0, 0, cropW, cropH)
     const baseColor = '#f0f0ed'  // 浅色背景，固定不随主题切换
 
-    // Step 4: 遍历网格 — 用量尺坐标（不缩放），因为 masterCanvas = 1:1 原图
+    // Step 4: 遍历网格 — 用量尺坐标（不缩放），因为 masterCanvas = 1:1 裁切区域
     //
-    // 网格划分：
-    //   cols = floor(imgW / dotSpacing)   e.g. 550 / 3 = 183 列
-    //   rows = floor(imgH / dotSpacing)   e.g. 550 / 3 = 183 行
+    // 网格划分（相对裁切区域）：
+    //   cols = floor(cropW / dotSpacing)
+    //   rows = floor(cropH / dotSpacing)
     //
-    // 采样坐标系（原图像素空间）：
-    //   sx = col * dotSpacing + dotSpacing / 2  格子中心 X
-    //   sy = row * dotSpacing + dotSpacing / 2  格子中心 Y
-    //   pixelIndex = (sy * imgW + sx) * 4       RGBA 起始索引
+    // 采样坐标系（原图像素空间，裁切区左上角为 cropX/cropY 偏移）：
+    //   sx = cropX + col * dotSpacing + dotSpacing / 2  格子中心 X
+    //   sy = cropY + row * dotSpacing + dotSpacing / 2  格子中心 Y
+    //   pixelIndex = ((sy - cropY) * cropW + (sx - cropX)) * 4   RGBA 起始索引
     //
-    // 绘制坐标系（与采样坐标系相同，1:1）：
+    // 绘制坐标系（masterCanvas 局部坐标，1:1）：
     //   cx = col * dotSpacing + dotSpacing / 2
     //   cy = row * dotSpacing + dotSpacing / 2
     const { dotSpacing, maxRadius, minRadius } = opts
     const radiusRange = maxRadius - minRadius
-    const cols = Math.floor(imgW / dotSpacing)
-    const rows = Math.floor(imgH / dotSpacing)
+    const cols = Math.floor(cropW / dotSpacing)
+    const rows = Math.floor(cropH / dotSpacing)
     const cellW = Math.ceil(dotSpacing)
     const cellH = Math.ceil(dotSpacing)
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        // 采样：在原图分辨率空间取格子中心像素
-        const sx = Math.floor(col * dotSpacing + dotSpacing / 2)
-        const sy = Math.floor(row * dotSpacing + dotSpacing / 2)
-        const pixelIndex = (sy * imgW + sx) * 4   // RGBA 各 1 字节
+        // 采样：在裁切区域（原图分辨率空间偏移 cropX/cropY）取格子中心像素
+        const sx = cropX + Math.floor(col * dotSpacing + dotSpacing / 2)
+        const sy = cropY + Math.floor(row * dotSpacing + dotSpacing / 2)
+        const pixelIndex = ((sy - cropY) * cropW + (sx - cropX)) * 4   // RGBA 各 1 字节
 
         const r = pixels[pixelIndex]       // Red   0-255
         const g = pixels[pixelIndex + 1]   // Green 0-255
