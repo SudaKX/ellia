@@ -18,6 +18,7 @@ filesRouter.get('/', (_req, res) => {
     file_id: file.id,
     original_name: file.original_name,
     media_type: file.media_type,
+    module: file.module,
     size: file.size,
     sha256: file.sha256,
     uploaded_by: file.uploaded_by,
@@ -44,6 +45,7 @@ filesRouter.post(
       req.headers['x-original-name'],
       req.headers['x-original-name-base64'],
     )
+    const module = parseModuleHeader(req.headers['x-module'])
     const fileId = randomUUID()
     const sha256 = createHash('sha256').update(bytes).digest('hex')
 
@@ -58,6 +60,7 @@ filesRouter.post(
       id: fileId,
       originalName,
       mediaType,
+      module,
       size: bytes.length,
       sha256,
       uploadedBy: user.id,
@@ -67,6 +70,7 @@ filesRouter.post(
       file_id: file.id,
       original_name: file.original_name,
       media_type: file.media_type,
+      module: file.module,
       size: file.size,
       sha256: file.sha256,
       uploaded_by: file.uploaded_by,
@@ -113,6 +117,11 @@ filesRouter.delete('/:file_id', (req, res) => {
 
 function serverConfig(req: express.Request): ServerConfig {
   return req.app.locals.config as ServerConfig
+}
+
+function parseModuleHeader(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  return raw && raw.trim().length > 0 ? raw.trim() : null
 }
 
 function parseOriginalName(

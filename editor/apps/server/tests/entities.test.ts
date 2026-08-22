@@ -54,9 +54,9 @@ describe('entities service', () => {
         resource_id: resourceId,
         state: {
           stable_id: stableId,
-          source_asset_id: 'asset-path:assets/hint.txt',
+          source_asset_id: 'asset:assets/hint.txt',
           download_name: 'hint.txt',
-          credit_id: 'credit-id:vib',
+          credit_id: 'credit:vib',
           credit_amount: 1,
           display: { title: '提示' },
         },
@@ -90,15 +90,15 @@ describe('entities service', () => {
 
   it('patch set 可创建缺失可选字段，remove 可删除字段', () => {
     const entity = hint('hint:optional-fields')
-    const setPath = `${entity.id}@state:/access_rule_block_id`
-    const set = patchEntity(projectId, entity.id, setPath, 'python-name:block-1', adminId, 'set')
-    assert.equal(set.state.access_rule_block_id, 'python-name:block-1')
+    const setPath = `${entity.id}@state:/access_rule`
+    const set = patchEntity(projectId, entity.id, setPath, 'code:block-1', adminId, 'set')
+    assert.equal(set.state.access_rule, 'code:block-1')
 
     const remove = patchEntity(projectId, entity.id, setPath, undefined, adminId, 'remove')
-    assert.equal('access_rule_block_id' in remove.state, false)
+    assert.equal('access_rule' in remove.state, false)
 
     assert.throws(
-      () => patchEntity(projectId, entity.id, setPath, 'python-name:block-2', adminId, 'bad' as never),
+      () => patchEntity(projectId, entity.id, setPath, 'code:block-2', adminId, 'bad' as never),
       (error: unknown) =>
         error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('op'),
     )
@@ -209,7 +209,7 @@ describe('entities service', () => {
           projectId,
           entity.id,
           `${entity.id}@resource_id:`,
-          'account-id:wrong',
+          'account:wrong',
           adminId,
         ),
       (error: unknown) =>
@@ -217,14 +217,48 @@ describe('entities service', () => {
     )
   })
 
-  it('asset 允许悬空 file_id，多个 asset 可共享同一 file_id', () => {
+  it('rollback 恢复 resource_id / comment / group', () => {
+    const entity = hint('hint:rollback-meta')
+    patchEntity(projectId, entity.id, `${entity.id}@state:/display/title`, 'v2', adminId)
+    patchEntity(projectId, entity.id, `${entity.id}@resource_id:`, 'hint:rollback-meta-renamed', adminId)
+    patchEntity(projectId, entity.id, `${entity.id}@comment:`, '新注释', adminId)
+    patchEntity(projectId, entity.id, `${entity.id}@group:`, 'chapter1', adminId)
+
+    const history = listHistory(projectId, entity.id)
+    assert.equal(history[0].version, 4)
+    assert.equal(history[0].group, 'main')
+    assert.equal(history[0].resource_id, 'hint:rollback-meta-renamed')
+    assert.equal(history[0].comment, '新注释')
+
+    let current = rollbackEntity(projectId, entity.id, adminId)
+    assert.equal(current.group, 'main')
+    assert.equal(current.resource_id, 'hint:rollback-meta-renamed')
+    assert.equal(current.comment, '新注释')
+    assert.equal(current.state.display.title, 'v2')
+
+    current = rollbackEntity(projectId, entity.id, adminId)
+    assert.equal(current.comment, '')
+    assert.equal(current.resource_id, 'hint:rollback-meta-renamed')
+    assert.equal(current.group, 'main')
+
+    current = rollbackEntity(projectId, entity.id, adminId)
+    assert.equal(current.resource_id, 'hint:rollback-meta')
+    assert.equal(current.comment, '')
+    assert.equal(current.group, 'main')
+    assert.equal(current.state.display.title, 'v2')
+  })
+
+  it('asset 允许悬空 file_reference，多个 asset 可共享同一 file_reference', () => {
     const a = createEntity(
       projectId,
       {
         kind: 'asset',
         ui_kind: 'asset',
-        resource_id: 'asset-path:assets/public/a.txt',
-        state: { file_id: '00000000-0000-4000-8000-000000000000', media_type: 'text/plain' },
+        resource_id: 'asset:a',
+        state: {
+          file_reference: '00000000-0000-4000-8000-000000000000',
+          media_type: 'text/plain',
+        },
       },
       adminId,
     )
@@ -233,15 +267,18 @@ describe('entities service', () => {
       {
         kind: 'asset',
         ui_kind: 'asset',
-        resource_id: 'asset-path:assets/public/b.txt',
-        state: { file_id: '00000000-0000-4000-8000-000000000000', media_type: 'text/plain' },
+        resource_id: 'asset:b',
+        state: {
+          file_reference: '00000000-0000-4000-8000-000000000000',
+          media_type: 'text/plain',
+        },
       },
       adminId,
     )
-    assert.equal(a.state.file_id, b.state.file_id)
+    assert.equal(a.state.file_reference, b.state.file_reference)
   })
 
-  it('asset-path 非法路径抛 VALIDATION', () => {
+  it('asset 缺少 media_type 抛 VALIDATION', () => {
     assert.throws(
       () =>
         createEntity(
@@ -249,8 +286,8 @@ describe('entities service', () => {
           {
             kind: 'asset',
             ui_kind: 'asset',
-            resource_id: 'asset-path:../a.txt',
-            state: { file_id: 'x', media_type: 'text/plain' },
+            resource_id: 'asset:bad',
+            state: { file_reference: 'x' },
           },
           adminId,
         ),
@@ -266,20 +303,23 @@ describe('entities service', () => {
         kind: 'file-tree',
         ui_kind: 'file-tree',
         resource_id: 'file-tree:main',
-        state: { root_stable_id: null, children: {} },
+        state: {
+          rootId: 'root',
+          nodes: {
+            root: { id: 'root', name: '/', isDirectory: true, inode: null, parent: null, order: 0 },
+          },
+        },
       },
       adminId,
     )
     createEntity(
       projectId,
       {
-        kind: 'file-tree-node',
-        ui_kind: 'tree-node',
-        resource_id: 'stable-id:dir',
+        kind: 'file-node',
+        ui_kind: 'form',
+        resource_id: 'inode:dir',
         state: {
           stable_id: 'dir',
-          kind: 'directory',
-          name: 'dir',
           display: {},
           hidden: false,
         },
@@ -291,13 +331,11 @@ describe('entities service', () => {
         createEntity(
           projectId,
           {
-            kind: 'file-tree-node',
-            ui_kind: 'tree-node',
-            resource_id: 'stable-id:bad',
+            kind: 'file-node',
+            ui_kind: 'form',
+            resource_id: 'inode:bad',
             state: {
               stable_id: 'bad',
-              kind: 'directory',
-              name: 'bad',
               display: {},
               hidden: false,
               parent_stable_id: 'dir',
@@ -330,10 +368,8 @@ describe('entities service', () => {
           {
             kind: 'progress-node',
             ui_kind: 'dag-node',
-            resource_id: 'stable-id:start',
+            resource_id: 'pnode:start',
             state: {
-              stable_id: 'start',
-              node_kind: 'normal',
               triggers_checkpoint: false,
               successors: ['end'],
             },
@@ -344,15 +380,25 @@ describe('entities service', () => {
         error instanceof ApiError && error.code === 'VALIDATION',
     )
 
-    // 整容器 patch：children / successors
+    // 整容器 patch：nodes / successors
     const updatedTree = patchEntity(
       projectId,
       tree.id,
-      `${tree.id}@state:/children`,
-      { dir: [] },
+      `${tree.id}@state:/nodes`,
+      {
+        root: { id: 'root', name: '/', isDirectory: true, inode: null, parent: null, order: 0 },
+        dir: { id: 'dir', name: 'dir', isDirectory: true, inode: null, parent: 'root', order: 0 },
+      },
       adminId,
     )
-    assert.deepEqual(updatedTree.state.children, { dir: [] })
+    assert.deepEqual(updatedTree.state.nodes.dir, {
+      id: 'dir',
+      name: 'dir',
+      isDirectory: true,
+      inode: null,
+      parent: 'root',
+      order: 0,
+    })
   })
 
   it('不存在实体抛 ENTITY_NOT_FOUND', () => {

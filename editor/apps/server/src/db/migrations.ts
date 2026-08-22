@@ -137,6 +137,14 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 6,
+    up(db) {
+      db.exec(`
+        ALTER TABLE files ADD COLUMN module TEXT;
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: Database.Database): void {

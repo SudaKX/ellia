@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto'
 
 import {
   ENTITY_KINDS,
-  PYTHON_SLOTS,
+  EVENT_LISTENER_PRIORITIES,
+  EVENT_LISTENER_TYPES,
   allowedUiKinds,
+  isSafeDownloadName,
   isValidGroup,
   isValidResourceIdForKind,
   parseDataPath,
@@ -100,7 +102,7 @@ function assertUiKind(kind: EntityKind, value: unknown): UiKind {
 function assertGroup(value: unknown): string {
   if (value === undefined) return 'main'
   if (typeof value !== 'string' || !isValidGroup(value)) {
-    throw new ApiError(400, 'VALIDATION', 'group 必须是 Python 模块路径段格式')
+    throw new ApiError(400, 'VALIDATION', 'group 必须是单段 Python 模块名（不能包含点或路径分隔符）')
   }
   return value
 }
@@ -141,43 +143,132 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
 
   switch (kind) {
     case 'progress-node': {
-      if ('successors' in s || 'is_entry' in s) {
-        throw new ApiError(400, 'VALIDATION', 'progress-node 不允许携带拓扑字段')
-      }
-      if (!['normal', 'branch', 'merge'].includes(s.node_kind as string)) {
-        throw new ApiError(400, 'VALIDATION', 'progress-node.node_kind 非法')
+      if ('successors' in s || 'is_entry' in s || 'node_kind' in s || 'stable_id' in s) {
+        throw new ApiError(400, 'VALIDATION', 'progress-node 不允许携带拓扑或旧节点字段')
       }
       if (typeof s.triggers_checkpoint !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'progress-node.triggers_checkpoint 必须为布尔')
       }
+      if (s.how !== undefined && s.how !== null && typeof s.how !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'progress-node.how 必须是字符串')
+      }
+      if (
+        s.mode !== undefined &&
+        s.mode !== null &&
+        s.mode !== '' &&
+        !['and', 'or'].includes(s.mode as string)
+      ) {
+        throw new ApiError(400, 'VALIDATION', 'progress-node.mode 必须为 and 或 or')
+      }
       return
     }
-    case 'file-tree-node': {
-      if ('parent_stable_id' in s || 'parent' in s) {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node 不允许携带 parent 挂接字段')
+    case 'file-node': {
+      if (
+        'parent_stable_id' in s ||
+        'parent' in s ||
+        'kind' in s ||
+        'path' in s ||
+        'children' in s ||
+        'name' in s
+      ) {
+        throw new ApiError(400, 'VALIDATION', 'file-node 不允许携带 parent/kind/path/children/name 字段')
       }
-      if (!['directory', 'file'].includes(s.kind as string)) {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node.kind 必须为 directory 或 file')
-      }
-      requiredString('name', 'file-tree-node.name')
       if (!isRecord(s.display)) {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node.display 必须是对象')
+        throw new ApiError(400, 'VALIDATION', 'file-node.display 必须是对象')
       }
       if (typeof s.hidden !== 'boolean') {
-        throw new ApiError(400, 'VALIDATION', 'file-tree-node.hidden 必须为布尔')
+        throw new ApiError(400, 'VALIDATION', 'file-node.hidden 必须为布尔')
+      }
+      if (s.download_name !== undefined && s.download_name !== null) {
+        if (typeof s.download_name !== 'string' || !isSafeDownloadName(s.download_name)) {
+          throw new ApiError(400, 'VALIDATION', 'file-node.download_name 必须是安全下载文件名')
+        }
+      }
+      if (s.source_asset !== undefined && s.source_asset !== null && typeof s.source_asset !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'file-node.source_asset 必须是字符串')
+      }
+      if (s.access_rule !== undefined && s.access_rule !== null && typeof s.access_rule !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'file-node.access_rule 必须是字符串')
       }
       return
     }
     case 'file-tree': {
-      if (s.root_stable_id !== null && typeof s.root_stable_id !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'file-tree.root_stable_id 必须为字符串或 null')
+      if (typeof s.rootId !== 'string' || s.rootId.length === 0) {
+        throw new ApiError(400, 'VALIDATION', 'file-tree.rootId 必须为非空字符串')
       }
-      if (!isRecord(s.children)) {
-        throw new ApiError(400, 'VALIDATION', 'file-tree.children 必须是 parent → children[] 映射')
+      if (!isRecord(s.nodes)) {
+        throw new ApiError(400, 'VALIDATION', 'file-tree.nodes 必须是节点表')
       }
-      for (const [parent, children] of Object.entries(s.children)) {
-        if (!parent) throw new ApiError(400, 'VALIDATION', 'file-tree.children 的键不能为空')
-        assertStringArray(children, `file-tree.children[${parent}]`)
+      if (!(s.rootId in s.nodes)) {
+        throw new ApiError(400, 'VALIDATION', 'file-tree.rootId 必须存在于 nodes')
+      }
+      const namesByParent = new Map<string, Set<string>>()
+      for (const [nodeId, rawNode] of Object.entries(s.nodes)) {
+        if (!nodeId) throw new ApiError(400, 'VALIDATION', 'file-tree.nodes 的键不能为空')
+        if (!isRecord(rawNode)) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}] 必须是对象`)
+        }
+        const node = rawNode as Record<string, unknown>
+        if (node.id !== nodeId) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].id 必须与键一致`)
+        }
+        if (typeof node.name !== 'string' || node.name.length === 0) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].name 必须为非空字符串`)
+        }
+        if (nodeId !== s.rootId && node.parent === null) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}] 非根节点必须指定 parent`)
+        }
+        const parentKey = typeof node.parent === 'string' ? node.parent : ''
+        const siblingNames = namesByParent.get(parentKey) ?? new Set<string>()
+        if (siblingNames.has(node.name)) {
+          throw new ApiError(400, 'VALIDATION', `file-tree 同级节点名称不能重复: ${node.name}`)
+        }
+        siblingNames.add(node.name)
+        namesByParent.set(parentKey, siblingNames)
+        if (typeof node.isDirectory !== 'boolean') {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].isDirectory 必须为布尔`)
+        }
+        if (node.isDirectory === true) {
+          if (node.inode !== null) {
+            throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}] 是文件夹，inode 必须为 null`)
+          }
+        } else {
+          if (typeof node.inode !== 'string' || node.inode.length === 0) {
+            throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}] 是文件，inode 必须为非空字符串`)
+          }
+        }
+        if (node.parent !== null && typeof node.parent !== 'string') {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].parent 必须为字符串或 null`)
+        }
+        if (typeof node.order !== 'number' || !Number.isInteger(node.order) || node.order < 0) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].order 必须为非负整数`)
+        }
+        if (nodeId === s.rootId) {
+          if (node.name !== '/') {
+            throw new ApiError(400, 'VALIDATION', 'file-tree 根节点 name 必须为 /')
+          }
+          if (node.isDirectory !== true) {
+            throw new ApiError(400, 'VALIDATION', 'file-tree 根节点必须是文件夹')
+          }
+          if (node.inode !== null) {
+            throw new ApiError(400, 'VALIDATION', 'file-tree 根节点 inode 必须为 null')
+          }
+          if (node.parent !== null) {
+            throw new ApiError(400, 'VALIDATION', 'file-tree 根节点 parent 必须为 null')
+          }
+        } else if (node.parent !== null && !(node.parent in s.nodes)) {
+          throw new ApiError(400, 'VALIDATION', `file-tree.nodes[${nodeId}].parent 引用了不存在的节点`)
+        }
+      }
+      for (const node of Object.values(s.nodes) as Array<Record<string, unknown>>) {
+        if (node.isDirectory === false && node.id !== undefined) {
+          const hasChildren = Object.values(s.nodes).some(
+            (child) => (child as Record<string, unknown>).parent === node.id,
+          )
+          if (hasChildren) {
+            throw new ApiError(400, 'VALIDATION', `file-tree 文件节点不能包含子节点: ${String(node.id)}`)
+          }
+        }
       }
       return
     }
@@ -193,8 +284,13 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
       return
     }
     case 'asset': {
-      requiredString('file_id', 'asset.file_id')
       requiredString('media_type', 'asset.media_type')
+      if (s.file_reference !== undefined && s.file_reference !== null && typeof s.file_reference !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'asset.file_reference 必须是字符串')
+      }
+      if (s.source_reference !== undefined && s.source_reference !== null && typeof s.source_reference !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'asset.source_reference 必须是字符串')
+      }
       return
     }
     case 'hint': {
@@ -232,63 +328,91 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
       requiredString('validation_id', 'validation.validation_id')
       return
     }
-    case 'artifact-template': {
-      requiredString('media_type', 'artifact-template.media_type')
+    case 'artifact': {
+      requiredString('media_type', 'artifact.media_type')
       return
     }
     case 'artifact-node': {
-      requiredString('path', 'artifact-node.path')
-      requiredString('artifact_locator', 'artifact-node.artifact_locator')
+      requiredString('artifact', 'artifact-node.artifact')
+      requiredString('node_generator', 'artifact-node.node_generator')
       if (!isRecord(s.display)) {
         throw new ApiError(400, 'VALIDATION', 'artifact-node.display 必须是对象')
+      }
+      if (typeof s.display.label !== 'string' || s.display.label.trim() === '') {
+        throw new ApiError(400, 'VALIDATION', 'artifact-node.display.label 必填且不能为空')
       }
       if (typeof s.hidden !== 'boolean') {
         throw new ApiError(400, 'VALIDATION', 'artifact-node.hidden 必须为布尔')
       }
-      return
-    }
-    case 'account-template': {
-      requiredString('display_name', 'account-template.display_name')
-      requiredString('permission', 'account-template.permission')
-      if (!isRecord(s.metadata)) {
-        throw new ApiError(400, 'VALIDATION', 'account-template.metadata 必须是对象')
+      if (s.download_name !== undefined && s.download_name !== null) {
+        if (typeof s.download_name !== 'string' || !isSafeDownloadName(s.download_name)) {
+          throw new ApiError(400, 'VALIDATION', 'artifact-node.download_name 必须是安全下载文件名')
+        }
       }
       return
     }
-    case 'credit-template': {
-      requiredString('display_name', 'credit-template.display_name')
+    case 'account': {
+      requiredString('display_name', 'account.display_name')
+      if (typeof s.permission !== 'number' || !Number.isInteger(s.permission)) {
+        throw new ApiError(400, 'VALIDATION', 'account.permission 必须为整数')
+      }
       if (!isRecord(s.metadata)) {
-        throw new ApiError(400, 'VALIDATION', 'credit-template.metadata 必须是对象')
+        throw new ApiError(400, 'VALIDATION', 'account.metadata 必须是对象')
+      }
+      return
+    }
+    case 'credit': {
+      requiredString('display_name', 'credit.display_name')
+      if (!isRecord(s.metadata)) {
+        throw new ApiError(400, 'VALIDATION', 'credit.metadata 必须是对象')
       }
       return
     }
     case 'achievement': {
-      if (typeof s.secret !== 'boolean') {
-        throw new ApiError(400, 'VALIDATION', 'achievement.secret 必须为布尔')
+      if (typeof s.immediate !== 'boolean') {
+        throw new ApiError(400, 'VALIDATION', 'achievement.immediate 必须为布尔')
       }
-      if (!isRecord(s.display)) {
-        throw new ApiError(400, 'VALIDATION', 'achievement.display 必须是对象')
+      if (!isRecord(s.meta)) {
+        throw new ApiError(400, 'VALIDATION', 'achievement.meta 必须是对象')
       }
+      if (s.condition !== undefined && s.condition !== null && typeof s.condition !== 'string') {
+        throw new ApiError(400, 'VALIDATION', 'achievement.condition 必须是字符串')
+      }
+      requiredString('effect', 'achievement.effect')
       return
     }
     case 'task': {
-      assertStringArray(s.dependencies, 'task.dependencies')
+      requiredString('handler_block_id', 'task.handler_block_id')
+      if (
+        typeof s.dependencies !== 'number' ||
+        !Number.isInteger(s.dependencies) ||
+        s.dependencies < 0
+      ) {
+        throw new ApiError(400, 'VALIDATION', 'task.dependencies 必须为非负整数位掩码')
+      }
       return
     }
-    case 'event-listener': {
-      requiredString('event_type', 'event-listener.event_type')
-      if (typeof s.priority !== 'number') {
-        throw new ApiError(400, 'VALIDATION', 'event-listener.priority 必须为数字')
+    case 'listener': {
+      requiredString('event_type', 'listener.event_type')
+      if (!(EVENT_LISTENER_TYPES as readonly { value: string }[]).some((option) => option.value === s.event_type)) {
+        throw new ApiError(400, 'VALIDATION', 'listener.event_type 非法')
       }
-      assertStringArray(s.dependencies, 'event-listener.dependencies')
+      requiredString('listener_block_id', 'listener.listener_block_id')
+      if (!(EVENT_LISTENER_PRIORITIES as readonly { value: string }[]).some((option) => option.value === s.priority)) {
+        throw new ApiError(400, 'VALIDATION', 'listener.priority 必须为 early/default/late')
+      }
+      if (
+        typeof s.dependencies !== 'number' ||
+        !Number.isInteger(s.dependencies) ||
+        s.dependencies < 0
+      ) {
+        throw new ApiError(400, 'VALIDATION', 'listener.dependencies 必须为非负整数位掩码')
+      }
       return
     }
-    case 'python-block': {
-      if (!(PYTHON_SLOTS as readonly string[]).includes(s.slot as string)) {
-        throw new ApiError(400, 'VALIDATION', 'python-block.slot 非法')
-      }
+    case 'code': {
       if (typeof s.content !== 'string') {
-        throw new ApiError(400, 'VALIDATION', 'python-block.content 必须为字符串')
+        throw new ApiError(400, 'VALIDATION', 'code.content 必须为字符串')
       }
       return
     }
@@ -414,7 +538,7 @@ export function applyDataPath(
   }
   if (parsed.root === 'group') {
     if (typeof value !== 'string' || !isValidGroup(value)) {
-      throw new ApiError(400, 'VALIDATION', 'group 必须是 Python 模块路径段格式')
+      throw new ApiError(400, 'VALIDATION', 'group 必须是单段 Python 模块名（不能包含点或路径分隔符）')
     }
     return { state: row.state, group: value, resource_id: row.resource_id, comment: row.comment, op: resolvedOp, value }
   }
@@ -455,10 +579,16 @@ export function patchEntity(
     }
 
     const now = new Date().toISOString()
+    const historySnapshot = JSON.stringify({
+      group: row.group,
+      resource_id: row.resource_id,
+      comment: row.comment,
+      state: JSON.parse(row.state) as EntityState,
+    })
     db.prepare(
       `INSERT INTO entity_history (entity_id, version, state, author_id, created_at)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(entityId, row.version, row.state, authorId, now)
+    ).run(entityId, row.version, historySnapshot, authorId, now)
 
     const limit = getEntityHistoryLimit(db)
     const pruneBefore = row.version - limit
@@ -511,6 +641,21 @@ export function rollbackEntity(
     if (!snapshot) {
       throw new ApiError(409, 'HISTORY_EMPTY', '没有可回退的历史快照')
     }
+    const parsed = JSON.parse(snapshot.state) as {
+      group: string
+      resource_id: string
+      comment: string
+      state: EntityState
+    }
+
+    if (parsed.resource_id !== row.resource_id) {
+      const conflict = db
+        .prepare('SELECT id FROM entities WHERE project_id = ? AND resource_id = ? AND id <> ?')
+        .get(projectId, parsed.resource_id, entityId)
+      if (conflict) {
+        throw new ApiError(409, 'RESOURCE_CONFLICT', 'resource_id 在项目内已存在')
+      }
+    }
 
     db.prepare('DELETE FROM entity_history WHERE entity_id = ? AND version = ?').run(
       entityId,
@@ -520,11 +665,15 @@ export function rollbackEntity(
     const now = new Date().toISOString()
     db.prepare(
       `UPDATE entities
-       SET state = @state, revision = @revision, version = @version, updated_at = @updated_at
+       SET "group" = @group, resource_id = @resource_id, state = @state,
+           comment = @comment, revision = @revision, version = @version, updated_at = @updated_at
        WHERE id = @id`,
     ).run({
       id: entityId,
-      state: snapshot.state,
+      group: parsed.group,
+      resource_id: parsed.resource_id,
+      state: JSON.stringify(parsed.state),
+      comment: parsed.comment,
       revision: row.revision + 1,
       version: previousVersion,
       updated_at: now,
@@ -565,12 +714,23 @@ export function listHistory(
     author_id: string
     created_at: string
   }>
-  return rows.map((row) => ({
-    version: row.version,
-    state: JSON.parse(row.state) as EntityState,
-    author_id: row.author_id,
-    created_at: row.created_at,
-  }))
+  return rows.map((row) => {
+    const parsed = JSON.parse(row.state) as {
+      group: string
+      resource_id: string
+      comment: string
+      state: EntityState
+    }
+    return {
+      version: row.version,
+      group: parsed.group,
+      resource_id: parsed.resource_id,
+      comment: parsed.comment,
+      state: parsed.state,
+      author_id: row.author_id,
+      created_at: row.created_at,
+    }
+  })
 }
 
 function findRow(

@@ -79,7 +79,10 @@ describe('files API', () => {
       kind: 'asset',
       ui_kind: 'asset',
       resource_id: resourceId,
-      state: { file_id: fileId, media_type: 'text/plain' },
+      state: {
+        file_reference: fileId,
+        media_type: 'text/plain',
+      },
     })
     const created = await admin.waitFor(
       'created',
@@ -205,7 +208,7 @@ describe('files API', () => {
       'content-type': 'text/plain',
     })
     const fileId = uploaded.body.file_id as string
-    const asset = await createAssetViaWs(fileId, 'asset-path:assets/referenced.txt')
+    const asset = await createAssetViaWs(fileId, 'asset:referenced')
 
     const deleteResponse = await fetch(`${ctx.baseUrl}/api/files/${fileId}`, {
       method: 'DELETE',
@@ -217,7 +220,7 @@ describe('files API', () => {
     const row = getDatabase()
       .prepare('SELECT state FROM entities WHERE id = ?')
       .get(asset.id) as { state: string }
-    assert.equal((JSON.parse(row.state) as { file_id: string }).file_id, fileId)
+    assert.equal((JSON.parse(row.state) as { file_reference: string }).file_reference, fileId)
   })
 
   it('上传不改变任何实体的 revision/version', async () => {
@@ -231,9 +234,9 @@ describe('files API', () => {
       resource_id: 'hint:stable-entity',
       state: {
         stable_id: 'stable-entity',
-        source_asset_id: 'asset-path:assets/hint.txt',
+        source_asset_id: 'asset:assets/hint.txt',
         download_name: 'hint.txt',
-        credit_id: 'credit-id:vib',
+        credit_id: 'credit:vib',
         credit_amount: 1,
         display: { title: '稳定实体' },
       },

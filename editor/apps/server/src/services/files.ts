@@ -7,6 +7,7 @@ interface FileRow {
   id: string
   original_name: string | null
   media_type: string
+  module: string | null
   size: number
   sha256: string
   uploaded_by: string
@@ -17,6 +18,7 @@ export interface InsertFileInput {
   id: string
   originalName: string | null
   mediaType: string
+  module: string | null
   size: number
   sha256: string
   uploadedBy: string
@@ -28,12 +30,13 @@ export function insertFile(
 ): FileRecord {
   const createdAt = new Date().toISOString()
   db.prepare(
-    `INSERT INTO files (id, original_name, media_type, size, sha256, uploaded_by, created_at)
-     VALUES (@id, @original_name, @media_type, @size, @sha256, @uploaded_by, @created_at)`,
+    `INSERT INTO files (id, original_name, media_type, module, size, sha256, uploaded_by, created_at)
+     VALUES (@id, @original_name, @media_type, @module, @size, @sha256, @uploaded_by, @created_at)`,
   ).run({
     id: input.id,
     original_name: input.originalName,
     media_type: input.mediaType,
+    module: input.module,
     size: input.size,
     sha256: input.sha256,
     uploaded_by: input.uploadedBy,
@@ -70,6 +73,7 @@ function toFileRecord(row: FileRow): FileRecord {
     id: row.id,
     original_name: row.original_name,
     media_type: row.media_type,
+    module: row.module,
     size: row.size,
     sha256: row.sha256,
     uploaded_by: row.uploaded_by,

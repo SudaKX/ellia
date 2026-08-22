@@ -54,9 +54,9 @@ describe('WS v2 sync', () => {
       resource_id: resourceId,
       state: {
         stable_id: resourceId.slice(resourceId.indexOf(':') + 1),
-        source_asset_id: 'asset-path:assets/hint.txt',
+        source_asset_id: 'asset:assets/hint.txt',
         download_name: 'hint.txt',
-        credit_id: 'credit-id:vib',
+        credit_id: 'credit:vib',
         credit_amount: 1,
         display: { title },
       },
@@ -145,7 +145,7 @@ describe('WS v2 sync', () => {
 
   it('remove op 广播 update，且不带 value', async () => {
     const hint = await createHint(admin, 'hint:remove-1')
-    const dataPath = `${hint.id}@state:/access_rule_block_id`
+    const dataPath = `${hint.id}@state:/access_rule`
 
     admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: dataPath })
     await admin.waitFor('locked')
@@ -155,7 +155,7 @@ describe('WS v2 sync', () => {
       entity_id: hint.id,
       data_path: dataPath,
       op: 'set',
-      value: 'python-name:block-1',
+      value: 'code:block-1',
     })
     await admin.waitFor('applied')
 
@@ -270,7 +270,7 @@ describe('WS v2 sync', () => {
       ref: 'bad',
       entity_id: hint.id,
       data_path: resourcePath,
-      value: 'account-id:wrong',
+      value: 'account:wrong',
     })
     const error = await admin.waitFor('error')
     assert.equal(error.code, 'VALIDATION')
@@ -321,6 +321,50 @@ describe('WS v2 sync', () => {
     assert.equal(rolled.version, 1)
     assert.equal(rolled.revision, 3)
     assert.equal((rolled.state as { display: { title: string } }).display.title, '旧标题')
+    await other.close()
+  })
+
+  it('rolled_back 广播包含 group/resource_id/comment', async () => {
+    const hint = await createHint(admin, 'hint:rollback-meta')
+    const other = await connect()
+    const resourcePath = `${hint.id}@resource_id:`
+    const commentPath = `${hint.id}@comment:`
+
+    admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: resourcePath })
+    await admin.waitFor('locked')
+    admin.send({
+      type: 'patch',
+      ref: ref(),
+      entity_id: hint.id,
+      data_path: resourcePath,
+      value: 'hint:rollback-meta-renamed',
+    })
+    await admin.waitFor('applied')
+
+    admin.send({ type: 'lock', ref: ref(), entity_id: hint.id, data_path: commentPath })
+    await admin.waitFor('locked')
+    admin.send({
+      type: 'patch',
+      ref: ref(),
+      entity_id: hint.id,
+      data_path: commentPath,
+      value: '新注释',
+    })
+    await admin.waitFor('applied')
+
+    const rolledPromise = other.waitFor('rolled_back')
+    admin.send({ type: 'rollback', ref: 'rb', entity_id: hint.id })
+    const rolled = await rolledPromise
+    assert.equal(rolled.group, 'main')
+    assert.equal(rolled.resource_id, 'hint:rollback-meta-renamed')
+    assert.equal(rolled.comment, '')
+
+    const rolledPromise2 = other.waitFor('rolled_back')
+    admin.send({ type: 'rollback', ref: 'rb2', entity_id: hint.id })
+    const rolled2 = await rolledPromise2
+    assert.equal(rolled2.resource_id, 'hint:rollback-meta')
+    assert.equal(rolled2.comment, '')
+
     await other.close()
   })
 
@@ -445,23 +489,23 @@ describe('WS v2 sync', () => {
     assert.equal(error.code, 'BAD_JSON')
   })
 
-  it('asset 悬空 file_id、共享 file_id 与 file_id patch 回退', async () => {
+  it('asset 悬空 file_reference、共享 file_reference 与 file_reference patch 回退', async () => {
     const fileId = '00000000-0000-4000-8000-000000000001'
-    const createdA = await createEntityWs('asset', 'asset-path:assets/a.txt', {
-      file_id: fileId,
+    const createdA = await createEntityWs('asset', 'asset:a', {
+      file_reference: fileId,
       media_type: 'text/plain',
     })
-    const createdB = await createEntityWs('asset', 'asset-path:assets/b.txt', {
-      file_id: fileId,
+    const createdB = await createEntityWs('asset', 'asset:b', {
+      file_reference: fileId,
       media_type: 'text/plain',
     })
     assert.equal(
-      (createdB.entity as { state: { file_id: string } }).state.file_id,
-      (createdA.entity as { state: { file_id: string } }).state.file_id,
+      (createdB.entity as { state: { file_reference: string } }).state.file_reference,
+      (createdA.entity as { state: { file_reference: string } }).state.file_reference,
     )
 
     const entityId = (createdA.entity as { id: string }).id
-    const dataPath = `${entityId}@state:/file_id`
+    const dataPath = `${entityId}@state:/file_reference`
     admin.send({ type: 'lock', ref: ref(), entity_id: entityId, data_path: dataPath })
     await admin.waitFor('locked')
     admin.send({
@@ -479,16 +523,18 @@ describe('WS v2 sync', () => {
       2000,
       (message) => message.entity_id === entityId,
     )
-    assert.equal((rolled.state as { file_id: string }).file_id, fileId)
+    assert.equal((rolled.state as { file_reference: string }).file_reference, fileId)
   })
 
   it('file-tree / progress-dag 容器整容器加锁 patch', async () => {
     const tree = await createEntityWs('file-tree', 'file-tree:main', {
-      root_stable_id: null,
-      children: {},
+      rootId: 'root',
+      nodes: {
+        root: { id: 'root', name: '/', isDirectory: true, inode: null, parent: null, order: 0 },
+      },
     })
     const treeId = (tree.entity as { id: string }).id
-    const treePath = `${treeId}@state:/children`
+    const treePath = `${treeId}@state:/nodes`
     admin.send({ type: 'lock', ref: ref(), entity_id: treeId, data_path: treePath })
     await admin.waitFor('locked')
     admin.send({
@@ -496,7 +542,10 @@ describe('WS v2 sync', () => {
       ref: 't',
       entity_id: treeId,
       data_path: treePath,
-      value: { dir: ['file-a'] },
+      value: {
+        root: { id: 'root', name: '/', isDirectory: true, inode: null, parent: null, order: 0 },
+        dir: { id: 'dir', name: 'dir', isDirectory: true, inode: null, parent: 'root', order: 0 },
+      },
     })
     const applied = await admin.waitFor('applied')
     assert.equal(applied.revision, 2)
