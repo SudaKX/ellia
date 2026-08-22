@@ -25,6 +25,7 @@ import { LogIn, Power, Volume2, Wifi } from 'lucide-vue-next'
 
 import { useAuth } from '@/composables/useAuth'
 import { AUTH_ENDPOINTS, USE_REAL_API } from '@/config/api'
+import { apiFetch } from '@/utils/http'
 import LoginForm from '@/components/desktop/LoginForm.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import NetworkMenu from '@/components/desktop/status/NetworkMenu.vue'
@@ -40,6 +41,13 @@ const auth = useAuth()
 const activeMenuId = ref<string | null>(null)
 const loginWindowVisible = ref(true)
 const validationMessage = ref('')
+
+/** 后端登录/刷新响应（Ellia Mythos API）：`{access_token, token_type, expires_in}` */
+interface LoginResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+}
 
 /**
  * 进入登录页时向后端校验当前 token 是否仍然有效。
@@ -89,22 +97,25 @@ const loginWindow = ref<WindowInstance>({
 
 /**
  * 密码登录。
+ *
+ * - **真实模式**：`POST /api/v1/auth/login` → `{access_token, token_type, expires_in}`，
+ *   同时后端 Set-Cookie refresh 令牌；成功后以 access_token 进入桌面。
+ * - **Mock 模式**：本地生成伪 token，行为与现有版本一致。
+ *
  * 切换真实 API：将 `src/config/api.ts` 中 `USE_REAL_API` 改为 `true` 并设置 `API_BASE`。
  */
 async function handleLogin(username: string, password: string) {
   if (USE_REAL_API) {
     try {
-      const res = await fetch(AUTH_ENDPOINTS.login, {
+      const data = await apiFetch<LoginResponse>(AUTH_ENDPOINTS.login, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: { username, password },
       })
-      if (!res.ok) return
-      const data = await res.json()
-      auth.login(data.accountType ?? 'player', data.token, data.username ?? username)
+      auth.login('player', data.access_token, username)
       router.push({ name: 'desktop' })
       return
     } catch {
+      // 登录失败（401 ProblemDetails 等）：保持登录页，静默不跳转
       return
     }
   }
@@ -115,25 +126,21 @@ async function handleLogin(username: string, password: string) {
   router.push({ name: 'desktop' })
 }
 
-/** 密钥登录：基于已有 token 登录 */
+/**
+ * 密钥登录：基于已有会话直接进入桌面。
+ *
+ * - **真实模式**：后端没有 `/auth/token-login` 端点；"密钥登录"等价于
+ *   凭 HttpOnly refresh Cookie 调 `POST /api/v1/auth/refresh` 续期，
+ *   成功即进入桌面（会话由 validateWithBackend 在 onMounted 已校验）。
+ * - **Mock 模式**：本地生成伪 token 进入桌面。
+ */
 async function handleTokenLogin() {
   if (USE_REAL_API) {
-    const savedToken = localStorage.getItem('ell_auth_token')
-    if (!savedToken) return
-    try {
-      const res = await fetch(AUTH_ENDPOINTS.tokenLogin, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: savedToken }),
-      })
-      if (!res.ok) return
-      const data = await res.json()
-      auth.login(data.accountType ?? 'player', data.token, data.username)
+    const ok = await auth.refreshToken()
+    if (ok) {
       router.push({ name: 'desktop' })
-      return
-    } catch {
-      return
     }
+    return
   }
 
   // Mock 模式

@@ -2,7 +2,7 @@
  * # 代币余额 Store
  *
  * 单一数据源：状态栏钱包胶囊、谜题消费、成就奖励都从这里读取。
- * - 真实 API：`GET /api/v1/credits` → `{ vtb, version }`（响应带 no-store）
+ * - 真实 API：`GET /api/v1/credits`（Bearer）→ `{ vtb, version }`（响应带 no-store）
  * - Mock 模式：`USE_REAL_API=false` 时使用本地余额，行为与真实 API 一致
  *
  * ## 本地持久化
@@ -11,6 +11,13 @@
  * 浏览器彩蛋等本地奖励通过 `grantVtb()` 发放并立即落盘。
  * 真实 API 模式下本地值仅作启动暂显，成功拉取后以服务端数据为准。
  *
+ * ## 后端增减端点缺失说明（重要）
+ *
+ * 后端 `GET /api/v1/credits` 只读余额，**没有发放/消费端点**——
+ * 服务端 VTB 由后端业务驱动（消费提示扣费、成就奖励结算等）。
+ * 因此真实模式下 `grantVtb()` / `spendVtb()` 只改本地展示，刷新后以服务端为准。
+ * 若需本地彩蛋奖励持久化，需后端补发放端点后再接入（见 `docs/backend-integration.md`）。
+ *
  * 后端加入自定义代币时，扩展 `TokenBalances` 字段即可，
  * 展示层按 kind 渲染，无需改动 UI 结构。
  */
@@ -18,8 +25,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { useAuth } from '@/composables/useAuth'
 import { CREDITS_ENDPOINTS, USE_REAL_API } from '@/config/api'
+import { apiFetch } from '@/utils/http'
 
 /** 各代币余额（当前仅有 vtb；后端扩展时在此追加字段） */
 export interface TokenBalances {
@@ -69,13 +76,9 @@ export const useCreditsStore = defineStore('credits', () => {
 
     if (USE_REAL_API) {
       try {
-        const auth = useAuth()
-        const token = auth.getToken()
-        const res = await fetch(CREDITS_ENDPOINTS.balances, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        })
-        if (!res.ok) throw new Error(`credits request failed: ${res.status}`)
-        const data = (await res.json()) as { vtb?: number; version?: number }
+        // GET /api/v1/credits（apiFetch 自动带 Bearer + ProblemDetails 解析）
+        // 响应 `{vtb, version}`；401 时可先 useAuth().refreshToken() 再重试
+        const data = await apiFetch<{ vtb?: number; version?: number }>(CREDITS_ENDPOINTS.balances)
         balances.value = { vtb: data.vtb ?? 0 }
         version.value = data.version ?? 0
         isLoaded.value = true
@@ -94,7 +97,12 @@ export const useCreditsStore = defineStore('credits', () => {
     isLoading.value = false
   }
 
-  /** 本地发放 VTB（彩蛋/演示用），立即写入 localStorage 持久化 */
+  /**
+   * 本地发放 VTB（浏览器彩蛋/演示用），立即写入 localStorage 持久化。
+   *
+   * 注意：后端没有 /credits 增减端点（见文件头"后端增减端点缺失说明"），
+   * 真实模式下本函数仅改本地展示，刷新后以服务端 GET /credits 为准。
+   */
   function grantVtb(amount: number): number {
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new Error('VTB grant amount must be a positive integer.')
@@ -111,6 +119,9 @@ export const useCreditsStore = defineStore('credits', () => {
   /**
    * 消费 VTB（如 AI 帮开提示扣费）。
    * 余额不足时返回 false，不产生任何变化。
+   *
+   * 注意：真实模式下仅本地扣减展示；服务端扣费应走后端业务端点
+   * （如 `POST /api/v1/hints/{hint_id}/disclose` 由后端扣减后重新拉取余额）。
    */
   function spendVtb(amount: number): boolean {
     if (!Number.isInteger(amount) || amount <= 0) {
