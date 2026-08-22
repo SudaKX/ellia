@@ -22,6 +22,7 @@ export const zhCN = {
       previewTitle: '文件预览',
       cannotOpen: '无法打开此文件。',
       emptyDir: '空目录',
+      loading: '加载中…',
     },
     archive: {
       title: '归档查看器',

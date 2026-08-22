@@ -22,6 +22,7 @@ export const jaJP = {
       previewTitle: 'ファイルプレビュー',
       cannotOpen: 'このファイルを開けません。',
       emptyDir: '空のディレクトリ',
+      loading: '読み込み中…',
     },
     archive: {
       title: 'アーカイブビューア',

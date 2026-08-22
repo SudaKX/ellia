@@ -68,6 +68,26 @@ export const CREDITS_ENDPOINTS = {
 } as const
 
 /**
+ * 文件系统端点（后端 prefix `/files`，均需 Bearer）。
+ * 面向玩家的浏览应使用**动态树**（`/files/d/*`）：合并玩家 Artifact（如存档恢复报告），
+ * 静态树 `/files/*` 只含启动期冻结文件。
+ */
+export const FILES_ENDPOINTS = {
+  /** GET ?path= — 动态目录列表：`{path, directories, files, tree_version}` */
+  dynamicList: `${API_BASE}/api/v1/files/d/ls`,
+  /** GET ?path= — 动态目录树（递归，含全部后代） */
+  dynamicTree: `${API_BASE}/api/v1/files/d/tree`,
+  /** GET — 动态树版本（`If-None-Match` 协商，命中返回 304） */
+  dynamicVersion: `${API_BASE}/api/v1/files/d/version`,
+  /**
+   * GET — 文件内容预签名 URL：`{url, expires_at, content_token}`。
+   * 先拿 URL 再 fetch 对象存储读取内容；预签名 URL **不持久化**。
+   */
+  contentUrl: (fileId: string, contentToken: string) =>
+    `${API_BASE}/api/v1/files/${fileId}/${contentToken}/content-url`,
+} as const
+
+/**
  * 出题器发布题库接入（自动发现）。
  * 出题器（desktop_designer）审核通过的题目导出 published-questions.json 后，
  * 把开关置为 true 并把 URL 指向该静态文件，游戏启动时自动注册进谜题列表。

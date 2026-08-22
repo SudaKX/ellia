@@ -22,6 +22,7 @@ export const zhTW = {
       previewTitle: '檔案預覽',
       cannotOpen: '無法開啟此檔案。',
       emptyDir: '空目錄',
+      loading: '載入中…',
     },
     archive: {
       title: '歸檔檢視器',

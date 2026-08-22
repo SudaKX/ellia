@@ -20,6 +20,7 @@ export const enUS = {
       previewTitle: 'File Preview',
       cannotOpen: 'Cannot open this file.',
       emptyDir: 'Empty directory',
+      loading: 'Loading…',
     },
     archive: {
       title: 'Archive Viewer',

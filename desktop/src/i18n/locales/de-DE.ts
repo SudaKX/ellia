@@ -22,6 +22,7 @@ export const deDE = {
       previewTitle: 'Dateivorschau',
       cannotOpen: 'Diese Datei kann nicht geöffnet werden.',
       emptyDir: 'Leeres Verzeichnis',
+      loading: 'Wird geladen…',
     },
     archive: {
       title: 'Archivbetrachter',
