@@ -67,6 +67,7 @@ import {
   unregisterTextEditorSession,
 } from '@/composables/useTextEditorSession'
 import type { WindowService } from '@/composables/useWindowService'
+import { renderMarkdown } from '@/utils/markdown'
 
 const props = defineProps<{
   /** 打开的文件名（窗口标题 / Dock 条目名 / 提示文案共用） */
@@ -77,6 +78,8 @@ const props = defineProps<{
   fileContent: string
   /** 所属窗口 ID（FileExplorer 创建窗口后回填，用于会话注册） */
   windowId: string
+  /** 是否为 Markdown 文件：默认渲染预览，可切换源码编辑 */
+  isMarkdown?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -95,8 +98,33 @@ const originalContent = ref(props.fileContent ?? '')
 const content = ref(props.fileContent ?? '')
 /** 是否有未保存的修改 */
 const isModified = computed(() => content.value !== originalContent.value)
-/** 当前模式：edit（默认读写）| read（只读阅读） */
-const mode = ref<'edit' | 'read'>('edit')
+/** Markdown 渲染后的 HTML（仅 md 文件生效，编辑源码时实时重渲染） */
+const renderedHtml = computed(() => (props.isMarkdown ? renderMarkdown(content.value) : ''))
+/** 当前模式：edit（默认读写）| read（只读阅读）| preview（Markdown 渲染预览） */
+const mode = ref<'edit' | 'read' | 'preview'>(props.isMarkdown ? 'preview' : 'edit')
+
+/** 模式切换按钮：md 文件在 preview/edit 间切换；普通文件在 edit/read 间切换 */
+function toggleMode() {
+  if (props.isMarkdown) {
+    mode.value = mode.value === 'preview' ? 'edit' : 'preview'
+  } else {
+    mode.value = mode.value === 'edit' ? 'read' : 'edit'
+  }
+}
+
+/** 模式切换按钮标题（悬停提示） */
+const modeToggleTitle = computed(() =>
+  props.isMarkdown
+    ? (mode.value === 'preview' ? t('textEditor.source') : t('textEditor.preview'))
+    : (mode.value === 'edit' ? t('textEditor.readMode') : t('textEditor.editMode')),
+)
+
+/** 模式切换按钮文案 */
+const modeToggleLabel = computed(() =>
+  props.isMarkdown
+    ? (mode.value === 'preview' ? t('textEditor.source') : t('textEditor.preview'))
+    : (mode.value === 'edit' ? t('textEditor.readMode') : t('textEditor.editMode')),
+)
 /** 正文字号（px），范围 10 ~ 24 */
 const fontSize = ref(14)
 /** 关闭时的保存确认层是否显示 */
@@ -235,12 +263,12 @@ function changeFontSize(delta: number) {
       <button
         class="text-editor__btn"
         type="button"
-        :title="mode === 'edit' ? t('textEditor.readMode') : t('textEditor.editMode')"
-        @click="mode = mode === 'edit' ? 'read' : 'edit'"
+        :title="modeToggleTitle"
+        @click="toggleMode"
       >
         <Eye v-if="mode === 'edit'" :size="14" :stroke-width="1.8" />
         <Pencil v-else :size="14" :stroke-width="1.8" />
-        <span>{{ mode === 'edit' ? t('textEditor.readMode') : t('textEditor.editMode') }}</span>
+        <span>{{ modeToggleLabel }}</span>
       </button>
 
       <span class="text-editor__spacer" aria-hidden="true"></span>
@@ -275,8 +303,9 @@ function changeFontSize(delta: number) {
       >*</span>
     </header>
 
-    <!-- 正文：编辑模式可写，阅读模式只读 -->
+    <!-- 正文：编辑模式可写，阅读模式只读；预览模式（md）渲染 HTML -->
     <textarea
+      v-if="mode !== 'preview'"
       class="text-editor__textarea"
       :value="content"
       :readonly="mode === 'read'"
@@ -285,6 +314,14 @@ function changeFontSize(delta: number) {
       :spellcheck="false"
       @input="content = ($event.target as HTMLTextAreaElement).value"
     ></textarea>
+
+    <!-- Markdown 渲染预览（仅 md 文件，v-html 内容已由 renderMarkdown 消毒） -->
+    <div
+      v-if="isMarkdown && mode === 'preview'"
+      class="text-editor__preview"
+      :style="{ fontSize: fontSize + 'px' }"
+      v-html="renderedHtml"
+    ></div>
 
     <!-- 关闭保存确认层 -->
     <Transition name="save-prompt">
@@ -414,6 +451,125 @@ function changeFontSize(delta: number) {
 
 .text-editor__textarea[readonly] {
   color: var(--text-secondary);
+}
+
+/* ── Markdown 渲染预览（v-html 内容，scoped 下需 :deep 命中） ── */
+.text-editor__preview {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 14px 18px;
+  overflow-y: auto;
+  color: var(--text-primary);
+  background: var(--canvas);
+  font-family: var(--font-ui);
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+.text-editor__preview :deep(h1),
+.text-editor__preview :deep(h2),
+.text-editor__preview :deep(h3),
+.text-editor__preview :deep(h4) {
+  margin: 1.2em 0 0.5em;
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.text-editor__preview :deep(h1) {
+  margin-top: 0.4em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--line-subtle);
+  font-size: 1.6em;
+}
+
+.text-editor__preview :deep(h2) {
+  font-size: 1.32em;
+}
+
+.text-editor__preview :deep(h3) {
+  font-size: 1.12em;
+}
+
+.text-editor__preview :deep(h4) {
+  font-size: 1em;
+}
+
+.text-editor__preview :deep(p) {
+  margin: 0.6em 0;
+}
+
+.text-editor__preview :deep(a) {
+  color: var(--signal-mint);
+}
+
+.text-editor__preview :deep(code) {
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  background: var(--surface-hover);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.text-editor__preview :deep(pre) {
+  margin: 0.8em 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--line-subtle);
+  background: var(--surface-panel);
+}
+
+.text-editor__preview :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.text-editor__preview :deep(blockquote) {
+  margin: 0.8em 0;
+  padding: 0.1em 1em;
+  border-left: 3px solid var(--line-default);
+  color: var(--text-secondary);
+}
+
+.text-editor__preview :deep(ul),
+.text-editor__preview :deep(ol) {
+  margin: 0.6em 0;
+  padding-left: 1.6em;
+}
+
+.text-editor__preview :deep(li) {
+  margin: 0.25em 0;
+}
+
+.text-editor__preview :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.text-editor__preview :deep(hr) {
+  margin: 1.4em 0;
+  border: none;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.text-editor__preview :deep(table) {
+  width: 100%;
+  margin: 0.8em 0;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.text-editor__preview :deep(th),
+.text-editor__preview :deep(td) {
+  padding: 6px 10px;
+  border: 1px solid var(--line-subtle);
+  text-align: left;
+}
+
+.text-editor__preview :deep(th) {
+  background: var(--surface-panel);
+  font-weight: 700;
 }
 
 /* ── 保存确认层 ── */

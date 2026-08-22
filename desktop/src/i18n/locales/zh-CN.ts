@@ -71,6 +71,8 @@ export const zhCN = {
     savePromptDiscard: '不保存',
     savePromptCancel: '取消',
     permissionTitle: '权限不足',
+    preview: '渲染预览',
+    source: '编辑源码',
   },
   /** 剧情对话 */
   story: {

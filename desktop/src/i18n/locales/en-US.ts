@@ -69,6 +69,8 @@ export const enUS = {
     savePromptDiscard: "Don't Save",
     savePromptCancel: 'Cancel',
     permissionTitle: 'Permission Denied',
+    preview: 'Render Preview',
+    source: 'Edit Source',
   },
   /** Story dialogue (E ↔ player) */
   story: {

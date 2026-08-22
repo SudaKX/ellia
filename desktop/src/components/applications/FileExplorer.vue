@@ -218,7 +218,8 @@ function handleDirDblClick(dir: FileNode) {
  *
  * 行为：
  * - `.puz` 文件 → 查找 puzzleRegistry，创建谜题窗口
- * - `.txt` / `.log` 文件 → 用文本编辑器打开（独立窗口，文件名命名的 Dock 条目）
+ * - `.txt` / `.log` / `.md` 文件 → 用文本编辑器打开（独立窗口，文件名命名的 Dock 条目；
+ *   .md 默认进入 Markdown 渲染预览模式）
  * - 无后缀文件 → 选中并显示预览
  * - 其他文件   → 选中并显示预览
  *
@@ -267,7 +268,7 @@ function handleFileDblClick(file: FileNode) {
     return
   }
 
-  if (ext === '.txt' || ext === '.log') {
+  if (ext === '.txt' || ext === '.log' || ext === '.md') {
     openTextEditor(file)
     return
   }
@@ -303,6 +304,8 @@ function openTextEditor(file: FileNode) {
         fileName: file.name,
         filePath,
         fileContent: getEffectiveContent(filePath, file.content) ?? '',
+        // .md 文件默认进入 Markdown 渲染预览模式
+        isMarkdown: file.name.toLowerCase().endsWith('.md'),
       },
       defaultWidth: 480,
       defaultHeight: 340,

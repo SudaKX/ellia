@@ -71,6 +71,8 @@ export const jaJP = {
     savePromptDiscard: '保存しない',
     savePromptCancel: 'キャンセル',
     permissionTitle: 'アクセス権限がありません',
+    preview: 'プレビュー',
+    source: 'ソース編集',
   },
   /** ストーリーダイアログ（E ↔ プレイヤー） */
   story: {

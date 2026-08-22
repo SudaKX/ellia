@@ -71,6 +71,8 @@ export const deDE = {
     savePromptDiscard: 'Nicht speichern',
     savePromptCancel: 'Abbrechen',
     permissionTitle: 'Zugriff verweigert',
+    preview: 'Vorschau',
+    source: 'Quelltext bearbeiten',
   },
   /** Story-Dialog (E ↔ Spieler) */
   story: {

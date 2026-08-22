@@ -71,6 +71,8 @@ export const zhTW = {
     savePromptDiscard: '不儲存',
     savePromptCancel: '取消',
     permissionTitle: '權限不足',
+    preview: '渲染預覽',
+    source: '編輯原始碼',
   },
   /** 劇情對話 */
   story: {

@@ -61,7 +61,8 @@ export interface HalftoneOptions {
   crop?: HalftoneCrop
 }
 
-const DEFAULTS: Required<HalftoneOptions> = {
+/** crop 为可选裁切，不参与 Required 默认值 */
+const DEFAULTS: Omit<Required<HalftoneOptions>, 'crop'> = {
   dotSpacing: 3,
   maxRadius: 2.5,
   minRadius: 0.6,
