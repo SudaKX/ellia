@@ -144,9 +144,14 @@ function updatePortraitPosition(character: StoryStageCharacter, image: HTMLImage
   if (!stage || !dialogue || !image.naturalWidth) return
   const renderedHeight = image.naturalHeight * (image.clientWidth / image.naturalWidth)
   const dialogueTopFromBottom = stage.clientHeight - dialogue.offsetTop
+  // 顶部对齐模式：图片顶部相对窗口顶部的偏移为 anchorTop × 图片高度
+  // （0 = 贴窗口顶；正数 = 顶部超出窗口被遮住；负数 = 顶部留空）
+  const bottom = character.anchorTop !== undefined
+    ? stage.clientHeight - renderedHeight * (1 - (character.anchorTop ?? 0))
+    : dialogueTopFromBottom - renderedHeight * (1 - (character.anchorY ?? 1))
   portraitBottoms.value = {
     ...portraitBottoms.value,
-    [character.id]: dialogueTopFromBottom - renderedHeight * (1 - (character.anchorY ?? 1)),
+    [character.id]: bottom,
   }
 }
 
@@ -187,7 +192,10 @@ onBeforeUnmount(() => {
             { 'gal-story__portrait--hologram': character.effect === 'hologram' },
             { 'gal-story__portrait--dimmed': !character.speakerNames.includes(current?.speaker ?? '') },
           ]"
-          :style="{ bottom: `${portraitBottoms[character.id] ?? 0}px` }"
+          :style="{
+            bottom: `${portraitBottoms[character.id] ?? 0}px`,
+            width: `${(character.scale ?? 1) * 32}%`,
+          }"
         >
           <img
             :src="character.image"

@@ -54,6 +54,10 @@ export const enUS = {
     deniedTitle: 'ACCESS DENIED',
     vtbReward: 'Mysterious site found! +{amount} VTB credited to your balance.',
   },
+  /** Image viewer */
+  imageViewer: {
+    title: 'Image Viewer',
+  },
   /** Text editor (FakeOS Notepad) */
   textEditor: {
     title: 'Text Editor',

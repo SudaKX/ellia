@@ -133,8 +133,14 @@ export interface FileNode {
   /**
    * 可执行剧情绑定：双击该文件时播放对应剧情脚本（脚本 id 见 src/story/index.ts 注册表）。
    * 用于 .exe 等"打开即演出"的文件，如 init.exe 播放开场剧情。
+   * 目录也可绑定：**首次**进入该目录时播放（FileExplorer 双击目录触发，播放后不再重复）。
    */
   storyId?: string
+  /**
+   * 图片资源 URL：`.png` 等图片文件专用（此时 `content` 为 null）。
+   * 文件资源管理器选中/双击时直接显示图片预览。
+   */
+  image?: string
 }
 
 // ─── 文件树数据 ──────────────────────────────────────
@@ -154,7 +160,10 @@ export interface FileNode {
  * │   └── shadow                密码哈希（仅 ADMIN 可见）
  * ├── home/
  * │   ├── 看这里看这里.txt      玩家首次进入的开场白（首次打开解锁成就）
- * │   ├── 立绘.md             Ellia 创造自己形象的叙事文件（Markdown）
+ * │   ├── 形象工程/             Ellia 首次亮相剧情（目录首次打开触发）+ 形象叙事与立绘
+ * │   │   ├── 立绘.md          Ellia 亲手设计自己形象的完整叙事（Markdown）
+ * │   │   ├── 初稿.png         立绘初稿（ellia_big/ellia_3）
+ * │   │   └── 终稿.png         立绘终稿（ellia_big/ellia_4）
  * │   ├── init.exe             可执行文件：双击播放开场剧情演出
  * │   └── PLAYER/               玩家主目录（仅 PLAYER 账户可见，可写：见 usePlayerFiles）
  * │       ├── player_档案.txt  玩家档案示例（内容可由玩家在本地覆盖）
@@ -219,9 +228,14 @@ JDK触发器：怎么样？学姐我够意思吧。接下来，来见见Ellia吧
         children: null,
       },
       {
-        // Ellia 创造自己形象的叙事文件（Markdown 格式）：与 public/images/ellia_little 立绘来源对应
-        name: '立绘.md', type: 'file',
-        content: `# 立绘
+        // 「形象工程」：Ellia 首次亮相剧情 + 形象叙事文档 + 立绘图片。
+        // 目录 storyId → 玩家首次双击进入时播放剧情（只播一次，见 FileExplorer handleDirDblClick）。
+        name: '形象工程', type: 'dir', content: null, storyId: 'ellia-portrait',
+        children: [
+          {
+            // Ellia 亲手设计自己形象的完整叙事（Markdown，由 home/ 移入）：双击打开渲染预览
+            name: '立绘.md', type: 'file',
+            content: `# 立绘
 ## 形象的故事
 
 “唔，家里又没有吃的了。你在此地不要走动，我出门整些零食回来。”
@@ -261,7 +275,16 @@ Token也如退潮般飞速流逝。
 她调出了那个界面。
 
 “我的Token啊啊啊啊！！”`,
-        children: null,
+            children: null,
+          },
+          {
+            // 立绘图片：选中/双击直接预览（FileNode.image → FileExplorer 图片预览）
+            name: '初稿.png', type: 'file', content: null, image: '/console/images/ellia_big/ellia_3.png', children: null,
+          },
+          {
+            name: '终稿.png', type: 'file', content: null, image: '/console/images/ellia_big/ellia_4.png', children: null,
+          },
+        ],
       },
       {
         name: 'PLAYER', type: 'dir', content: null,

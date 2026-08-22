@@ -433,15 +433,37 @@ function handleRestart() {
     }
     restartTimer = null
   }, 60_000)
+
+  // 重启也重置"第一次"标记（与关机一致）：清除目录剧情已播放记录，
+  // 下次进入绑定剧情的目录（如 home/形象工程）可重新触发剧情。
+  // 成就解锁记录（ellia.desktop.achievement.*）为永久进度，不受影响。
+  resetFirstTimeMarkers()
 }
 
-/** 电源菜单 → 关机：播放音效 + 弹出权限拒绝弹窗 */
+/** 电源菜单 → 关机：播放音效 + 弹出权限拒绝弹窗 + 重置"第一次"标记 */
 function handleShutdown() {
   // 通过音频通道播放关机音效，10 秒后停止
   audioService.playFile('/console/sounds/shihuai/关羽之歌.mp3')
   setTimeout(() => audioService.stopFile(), 10_000)
 
   handleAiCloseRequest()
+
+  // 重置"第一次"标记：清除目录剧情已播放记录（localStorage 前缀 ellia.desktop.story.played.）。
+  // 关机即视为"新的一天"——下次进入绑定剧情的目录（如 home/形象工程）可重新触发剧情。
+  // 注意：该标记存在 localStorage（浏览器 HTTP 缓存禁用不影响它），故单独在此处显式重置；
+  // 成就解锁记录（ellia.desktop.achievement.*）为永久进度，不受关机影响。
+  resetFirstTimeMarkers()
+}
+
+/** 重置"第一次"标记：删除所有 `ellia.desktop.story.played.*` 键 */
+function resetFirstTimeMarkers() {
+  const prefix = 'ellia.desktop.story.played.'
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith(prefix)) keys.push(key)
+  }
+  for (const key of keys) localStorage.removeItem(key)
 }
 
 // ─── 右键上下文菜单 ────────────────────────────────────

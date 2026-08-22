@@ -56,6 +56,10 @@ export const zhTW = {
     deniedTitle: '禁止訪問',
     vtbReward: '發現神秘網址彩蛋！已為你增加 {amount} VTB。',
   },
+  /** 圖片檢視器 */
+  imageViewer: {
+    title: '圖片檢視器',
+  },
   /** 文字編輯器 */
   textEditor: {
     title: '文字編輯器',

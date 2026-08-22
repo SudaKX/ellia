@@ -56,6 +56,10 @@ export const deDE = {
     deniedTitle: 'ZUGRIFF VERWEIGERT',
     vtbReward: 'Geheimnisvolle Seite gefunden! {amount} VTB wurden gutgeschrieben.',
   },
+  /** Bildbetrachter */
+  imageViewer: {
+    title: 'Bildbetrachter',
+  },
   /** Texteditor */
   textEditor: {
     title: 'Texteditor',

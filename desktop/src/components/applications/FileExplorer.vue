@@ -60,7 +60,7 @@
  */
 
 import { computed, defineAsyncComponent, inject, onMounted, ref } from 'vue'
-import { ChevronRight, File, FileText, Folder } from 'lucide-vue-next'
+import { ChevronRight, File, FileText, Folder, Image as ImageIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
 import { playStoryScript } from '@/composables/useStoryDialog'
@@ -87,6 +87,7 @@ const windowService = inject<WindowService>('windowService')
 
 /** 文本编辑器（异步加载，双击 .txt/.log 时打开） */
 const TextEditor = defineAsyncComponent(() => import('@/components/applications/TextEditor.vue'))
+const ImageViewer = defineAsyncComponent(() => import('@/components/applications/ImageViewer.vue'))
 
 // ─── 状态 ──────────────────────────────────────────
 
@@ -105,6 +106,8 @@ interface ExplorerEntry {
   type: 'dir' | 'file'
   /** Mock 模式：前端静态文件节点（预览/打开内容用） */
   node?: FileNode
+  /** Mock 模式：图片文件预览 URL（立绘 .png 等，node.image 的便捷引用） */
+  image?: string
   /** 真实模式：后端文件摘要（content-url 读取用） */
   remote?: RemoteFileSummary
 }
@@ -116,6 +119,8 @@ const selectedFile = ref<ExplorerEntry | null>(null)
 const selectedContent = ref<string | null>(null)
 /** 选中文件的远程内容（真实模式，经 content-url 拉取） */
 const remoteSelectedContent = ref<string | null>(null)
+/** 选中文件的图片预览 URL（mock 模式图片文件，如立绘 .png） */
+const selectedImage = ref<string | null>(null)
 
 // ─── 真实模式远程状态（USE_REAL_API=true 时使用） ──
 
@@ -170,11 +175,17 @@ async function loadRemoteRoot(): Promise<void> {
  */
 function setSelection(file: ExplorerEntry) {
   selectedFile.value = file
+  selectedImage.value = null
   if (isRemote && file.remote) {
     remoteSelectedContent.value = null
     void fetchRemoteFileContent(file.remote)
       .then((text) => { remoteSelectedContent.value = text })
       .catch(() => { remoteSelectedContent.value = null })
+    return
+  }
+  // 图片文件（mock 模式，如立绘 .png）：直接显示图片预览
+  if (file.image) {
+    selectedImage.value = file.image
     return
   }
   if (file.node) {
@@ -198,7 +209,10 @@ const rootDirs = computed(() => {
     return remoteRoot.value.map((name) => ({ name, type: 'dir' as const }))
   }
   const children = getRootTree() as unknown as FileNode[]
-  return getVisibleChildren(children, player).filter((n) => n.type === 'dir')
+  return getVisibleChildren(children, player)
+    .filter((n) => n.type === 'dir')
+    // 包装成统一 ExplorerEntry（node 携带原始 FileNode，供 setSelection/双击打开使用）
+    .map((n) => ({ name: n.name, type: 'dir' as const, node: n }))
 })
 
 /**
@@ -228,6 +242,8 @@ const currentEntries = computed(() => {
   if (isRemote) return remoteEntries.value
   const entries = findDir(getRootTree(), currentPath.value)
   return getVisibleChildren(entries as FileNode[], player)
+    // 包装成统一 ExplorerEntry（node 携带原始 FileNode，image 供图片预览）
+    .map((n) => ({ name: n.name, type: n.type, node: n, image: n.image }))
 })
 
 /** 分离目录和文件，分别渲染（目录在前，文件在后） */
@@ -247,6 +263,7 @@ function navigateTo(path: string) {
   selectedFile.value = null
   selectedContent.value = null
   remoteSelectedContent.value = null
+  selectedImage.value = null
   if (isRemote) void loadRemoteDirectory(path)
 }
 
@@ -286,7 +303,27 @@ function handleDirClick(dirName: string) {
  * @param dir - 被双击的目录条目（仅用 name，兼容 mock FileNode 与远程条目）
  */
 function handleDirDblClick(dir: ExplorerEntry) {
+  // 目录首次打开触发绑定剧情（只播一次；真实模式远程目录无 storyId，天然跳过）。
+  // 与文件节点 storyId 语义一致，仅触发时机不同：文件=双击文件，目录=首次双击进入。
+  const storyId = dir.node?.storyId
+  if (storyId && !storyPlayed(storyId)) {
+    const script = storyScripts[storyId]
+    if (script) {
+      markStoryPlayed(storyId)
+      playStoryScript(script)
+    }
+  }
   navigateTo(currentPath.value === '/' ? `/${dir.name}` : `${currentPath.value}/${dir.name}`)
+}
+
+/** 目录绑定剧情是否已播放过（localStorage 标记，保证"第一次"语义） */
+function storyPlayed(storyId: string): boolean {
+  return localStorage.getItem(`ellia.desktop.story.played.${storyId}`) === '1'
+}
+
+/** 标记目录绑定剧情已播放 */
+function markStoryPlayed(storyId: string): void {
+  localStorage.setItem(`ellia.desktop.story.played.${storyId}`, '1')
 }
 
 /**
@@ -350,6 +387,12 @@ async function handleFileDblClick(file: ExplorerEntry) {
     if (script) {
       playStoryScript(script)
     }
+    return
+  }
+
+  // 图片文件（立绘 .png 等）：双击打开独立图片浏览窗口（缩放查看）
+  if (file.image) {
+    openImageViewerWindow(file)
     return
   }
 
@@ -437,6 +480,34 @@ function openTextEditorWindow(name: string, filePath: string, content: string, i
       resizable: true,
       dockable: true,
       dockTitle: name,
+    },
+  })
+  if (result) {
+    result.componentProps = { ...result.componentProps, windowId: result.id }
+  }
+}
+
+/**
+ * 打开图片浏览窗口（独立窗口查看立绘等图片，支持缩放）。
+ *
+ * @param file - 被双击的图片条目（image 为图片 URL）
+ */
+function openImageViewerWindow(file: ExplorerEntry) {
+  if (!windowService || !file.image) return
+  const result = windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: 'imageViewer.title',
+      title: file.name,
+      icon: ImageIcon,
+      component: ImageViewer,
+      componentProps: { imageUrl: file.image, fileName: file.name },
+      defaultWidth: 560,
+      defaultHeight: 640,
+      placement: 'center',
+      resizable: true,
+      dockable: true,
+      dockTitle: file.name,
     },
   })
   if (result) {
@@ -535,12 +606,18 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 底部预览区：选中文件时显示文件名和内容 -->
+      <!-- 底部预览区：选中文件时显示文件名和内容（图片文件直接预览图片） -->
       <div v-if="selectedFile" class="explorer__preview">
         <div class="explorer__preview-header">
           <span>{{ t('applications.files.previewTitle') }}: {{ selectedFile.name }}</span>
         </div>
-        <pre class="explorer__preview-content">{{ (selectedContent ?? remoteSelectedContent) ?? t('applications.files.cannotOpen') }}</pre>
+        <img
+          v-if="selectedImage"
+          :src="selectedImage"
+          :alt="selectedFile.name"
+          class="explorer__preview-image"
+        />
+        <pre v-else class="explorer__preview-content">{{ (selectedContent ?? remoteSelectedContent) ?? t('applications.files.cannotOpen') }}</pre>
       </div>
     </div>
   </div>
@@ -718,5 +795,16 @@ onMounted(() => {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 图片预览（立绘 .png 等）：等比缩放铺满预览区 */
+.explorer__preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 8px auto;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 </style>

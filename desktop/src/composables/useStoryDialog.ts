@@ -99,10 +99,19 @@ export interface StoryStageCharacter {
   position: 'left' | 'center' | 'right'
   speakerNames: string[]
   animation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
-  /** 从图像顶部开始、与对话栏上沿对齐的比例，范围 0 ~ 1 */
+  /** 从图像顶部开始、与对话栏上沿对齐的比例，范围 0 ~ 1（anchorTop 存在时忽略） */
   anchorY?: number
-  /** 角色级视觉滤镜 */
+  /**
+   * 顶部对齐：图片**顶部**相对窗口顶部的偏移比例（相对图片高度）。
+   * 0 = 图片顶部贴窗口顶；0.1 = 图片顶部超出窗口顶部 10% 图片高度（顶部 10% 被遮住）；
+   * 负值 = 图片顶部沉入窗口内部（顶部留空）。
+   * 存在时优先于 anchorY，立绘向下自然沉入对话栏后方。
+   */
+  anchorTop?: number
+  /** 角色级视觉滤镜（可选） */
   effect?: 'hologram'
+  /** 立绘宽度倍率：1 = 默认（舞台宽 32%），2 = 放大一倍；放大后垂直对齐仍按实际渲染高度计算 */
+  scale?: number
 }
 
 /** 剧情节点（对白 / 多选 / 滑杆） */

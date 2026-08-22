@@ -56,6 +56,10 @@ export const jaJP = {
     deniedTitle: 'アクセス拒否',
     vtbReward: '謎のサイトを発見！{amount} VTB を追加しました。',
   },
+  /** 画像ビューア */
+  imageViewer: {
+    title: '画像ビューア',
+  },
   /** テキストエディタ */
   textEditor: {
     title: 'テキストエディタ',

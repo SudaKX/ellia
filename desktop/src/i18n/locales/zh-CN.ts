@@ -56,6 +56,10 @@ export const zhCN = {
     deniedTitle: '禁止访问',
     vtbReward: '发现神秘网址彩蛋！已为你增加 {amount} VTB。',
   },
+  /** 图片查看器 */
+  imageViewer: {
+    title: '图片查看器',
+  },
   /** 文本编辑器 */
   textEditor: {
     title: '文本编辑器',
