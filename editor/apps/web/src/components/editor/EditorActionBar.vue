@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-import type { EntityRecord } from '@ellia/puzzle-schema'
+import { isValidGroup, type EntityRecord } from '@ellia/puzzle-schema'
 
 import { syncClient } from '../../client/ws'
 import { useAuthStore } from '../../stores/auth'
@@ -9,6 +9,7 @@ import { useLocksStore } from '../../stores/locks'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import ModalDialog from '../ui/ModalDialog.vue'
 import LockOverlay from '../presence/LockOverlay.vue'
+import { triggerBlink } from '../../utils/blink'
 
 const props = defineProps<{
   entity: EntityRecord | null
@@ -33,6 +34,12 @@ const commentLocked = ref(false)
 const resourceIdDialogOpen = ref(false)
 const resourceIdDraft = ref('')
 const resourceIdLocked = ref(false)
+const resourceIdValueRef = ref<HTMLButtonElement | null>(null)
+const commentSurfaceRef = ref<HTMLDivElement | null>(null)
+const groupDialogOpen = ref(false)
+const groupDraft = ref('')
+const groupLocked = ref(false)
+const groupValueRef = ref<HTMLButtonElement | null>(null)
 
 function requestRollback(): void {
   if (props.entity) rollbackConfirmOpen.value = true
@@ -197,10 +204,95 @@ function cancelResourceId(): void {
   }
 }
 
+// ---------- group editing ----------
+
+const groupPath = computed(() => props.entity ? `${props.entity.id}@group:` : '')
+
+const groupLockInfo = computed(() => groupPath.value ? locks.holderOf(groupPath.value) : null)
+const groupLockedByOther = computed(() =>
+  Boolean(groupLockInfo.value && groupLockInfo.value.holder.id !== auth.user?.id),
+)
+
+async function openGroupDialog(): Promise<void> {
+  if (!props.entity) return
+  if (groupLockedByOther.value) return
+  busy.value = true
+  try {
+    await syncClient.lock(props.entity.id, groupPath.value)
+    groupLocked.value = true
+    groupDraft.value = props.entity.group
+    groupDialogOpen.value = true
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '无法获取编辑锁'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function saveGroup(): Promise<void> {
+  if (!props.entity || !groupLocked.value) return
+  const trimmed = groupDraft.value.trim()
+  if (!isValidGroup(trimmed)) {
+    message.value = '分组必须是 Python 模块名单段（小写字母/下划线开头，仅小写字母、数字、下划线）'
+    return
+  }
+  busy.value = true
+  message.value = null
+  let succeeded = false
+  try {
+    await syncClient.patch(props.entity.id, groupPath.value, trimmed)
+    succeeded = true
+    groupDialogOpen.value = false
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '保存失败'
+  } finally {
+    groupLocked.value = false
+    if (!succeeded) {
+      syncClient.unlock(props.entity.id, groupPath.value).catch(() => undefined)
+    }
+    busy.value = false
+  }
+}
+
+function cancelGroup(): void {
+  groupDialogOpen.value = false
+  if (groupLocked.value && props.entity) {
+    syncClient.unlock(props.entity.id, groupPath.value).catch(() => undefined)
+    groupLocked.value = false
+  }
+}
+
 watch(
   () => props.entity?.id,
   () => {
     message.value = null
+  },
+)
+
+watch(
+  () => [props.entity?.id, props.entity?.resource_id] as const,
+  ([newId, newValue], [oldId, oldValue]) => {
+    if (newId && newId === oldId && newValue !== oldValue) {
+      triggerBlink(resourceIdValueRef.value)
+    }
+  },
+)
+
+watch(
+  () => [props.entity?.id, props.entity?.comment] as const,
+  ([newId, newValue], [oldId, oldValue]) => {
+    if (newId && newId === oldId && newValue !== oldValue) {
+      triggerBlink(commentSurfaceRef.value)
+    }
+  },
+)
+
+watch(
+  () => [props.entity?.id, props.entity?.group] as const,
+  ([newId, newValue], [oldId, oldValue]) => {
+    if (newId && newId === oldId && newValue !== oldValue) {
+      triggerBlink(groupValueRef.value)
+    }
   },
 )
 </script>
@@ -211,6 +303,7 @@ watch(
       <div class="editor-actionbar__row1">
         <div class="editor-actionbar__resource-id">
           <button
+            ref="resourceIdValueRef"
             class="editor-actionbar__rid-btn"
             type="button"
             :disabled="resourceIdLockedByOther || busy"
@@ -219,6 +312,18 @@ watch(
             {{ entity.resource_id }}
           </button>
           <LockOverlay v-if="resourceIdLockInfo" :username="resourceIdLockInfo.holder.username" />
+        </div>
+        <div class="editor-actionbar__group">
+          <button
+            ref="groupValueRef"
+            class="editor-actionbar__group-btn"
+            type="button"
+            :disabled="groupLockedByOther || busy"
+            @click="openGroupDialog"
+          >
+            {{ entity.group }}
+          </button>
+          <LockOverlay v-if="groupLockInfo" :username="groupLockInfo.holder.username" />
         </div>
         <span class="muted">{{ entity.kind }}</span>
         <span class="muted">v{{ entity.version }} · r{{ entity.revision }}</span>
@@ -232,6 +337,7 @@ watch(
       </div>
       <div class="editor-actionbar__row2">
         <div
+          ref="commentSurfaceRef"
           class="editor-actionbar__comment-surface"
           :class="{ 'editor-actionbar__comment-surface--empty': !entity.comment }"
         >
@@ -333,6 +439,27 @@ watch(
         </div>
       </div>
     </ModalDialog>
+
+    <!-- group dialog -->
+    <ModalDialog
+      :open="groupDialogOpen"
+      title="修改分组"
+      confirm-label="保存"
+      cancel-label="取消"
+      :busy="busy"
+      @confirm="saveGroup"
+      @cancel="cancelGroup"
+    >
+      <div class="group-dialog">
+        <p class="group-dialog__desc">分组是导出时的 Python 模块名单段。</p>
+        <input
+          v-model="groupDraft"
+          class="group-dialog__field"
+          type="text"
+          placeholder="例如 main、chapter1"
+        />
+      </div>
+    </ModalDialog>
   </div>
 </template>
 
@@ -389,6 +516,34 @@ watch(
 }
 
 .editor-actionbar__rid-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.editor-actionbar__group {
+  position: relative;
+  display: inline-flex;
+}
+
+.editor-actionbar__group-btn {
+  min-height: 32px;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container-low, #f7f2fa);
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease;
+}
+
+.editor-actionbar__group-btn:hover {
+  background: var(--md-sys-color-surface-container-high, #ece6f0);
+}
+
+.editor-actionbar__group-btn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -504,5 +659,28 @@ watch(
 
 .resource-id-dialog__field:focus-visible {
   outline: none;
+}
+
+.group-dialog__desc {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+}
+
+.group-dialog__field {
+  width: 100%;
+  min-height: 32px;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container, #f3edf7);
+  color: var(--md-sys-color-on-surface, #1d1b20);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.group-dialog__field:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary, #6750a4);
+  outline-offset: 1px;
 }
 </style>

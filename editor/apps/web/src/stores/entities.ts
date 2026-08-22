@@ -14,7 +14,7 @@ import { parseDataPath } from '@ellia/puzzle-schema'
 
 import { syncClient } from '../client/ws'
 
-const ENTITY_STORAGE_PREFIX = 'ellia:entities:'
+const ENTITY_STORAGE_PREFIX = 'ellia:entities:v2:'
 
 function storageKey(projectId: string): string {
   return `${ENTITY_STORAGE_PREFIX}${projectId}`
@@ -120,6 +120,9 @@ export const useEntitiesStore = defineStore('entities', () => {
         ...entity,
         revision: message.revision,
         version: message.version,
+        group: message.group,
+        resource_id: message.resource_id,
+        comment: message.comment,
         state: message.state,
       },
     }

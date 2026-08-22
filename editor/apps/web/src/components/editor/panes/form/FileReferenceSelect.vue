@@ -1,21 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
-import { useEntitiesStore } from '../../../../stores/entities'
+import { useFilesStore } from '../../../../stores/files'
 import DropdownSelect from '../../../ui/DropdownSelect.vue'
 
 const props = withDefaults(
   defineProps<{
     modelValue: string
-    namespace: string
     disabled?: boolean
-    valueAsId?: boolean
     placeholder?: string
   }>(),
   {
     disabled: false,
-    valueAsId: false,
-    placeholder: '选择引用',
+    placeholder: '请选择文件',
   },
 )
 
@@ -23,20 +20,25 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
 }>()
 
-const entitiesStore = useEntitiesStore()
+const filesStore = useFilesStore()
 
 const options = computed(() =>
-  entitiesStore.entityList
-    .filter((entity) => entity.resource_id.startsWith(`${props.namespace}:`))
-    .map((entity) => ({
-      label: entity.resource_id,
-      value: props.valueAsId ? entity.id : entity.resource_id,
-    })),
+  filesStore.files.map((file) => ({
+    label: file.original_name ?? file.file_id,
+    value: file.file_id,
+  })),
 )
+
+onMounted(() => {
+  if (filesStore.files.length === 0) {
+    void filesStore.refresh()
+  }
+})
 </script>
 
 <template>
   <DropdownSelect
+    searchable
     :options="options"
     :model-value="modelValue"
     :disabled="disabled"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 export interface DropdownOption {
   label: string
@@ -12,10 +12,15 @@ const props = withDefaults(
     modelValue: string | number
     disabled?: boolean
     placeholder?: string
+    /** 是否在菜单顶部显示搜索框；开启后按 label / value 过滤选项 */
+    searchable?: boolean
+    searchPlaceholder?: string
   }>(),
   {
     disabled: false,
     placeholder: '请选择',
+    searchable: false,
+    searchPlaceholder: '搜索...',
   },
 )
 
@@ -24,8 +29,10 @@ const emit = defineEmits<{
 }>()
 
 const container = ref<HTMLElement | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
 const open = ref(false)
 const highlightIndex = ref(-1)
+const query = ref('')
 
 const selectedLabel = computed(
   () =>
@@ -33,46 +40,82 @@ const selectedLabel = computed(
     props.placeholder,
 )
 
+const filteredOptions = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!props.searchable || !q) return props.options
+  return props.options.filter(
+    (option) =>
+      option.label.toLowerCase().includes(q) ||
+      String(option.value).toLowerCase().includes(q),
+  )
+})
+
 function toggle(): void {
   if (props.disabled) return
   open.value = !open.value
-  if (open.value) {
-    highlightIndex.value = Math.max(
-      0,
-      props.options.findIndex((option) => String(option.value) === String(props.modelValue)),
-    )
-  }
 }
 
 function select(option: DropdownOption): void {
   emit('update:modelValue', option.value)
   open.value = false
+  query.value = ''
+  highlightIndex.value = -1
+}
+
+function onSearchInput(): void {
+  highlightIndex.value = -1
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (props.disabled) return
+
+  const inSearch = event.target === searchInputRef.value
+
   if (event.key === 'Enter' || event.key === ' ') {
+    if (inSearch) {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        const option = filteredOptions.value[highlightIndex.value]
+        if (open.value && option !== undefined) {
+          select(option)
+        } else {
+          open.value = false
+        }
+      }
+      // Space in search input keeps its default typing behavior.
+      return
+    }
     event.preventDefault()
     toggle()
     return
   }
+
   if (event.key === 'Escape') {
     open.value = false
     return
   }
-  if (!open.value) return
+
+  if (!open.value) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      open.value = true
+      highlightIndex.value = 0
+    }
+    return
+  }
+
   if (event.key === 'ArrowDown') {
     event.preventDefault()
-    highlightIndex.value = Math.min(props.options.length - 1, highlightIndex.value + 1)
+    highlightIndex.value = Math.min(filteredOptions.value.length - 1, highlightIndex.value + 1)
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
     highlightIndex.value = Math.max(0, highlightIndex.value - 1)
   } else if (event.key === 'Home') {
     highlightIndex.value = 0
   } else if (event.key === 'End') {
-    highlightIndex.value = props.options.length - 1
+    highlightIndex.value = filteredOptions.value.length - 1
   } else if (event.key === 'Enter' && highlightIndex.value >= 0) {
-    const option = props.options[highlightIndex.value]
+    const option = filteredOptions.value[highlightIndex.value]
     if (option) select(option)
   }
 }
@@ -82,6 +125,20 @@ function onClickOutside(event: PointerEvent): void {
     open.value = false
   }
 }
+
+watch(open, async (value) => {
+  if (value) {
+    query.value = ''
+    highlightIndex.value = Math.max(
+      0,
+      props.options.findIndex((option) => String(option.value) === String(props.modelValue)),
+    )
+    if (props.searchable) {
+      await nextTick()
+      searchInputRef.value?.focus()
+    }
+  }
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', onClickOutside)
@@ -106,24 +163,37 @@ onBeforeUnmount(() => {
       <span class="dropdown__caret" aria-hidden="true">▾</span>
     </button>
 
-    <div v-if="open" class="dropdown__menu" role="listbox">
-      <div v-if="options.length === 0" class="dropdown__empty">暂无选项</div>
-      <button
-        v-for="(option, index) in options"
-        :key="String(option.value)"
-        type="button"
-        class="dropdown__option"
-        :class="{
-          'dropdown__option--selected': String(option.value) === String(modelValue),
-          'dropdown__option--highlighted': index === highlightIndex,
-        }"
-        role="option"
-        :aria-selected="String(option.value) === String(modelValue)"
-        @mouseenter="highlightIndex = index"
-        @click="select(option)"
-      >
-        {{ option.label }}
-      </button>
+    <div v-if="open" class="dropdown__menu">
+      <div v-if="searchable" class="dropdown__search">
+        <input
+          ref="searchInputRef"
+          v-model="query"
+          class="dropdown__search-input"
+          type="text"
+          :placeholder="searchPlaceholder"
+          @input="onSearchInput"
+        />
+      </div>
+
+      <div class="dropdown__options" role="listbox">
+        <div v-if="filteredOptions.length === 0" class="dropdown__empty">暂无选项</div>
+        <button
+          v-for="(option, index) in filteredOptions"
+          :key="String(option.value)"
+          type="button"
+          class="dropdown__option"
+          :class="{
+            'dropdown__option--selected': String(option.value) === String(modelValue),
+            'dropdown__option--highlighted': index === highlightIndex,
+          }"
+          role="option"
+          :aria-selected="String(option.value) === String(modelValue)"
+          @mouseenter="highlightIndex = index"
+          @click="select(option)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -174,13 +244,43 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   z-index: 30;
+  display: flex;
+  flex-direction: column;
   max-height: 240px;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 4px;
   border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
   border-radius: 8px;
   background: var(--md-sys-color-surface-container-high, #ece6f0);
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.dropdown__search {
+  flex: none;
+  padding: 0 0 4px;
+}
+
+.dropdown__search-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container, #f3edf7);
+  color: var(--md-sys-color-on-surface, #1d1b20);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.dropdown__search-input:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary, #6750a4);
+  outline-offset: 1px;
+}
+
+.dropdown__options {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .dropdown__empty {

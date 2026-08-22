@@ -11,13 +11,18 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.29.1",
     "@ellia/puzzle-schema": "workspace:*",
+    "@lezer/highlight": "^1.2.3",
     "codemirror": "^6.0.1",
     "mediasoup-client": "^3.22.0",
     "pinia": "^4.0.2",
+    "thememirror": "^2.0.1",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"
   },

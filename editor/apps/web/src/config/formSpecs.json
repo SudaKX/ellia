@@ -1,9 +1,9 @@
 {
   "hint": {
     "source_asset_id": {
-      "type": "string",
-      "description": "引用的资产实体 resource_id（asset-path:…），提供提示文件内容（后端 Hint.source 必需）。",
-      "namespace": "asset-path"
+      "type": "ref",
+      "description": "引用的资产实体（asset）。",
+      "namespace": "asset"
     },
     "download_name": { "type": "string", "description": "下载时展示的文件名（后端必需，单一路径段）。" },
     "display": {
@@ -17,16 +17,16 @@
       }
     },
     "credit_id": {
-      "type": "string",
-      "description": "购买使用的货币类型 resource_id（credit-id:…）。",
-      "namespace": "credit-id"
+      "type": "ref",
+      "description": "购买使用的货币模板实体（credit）。",
+      "namespace": "credit"
     },
     "credit_amount": { "type": "number", "description": "货币价格（后端要求正整数）。" },
     "access_rule_block_id": {
-      "type": "string",
-      "description": "访问规则 Python 代码块 resource_id（python-name:…）。",
+      "type": "ref",
+      "description": "访问规则 Python 代码块实体（code）。",
       "optional": true,
-      "namespace": "python-name"
+      "namespace": "code"
     }
   },
 
@@ -37,83 +37,181 @@
       "format": "^[a-zA-Z0-9_-]{1,64}$"
     },
     "handler_block_id": {
-      "type": "string",
-      "description": "校验处理 Python 代码块 resource_id（python-name:…）。",
-      "namespace": "python-name"
+      "type": "ref",
+      "description": "校验处理 Python 代码块实体（code）。",
+      "namespace": "code"
     }
   },
 
   "task": {
-    "dependencies": { "type": "array", "description": "依赖的其他任务 ID。", "item": { "type": "string", "description": "依赖的任务 ID。" } },
+    "dependencies": {
+      "type": "bitflag",
+      "description": "任务 handler 需要加载的玩家接口位标志。",
+      "enums": [
+        "progress",
+        "artifacts",
+        "accounts",
+        "credits",
+        "hints",
+        "tasks",
+        "achievements"
+      ]
+    },
     "handler_block_id": {
-      "type": "string",
-      "description": "任务处理 Python 代码块 resource_id（python-name:…）。",
-      "optional": true,
-      "namespace": "python-name"
+      "type": "ref",
+      "description": "任务处理 Python 代码块实体（code）。",
+      "namespace": "code"
     }
   },
 
-  "event-listener": {
-    "event_type": { "type": "string", "description": "监听的事件类型。" },
-    "priority": { "type": "number", "description": "监听器优先级。" },
-    "dependencies": { "type": "array", "description": "依赖的其他监听器/事件。", "item": { "type": "string", "description": "依赖项。" } },
-    "listener_block_id": {
+  "listener": {
+    "event_type": {
       "type": "string",
-      "description": "事件监听 Python 代码块 resource_id（python-name:…）。",
-      "optional": true,
-      "namespace": "python-name"
+      "description": "监听的事件类型。",
+      "options": [
+        { "label": "player.constructed", "value": "player.constructed" },
+        { "label": "player.deconstructing", "value": "player.deconstructing" },
+        { "label": "account.login", "value": "account.login" }
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "description": "监听器优先级。",
+      "options": [
+        { "label": "early", "value": "early" },
+        { "label": "default", "value": "default" },
+        { "label": "late", "value": "late" }
+      ]
+    },
+    "dependencies": {
+      "type": "bitflag",
+      "description": "事件监听 handler 需要加载的玩家接口位标志。",
+      "enums": [
+        "progress",
+        "artifacts",
+        "accounts",
+        "credits",
+        "hints",
+        "tasks",
+        "achievements"
+      ]
+    },
+    "listener_block_id": {
+      "type": "ref",
+      "description": "事件监听 Python 代码块实体（code）。",
+      "namespace": "code"
     }
   },
 
   "achievement": {
-    "secret": { "type": "bool", "description": "是否为隐藏成就。" },
-    "display": {
-      "type": "object",
-      "description": "成就展示信息。",
-      "inner": {
-        "title": { "type": "string", "description": "成就标题。" },
-        "description": { "type": "string", "description": "成就描述。", "optional": true }
-      }
+    "immediate": {
+      "type": "bool",
+      "description": "达成后是否立即发放奖励。"
     },
-    "predicate_block_id": {
-      "type": "string",
-      "description": "成就判定 Python 代码块 resource_id（python-name:…）。",
-      "optional": true,
-      "namespace": "python-name"
+    "meta": {
+      "type": "json",
+      "description": "成就元数据（title、description 等）。"
     },
-    "reward_block_id": {
-      "type": "string",
-      "description": "成就奖励 Python 代码块 resource_id（python-name:…）。",
+    "condition": {
+      "type": "ref",
+      "description": "成就判定 Python 代码块实体（code）。",
       "optional": true,
-      "namespace": "python-name"
+      "namespace": "code"
+    },
+    "effect": {
+      "type": "ref",
+      "description": "成就奖励 Python 代码块实体（code）。",
+      "namespace": "code"
     }
   },
 
-  "account-template": {
+  "account": {
     "display_name": { "type": "string", "description": "账号显示名称。" },
-    "permission": { "type": "string", "description": "账号权限标识。" },
-    "metadata": { "type": "object", "description": "账号扩展元数据。", "inner": {} }
+    "permission": { "type": "number", "description": "账号权限标识（整数）。" },
+    "metadata": { "type": "json", "description": "账号扩展元数据。" }
   },
 
-  "credit-template": {
+  "credit": {
     "display_name": { "type": "string", "description": "货币显示名称。" },
-    "metadata": { "type": "object", "description": "货币扩展元数据。", "inner": {} }
+    "metadata": { "type": "json", "description": "货币扩展元数据。" }
   },
 
-  "artifact-template": {
-    "media_type": { "type": "string", "description": "生成文件的媒体类型。" },
-    "download_name": { "type": "string", "description": "下载文件名。", "optional": true },
-    "generator_block_id": {
-      "type": "string",
-      "description": "生成器 Python 代码块 resource_id（python-name:…）。",
+  "asset": {
+    "source_reference": {
+      "type": "ref",
+      "description": "source 引用（后续使用）。",
       "optional": true,
-      "namespace": "python-name"
+      "namespace": "source"
+    },
+    "file_reference": {
+      "type": "file",
+      "description": "引用当前已有的文件。",
+      "optional": true
+    },
+    "media_type": {
+      "type": "string",
+      "description": "媒体类型。",
+      "recommends": [
+        "application/octet-stream",
+        "text/plain",
+        "text/plain; charset=utf-8",
+        "text/html",
+        "text/css",
+        "application/json",
+        "application/javascript",
+        "application/xml",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/svg+xml",
+        "application/pdf",
+        "application/zip",
+        "application/x-tar",
+        "audio/mpeg",
+        "video/mp4"
+      ]
+    }
+  },
+
+  "artifact": {
+    "media_type": {
+      "type": "string",
+      "description": "生成文件的媒体类型。",
+      "recommends": [
+        "application/octet-stream",
+        "text/plain",
+        "text/plain; charset=utf-8",
+        "text/html",
+        "text/css",
+        "application/json",
+        "application/javascript",
+        "application/xml",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/svg+xml",
+        "application/pdf",
+        "application/zip",
+        "application/x-tar",
+        "audio/mpeg",
+        "video/mp4"
+      ]
+    },
+    "download_name": { "type": "string", "description": "下载文件名。", "optional": true },
+    "generator": {
+      "type": "ref",
+      "description": "生成器 Python 代码块实体（code）。",
+      "optional": true,
+      "namespace": "code"
     }
   },
 
   "artifact-node": {
-    "path": { "type": "string", "description": "节点在文件树中的路径。" },
-    "artifact_locator": { "type": "string", "description": "定位生成文件的标识。" },
+    "artifact": {
+      "type": "ref",
+      "description": "关联的 artifact 实体数据源。",
+      "namespace": "artifact"
+    },
     "display": {
       "type": "object",
       "description": "节点展示信息。",
@@ -126,17 +224,65 @@
     },
     "hidden": { "type": "bool", "description": "是否隐藏。" },
     "download_name": { "type": "string", "description": "下载文件名。", "optional": true },
-    "access_rule_block_id": {
-      "type": "string",
-      "description": "访问规则 Python 代码块 resource_id（python-name:…）。",
+    "access_rule": {
+      "type": "ref",
+      "description": "访问规则 Python 代码块实体（code）。",
       "optional": true,
-      "namespace": "python-name"
+      "namespace": "code"
     },
-    "node_generator_block_id": {
-      "type": "string",
-      "description": "节点生成器 Python 代码块 resource_id（python-name:…）。",
+    "node_generator": {
+      "type": "ref",
+      "description": "节点生成器 Python 代码块实体（code）。",
+      "namespace": "code"
+    }
+  },
+
+  "file-node": {
+    "display": {
+      "type": "object",
+      "description": "节点展示信息。",
+      "inner": {
+        "label": { "type": "string", "description": "节点显示名称。" },
+        "description": { "type": "string", "description": "节点描述。", "optional": true },
+        "icon": { "type": "string", "description": "语义化图标 token。", "optional": true },
+        "sort_order": { "type": "number", "description": "排序权重。", "optional": true }
+      }
+    },
+    "hidden": { "type": "bool", "description": "是否隐藏。" },
+    "download_name": { "type": "string", "description": "下载文件名。", "optional": true },
+    "source_asset": {
+      "type": "ref",
+      "description": "引用的资产实体（asset）。",
       "optional": true,
-      "namespace": "python-name"
+      "namespace": "asset"
+    },
+    "access_rule": {
+      "type": "ref",
+      "description": "访问规则 Python 代码块实体（code）。",
+      "optional": true,
+      "namespace": "code"
+    }
+  },
+
+  "progress-node": {
+    "how": {
+      "type": "ref",
+      "description": "branch 目标选择 Python 代码块实体（code）。",
+      "optional": true,
+      "namespace": "code"
+    },
+    "mode": {
+      "type": "string",
+      "description": "merge 合并模式。",
+      "optional": true,
+      "options": [
+        { "label": "and", "value": "and" },
+        { "label": "or", "value": "or" }
+      ]
+    },
+    "triggers_checkpoint": {
+      "type": "bool",
+      "description": "解锁该节点时是否触发 checkpoint。"
     }
   }
 }

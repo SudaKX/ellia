@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { EntityRecord } from '@ellia/puzzle-schema'
 
@@ -7,11 +7,13 @@ import { syncClient } from '../../../../client/ws'
 import { useAuthStore } from '../../../../stores/auth'
 import { useEditorTabsStore } from '../../../../stores/editorTabs'
 import { useEntitiesStore } from '../../../../stores/entities'
+import { useFilesStore } from '../../../../stores/files'
 import { useLocksStore } from '../../../../stores/locks'
 import { usePresenceStore } from '../../../../stores/presence'
 import { useTooltipStore } from '../../../../stores/tooltip'
 import UserBadge from '../../../presence/UserBadge.vue'
 import { getHashColorPair } from '../../../../utils/color'
+import { triggerBlink } from '../../../../utils/blink'
 import FieldEditDialog from './FieldEditDialog.vue'
 import type { FieldSpec } from './formTypes'
 import ObjectField from './ObjectField.vue'
@@ -28,6 +30,13 @@ const auth = useAuthStore()
 const locks = useLocksStore()
 const presence = usePresenceStore()
 const tooltip = useTooltipStore()
+const filesStore = useFilesStore()
+
+onMounted(() => {
+  if (filesStore.files.length === 0) {
+    void filesStore.refresh()
+  }
+})
 
 const lockInfo = computed(() => locks.holderOf(props.dataPath))
 const lockedByOther = computed(() => Boolean(lockInfo.value && lockInfo.value.holder.id !== auth.user?.id))
@@ -45,8 +54,27 @@ const entitiesStore = useEntitiesStore()
 const editorTabsStore = useEditorTabsStore()
 
 const referencedEntity = computed(() => {
-  if (!props.fieldSpec.namespace || typeof props.modelValue !== 'string') return null
-  return entitiesStore.entityList.find((entity) => entity.resource_id === props.modelValue) ?? null
+  if (props.fieldSpec.type !== 'ref' || typeof props.modelValue !== 'string') return null
+  return entitiesStore.entityList.find((entity) => entity.id === props.modelValue) ?? null
+})
+
+const isEmptyRef = computed(() => {
+  if (props.fieldSpec.type !== 'ref') return false
+  if (props.fieldSpec.optional && (props.modelValue === undefined || props.modelValue === null)) return false
+  if (props.modelValue === undefined || props.modelValue === null || props.modelValue === '') return true
+  return typeof props.modelValue === 'string' && !referencedEntity.value
+})
+
+const fileRecord = computed(() => {
+  if (props.fieldSpec.type !== 'file' || typeof props.modelValue !== 'string') return null
+  return props.modelValue ? filesStore.findById(props.modelValue) : null
+})
+
+const isEmptyFile = computed(() => {
+  if (props.fieldSpec.type !== 'file') return false
+  if (props.fieldSpec.optional && (props.modelValue === undefined || props.modelValue === null)) return false
+  if (props.modelValue === undefined || props.modelValue === null || props.modelValue === '') return true
+  return typeof props.modelValue === 'string' && !fileRecord.value
 })
 
 const displayValue = computed(() => {
@@ -57,9 +85,16 @@ const displayValue = computed(() => {
       return value ? '是' : '否'
     case 'array':
       return Array.isArray(value) ? `${value.length} 项` : '（空）'
+    case 'ref':
+      return referencedEntity.value?.resource_id ?? (value === undefined || value === null ? '（空）' : String(value))
+    case 'file':
+      return fileRecord.value?.original_name ?? fileRecord.value?.file_id ?? (value === undefined || value === null ? '（空）' : String(value))
     case 'string':
     case 'number':
+    case 'bitflag':
       return value === undefined || value === null ? '（空）' : String(value)
+    case 'json':
+      return value === undefined || value === null ? '（空）' : JSON.stringify(value)
     default:
       return ''
   }
@@ -73,9 +108,16 @@ const fullValueText = computed(() => {
       return value ? '是' : '否'
     case 'array':
       return Array.isArray(value) ? JSON.stringify(value, null, 2) : '（空）'
+    case 'ref':
+      return referencedEntity.value?.resource_id ?? (value === undefined || value === null ? '（空）' : String(value))
+    case 'file':
+      return fileRecord.value?.original_name ?? fileRecord.value?.file_id ?? (value === undefined || value === null ? '（空）' : String(value))
     case 'string':
     case 'number':
+    case 'bitflag':
       return value === undefined || value === null ? '（空）' : String(value)
+    case 'json':
+      return value === undefined || value === null ? '（空）' : JSON.stringify(value, null, 2)
     default:
       return ''
   }
@@ -105,47 +147,11 @@ onBeforeUnmount(() => {
 
 const valueRef = ref<HTMLButtonElement | null>(null)
 
-function triggerBlink(): void {
-  const element = valueRef.value
-  if (!element) return
-
-  const rootStyle = getComputedStyle(document.documentElement)
-  const primary = rootStyle.getPropertyValue('--md-sys-color-primary').trim() || '#6750a4'
-  const onPrimary = rootStyle.getPropertyValue('--md-sys-color-on-primary').trim() || '#ffffff'
-
-  const currentStyle = getComputedStyle(element)
-  const currentBackground = currentStyle.backgroundColor
-  const currentColor = currentStyle.color
-  const currentBorder = currentStyle.borderColor
-
-  // 取消上一次未完成的闪烁动画，避免叠加
-  element.getAnimations().forEach((animation) => animation.cancel())
-
-  element.animate(
-    [
-      {
-        backgroundColor: primary,
-        color: onPrimary,
-        borderColor: primary,
-      },
-      {
-        backgroundColor: currentBackground,
-        color: currentColor,
-        borderColor: currentBorder,
-      },
-    ],
-    {
-      duration: 300,
-      easing: 'ease',
-    },
-  )
-}
-
 watch(
   () => props.modelValue,
   (newValue, oldValue) => {
     if (newValue === oldValue) return
-    triggerBlink()
+    triggerBlink(valueRef.value)
   },
 )
 
@@ -293,7 +299,7 @@ function openReferencedEntity(): void {
           class="form-field__value"
           :class="{
             'form-field__value--unset': isUnset,
-            'form-field__value--empty-string': isEmptyString,
+            'form-field__value--empty-string': isEmptyString || isEmptyRef || isEmptyFile,
           }"
           type="button"
           :disabled="lockedByOther || busy"

@@ -101,6 +101,14 @@ function defaultValueFor(spec: FieldSpec): unknown {
       return {}
     case 'array':
       return []
+    case 'bitflag':
+      return 0
+    case 'json':
+      return {}
+    case 'ref':
+      return ''
+    case 'file':
+      return ''
     default:
       return ''
   }

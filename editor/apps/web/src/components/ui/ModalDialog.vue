@@ -11,6 +11,7 @@ const props = withDefaults(
     danger?: boolean
     busy?: boolean
     confirmDisabled?: boolean
+    wide?: boolean
   }>(),
   {
     confirmLabel: '确认',
@@ -19,6 +20,7 @@ const props = withDefaults(
     danger: false,
     busy: false,
     confirmDisabled: false,
+    wide: false,
   },
 )
 
@@ -62,6 +64,7 @@ onBeforeUnmount(() => {
       <div
         ref="dialogRef"
         class="modal-dialog"
+        :class="{ 'modal-dialog--wide': wide }"
         role="dialog"
         aria-modal="true"
         :aria-label="title"
@@ -117,7 +120,11 @@ onBeforeUnmount(() => {
   color: var(--md-sys-color-on-surface, #1d1b20);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
-  overflow: hidden;
+  overflow: visible;
+}
+
+.modal-dialog--wide {
+  width: min(760px, 100%);
 }
 
 .modal-dialog__header {
@@ -131,6 +138,7 @@ onBeforeUnmount(() => {
 }
 
 .modal-dialog__body {
+  min-width: 0;
   padding: 16px;
 }
 

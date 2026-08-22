@@ -7,33 +7,28 @@ import {
   type UiKind,
 } from '@ellia/puzzle-schema'
 
-import AssetEditor from './panes/AssetEditor.vue'
-import CodeEditor from './panes/CodeEditor.vue'
+import CodeBlockEditor from './panes/CodeBlockEditor.vue'
 import FileTreeEditor from './panes/FileTreeEditor.vue'
-import FileTreeNodeEditor from './panes/FileTreeNodeEditor.vue'
 import FormEditor from './panes/FormEditor.vue'
 import ProgressDagEditor from './panes/ProgressDagEditor.vue'
-import ProgressNodeEditor from './panes/ProgressNodeEditor.vue'
 import ScriptEditor from './panes/ScriptEditor.vue'
 
 const kindRegistry = new Map<EntityKind, Component>()
 const uiKindRegistry = new Map<UiKind, Component>()
 
-registerKindEditor('progress-node', ProgressNodeEditor)
-registerKindEditor('file-tree-node', FileTreeNodeEditor)
+registerKindEditor('progress-node', FormEditor)
 registerKindEditor('file-tree', FileTreeEditor)
 registerKindEditor('progress-dag', ProgressDagEditor)
-registerKindEditor('asset', AssetEditor)
+registerKindEditor('asset', FormEditor)
 registerKindEditor('script', ScriptEditor)
-registerKindEditor('python-block', CodeEditor)
+registerKindEditor('code', CodeBlockEditor)
 
-registerUiKindEditor('dag-node', ProgressNodeEditor)
-registerUiKindEditor('tree-node', FileTreeNodeEditor)
+registerUiKindEditor('dag-node', FormEditor)
 registerUiKindEditor('file-tree', FileTreeEditor)
 registerUiKindEditor('progress-dag', ProgressDagEditor)
-registerUiKindEditor('asset', AssetEditor)
+registerUiKindEditor('asset', FormEditor)
 registerUiKindEditor('script', ScriptEditor)
-registerUiKindEditor('code', CodeEditor)
+registerUiKindEditor('code', CodeBlockEditor)
 registerUiKindEditor('form', FormEditor)
 
 export function registerKindEditor(kind: EntityKind, component: Component): void {

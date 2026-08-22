@@ -14,8 +14,6 @@ import DropdownSelect from '../../ui/DropdownSelect.vue'
 import TextField from '../../ui/TextField.vue'
 import { CREATE_TEMPLATES } from './createTemplates'
 
-const CUSTOM_GROUP = '__custom__'
-
 const entitiesStore = useEntitiesStore()
 
 const selectedKind = ref<EntityKind>('hint')
@@ -37,24 +35,8 @@ const existingGroups = computed(() =>
   [...new Set(entitiesStore.entityList.map((entity) => entity.group))].sort(),
 )
 
-const groupChoice = ref<string>(
-  existingGroups.value.includes('main') ? 'main' : CUSTOM_GROUP,
-)
-const customGroup = ref('main')
-
-const isCustomGroup = computed(() => groupChoice.value === CUSTOM_GROUP)
-const effectiveGroup = computed(() =>
-  isCustomGroup.value ? customGroup.value.trim() : groupChoice.value,
-)
-
-const groupOptions = computed(() => [
-  ...existingGroups.value.map((group) => ({ label: group, value: group })),
-  { label: '新增分组...', value: CUSTOM_GROUP },
-])
-
-watch(groupChoice, (value) => {
-  if (value !== CUSTOM_GROUP) customGroup.value = value
-})
+const groupInput = ref('main')
+const effectiveGroup = computed(() => groupInput.value.trim())
 
 function resetForKind(kind: EntityKind): void {
   const nextTemplate = CREATE_TEMPLATES[kind]
@@ -124,6 +106,7 @@ async function createEntity(): Promise<void> {
       <label class="create-entity-field">
         <span>类别</span>
         <DropdownSelect
+          searchable
           :options="ENTITY_KINDS.map((kind) => ({ label: kind, value: kind }))"
           :model-value="selectedKind"
           @update:model-value="(value) => selectedKind = value as EntityKind"
@@ -135,21 +118,12 @@ async function createEntity(): Promise<void> {
 
       <label class="create-entity-field">
         <span>分组</span>
-        <DropdownSelect
-          :options="groupOptions"
-          :model-value="groupChoice"
-          placeholder="选择分组"
-          @update:model-value="(value) => groupChoice = String(value)"
+        <TextField
+          v-model="groupInput"
+          :recommends="existingGroups"
+          placeholder="选择或输入分组"
         />
       </label>
-
-      <div class="create-entity-field">
-        <TextField
-          v-model="customGroup"
-          placeholder="输入自定义分组"
-          :disabled="!isCustomGroup"
-        />
-      </div>
 
       <label class="create-entity-field">
         <span>资源标识符</span>

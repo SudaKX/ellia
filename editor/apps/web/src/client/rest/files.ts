@@ -10,6 +10,7 @@ export function uploadFile(
   bytes: Blob,
   mediaType: string,
   originalName?: string,
+  module?: string,
 ): Promise<ApiFileRecord> {
   const headers = new Headers()
   headers.set('content-type', mediaType)
@@ -19,6 +20,9 @@ export function uploadFile(
     } else {
       headers.set('x-original-name-base64', base64EncodeUtf8(originalName))
     }
+  }
+  if (module) {
+    headers.set('x-module', module)
   }
   return request<ApiFileRecord>('/api/files', {
     method: 'POST',
