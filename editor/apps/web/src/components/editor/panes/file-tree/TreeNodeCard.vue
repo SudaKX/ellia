@@ -5,7 +5,6 @@ defineProps<{
   node: FileTreeNode
   selected?: boolean
   highlighted?: boolean
-  editing?: boolean
   directory?: boolean
 }>()
 
@@ -21,7 +20,6 @@ defineEmits<{
     :class="{
       'tree-node-card--selected': selected,
       'tree-node-card--highlighted': highlighted,
-      'tree-node-card--editing': editing,
     }"
     @click="$emit('select')"
   >
@@ -67,14 +65,6 @@ defineEmits<{
 
 .tree-node-card--selected:hover {
   background: var(--md-sys-color-primary-container, #eaddff);
-}
-
-.tree-node-card--editing {
-  border-color: var(--app-warning, #c66900);
-}
-
-.tree-node-card--editing:hover {
-  background: var(--app-warning-container, #ffe0b2);
 }
 
 .tree-node-card__icon {

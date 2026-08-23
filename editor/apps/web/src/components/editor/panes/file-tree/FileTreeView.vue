@@ -9,7 +9,7 @@ import FileTreeLevel from './FileTreeLevel.vue'
 const props = defineProps<{
   state: FileTreeState
   selectedId: string | null
-  editingNodeIds: Set<string>
+  lockHolders: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -70,7 +70,7 @@ const levels = computed(() =>
       :nodes="level.nodes"
       :selected-id="selectedId"
       :highlighted-ids="chain"
-      :editing-node-ids="editingNodeIds"
+      :lock-holders="lockHolders"
       :directory-by-id="directoryById"
       :can-add="level.canAdd"
       @select="(node) => emit('select', node.id)"

@@ -33,16 +33,16 @@ onBeforeUnmount(() => {
 const state = computed(() => props.entity.state as unknown as FileTreeState)
 const treeId = computed(() => props.entity.id)
 
-const editingNodeIds = computed(() => {
-  const ids = new Set<string>()
+const lockHolders = computed(() => {
+  const holders: Record<string, string> = {}
   const prefix = `${treeId.value}@state:/nodes/`
   for (const lock of locks.lockList) {
     if (lock.entityId !== treeId.value) continue
     if (lock.dataPath.startsWith(prefix)) {
-      ids.add(lock.dataPath.slice(prefix.length))
+      holders[lock.dataPath.slice(prefix.length)] = lock.holder.username
     }
   }
-  return ids
+  return holders
 })
 
 function applyLocalPatch(
@@ -288,7 +288,7 @@ function depthOf(nodeId: string): number {
       <FileTreeView
         :state="state"
         :selected-id="selectedNodeId"
-        :editing-node-ids="editingNodeIds"
+        :lock-holders="lockHolders"
         @select="(nodeId) => selectedNodeId = nodeId"
         @select-parent="(parentId) => selectedNodeId = parentId"
         @add="openAddDialog"

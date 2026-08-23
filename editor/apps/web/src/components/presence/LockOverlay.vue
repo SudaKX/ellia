@@ -3,15 +3,25 @@ import { computed } from 'vue'
 
 import { getHashColorPair } from '../../utils/color'
 
-const props = defineProps<{
-  username: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    username: string
+    block?: boolean
+  }>(),
+  {
+    block: true,
+  },
+)
 
 const colors = computed(() => getHashColorPair(props.username))
 </script>
 
 <template>
-  <div class="lock-overlay" :style="{ borderColor: colors.background }">
+  <div
+    class="lock-overlay"
+    :class="{ 'lock-overlay--non-blocking': !block }"
+    :style="{ borderColor: colors.background }"
+  >
     <div
       class="lock-overlay__tag"
       :style="{
@@ -38,6 +48,12 @@ const colors = computed(() => getHashColorPair(props.username))
   backdrop-filter: brightness(0.6);
 }
 
+.lock-overlay--non-blocking {
+  pointer-events: none;
+  cursor: default;
+  backdrop-filter: none;
+}
+
 .lock-overlay__tag {
   position: absolute;
   right: 0;
@@ -48,7 +64,8 @@ const colors = computed(() => getHashColorPair(props.username))
   max-width: calc(100% - 12px);
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 8px 0 0 0;
+  border-radius: 8px 0 8px 0;
+  translate: 2px 2px;
   font-size: 0.7rem;
   white-space: nowrap;
   overflow: hidden;

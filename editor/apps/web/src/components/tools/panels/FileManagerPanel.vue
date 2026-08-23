@@ -277,6 +277,7 @@ async function performDelete(): Promise<void> {
   border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
   border-radius: 8px;
   box-sizing: border-box;
+  background: transparent;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -287,7 +288,7 @@ async function performDelete(): Promise<void> {
 
 .file-manager__item--selected {
   border-color: var(--md-sys-color-primary, #6750a4);
-  background: var(--md-sys-color-primary-container, #eaddff);
+  background: transparent;
 }
 
 .file-manager__item-main {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FileTreeNode } from '@ellia/puzzle-schema'
 
+import LockOverlay from '../../../presence/LockOverlay.vue'
 import TreeNodeCard from './TreeNodeCard.vue'
 
 defineProps<{
@@ -9,7 +10,7 @@ defineProps<{
   nodes: FileTreeNode[]
   selectedId: string | null
   highlightedIds: string[]
-  editingNodeIds: Set<string>
+  lockHolders: Record<string, string>
   directoryById: Record<string, boolean>
   canAdd: boolean
 }>()
@@ -30,16 +31,24 @@ defineEmits<{
     </header>
 
     <div class="file-tree-level__list">
-      <TreeNodeCard
+      <div
         v-for="node in nodes"
         :key="node.id"
-        :node="node"
-        :selected="node.id === selectedId"
-        :highlighted="highlightedIds.includes(node.id)"
-        :editing="editingNodeIds.has(node.id)"
-        :directory="Boolean(directoryById[node.id])"
-        @select="$emit('select', node)"
-      />
+        class="file-tree-level__node-wrap"
+      >
+        <TreeNodeCard
+          :node="node"
+          :selected="node.id === selectedId"
+          :highlighted="highlightedIds.includes(node.id)"
+          :directory="Boolean(directoryById[node.id])"
+          @select="$emit('select', node)"
+        />
+        <LockOverlay
+          v-if="lockHolders[node.id]"
+          :username="lockHolders[node.id] ?? ''"
+          :block="false"
+        />
+      </div>
       <p v-if="nodes.length === 0" class="file-tree-level__empty">空目录</p>
     </div>
 
@@ -92,6 +101,11 @@ defineEmits<{
   flex-direction: column;
   gap: 6px;
   padding: 8px;
+}
+
+.file-tree-level__node-wrap {
+  position: relative;
+  width: 100%;
 }
 
 .file-tree-level__empty {
