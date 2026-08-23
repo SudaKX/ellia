@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 
 import type { EntityRecord, MarkdownSegment } from '@ellia/puzzle-schema'
 
@@ -37,12 +37,37 @@ const lockedByOther = computed(
   () => Boolean(lockInfo.value && lockInfo.value.holder.id !== auth.user?.id),
 )
 
+const cardRef = ref<HTMLElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
+let resizeObserver: ResizeObserver | null = null
+
 const editing = ref(false)
 const draftContent = ref(props.segment.content)
 const busy = ref(false)
 const message = ref<string | null>(null)
 
 const rendered = computed(() => renderMarkdown(props.segment.content))
+
+function syncHeight(): void {
+  if (!cardRef.value || !contentRef.value) return
+  const style = getComputedStyle(cardRef.value)
+  const verticalBorder =
+    parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+  const next = contentRef.value.offsetHeight + verticalBorder
+  cardRef.value.style.height = `${next}px`
+}
+
+function startObserving(): void {
+  stopObserving()
+  if (!contentRef.value) return
+  resizeObserver = new ResizeObserver(() => syncHeight())
+  resizeObserver.observe(contentRef.value)
+}
+
+function stopObserving(): void {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+}
 
 async function startEditing(): Promise<void> {
   if (editing.value || lockedByOther.value) return
@@ -117,69 +142,83 @@ watch(lockedByOther, (value) => {
   }
 })
 
+onMounted(() => {
+  syncHeight()
+  startObserving()
+})
+
+onActivated(() => {
+  syncHeight()
+  startObserving()
+})
+
 onBeforeUnmount(() => {
+  stopObserving()
   if (editing.value) {
     syncClient.unlock(props.entity.id, lockPath.value).catch(() => undefined)
   }
 })
 
 onDeactivated(() => {
+  stopObserving()
   void stopEditing(true)
 })
 </script>
 
 <template>
-  <div class="md-card" :class="{ 'md-card--editing': editing }">
-    <div v-if="!editing" class="md-card__preview markdown-body" v-html="rendered" />
-    <div v-else class="md-card__editor">
-      <MarkdownCodeEditor v-model="draftContent" />
+  <div ref="cardRef" class="md-card" :class="{ 'md-card--editing': editing }">
+    <div ref="contentRef" class="md-card__content">
+      <div v-if="!editing" class="md-card__preview markdown-body" v-html="rendered" />
+      <div v-else class="md-card__editor">
+        <MarkdownCodeEditor v-model="draftContent" />
+      </div>
+
+      <div class="md-card__probe">
+        <button
+          v-if="!editing"
+          class="md-card__edit-btn btn btn--small btn--tonal"
+          type="button"
+          :disabled="busy || lockedByOther"
+          @click="startEditing"
+        >
+          {{ lockedByOther ? '已锁定' : '编辑' }}
+        </button>
+        <div v-else class="md-card__actions">
+          <button
+            class="btn btn--small btn--text"
+            type="button"
+            :disabled="busy || isFirst"
+            @click="move(-1)"
+          >
+            上移
+          </button>
+          <button
+            class="btn btn--small btn--text"
+            type="button"
+            :disabled="busy || isLast"
+            @click="move(1)"
+          >
+            下移
+          </button>
+          <button class="btn btn--small btn--primary" type="button" :disabled="busy" @click="save">
+            确定
+          </button>
+          <button class="btn btn--small btn--danger" type="button" :disabled="busy" @click="remove">
+            删除
+          </button>
+          <button class="btn btn--small btn--text" type="button" :disabled="busy" @click="cancel">
+            取消
+          </button>
+        </div>
+      </div>
+
+      <p v-if="message" class="error-text md-card__error" role="alert">{{ message }}</p>
     </div>
 
     <LockOverlay
       v-if="lockedByOther && lockInfo"
       :username="lockInfo.holder.username"
     />
-
-    <div class="md-card__probe">
-      <button
-        v-if="!editing"
-        class="md-card__edit-btn btn btn--small btn--tonal"
-        type="button"
-        :disabled="busy || lockedByOther"
-        @click="startEditing"
-      >
-        {{ lockedByOther ? '已锁定' : '编辑' }}
-      </button>
-      <div v-else class="md-card__actions">
-        <button
-          class="btn btn--small btn--text"
-          type="button"
-          :disabled="busy || isFirst"
-          @click="move(-1)"
-        >
-          上移
-        </button>
-        <button
-          class="btn btn--small btn--text"
-          type="button"
-          :disabled="busy || isLast"
-          @click="move(1)"
-        >
-          下移
-        </button>
-        <button class="btn btn--small btn--primary" type="button" :disabled="busy" @click="save">
-          确定
-        </button>
-        <button class="btn btn--small btn--danger" type="button" :disabled="busy" @click="remove">
-          删除
-        </button>
-        <button class="btn btn--small btn--text" type="button" :disabled="busy" @click="cancel">
-          取消
-        </button>
-      </div>
-    </div>
-
-    <p v-if="message" class="error-text md-card__error" role="alert">{{ message }}</p>
   </div>
 </template>
 
@@ -189,7 +228,9 @@ onDeactivated(() => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 12px;
+  padding: 0;
+  overflow: hidden;
+  transition: height 0.2s ease;
   border: 0;
   border-top: 1px solid var(--md-sys-color-surface-container-highest, #e6e0e9);
   border-left: 1px solid var(--md-sys-color-surface-container-highest, #e6e0e9);
@@ -213,15 +254,24 @@ onDeactivated(() => {
   padding: 0;
 }
 
+.md-card__content {
+  display: flow-root;
+  min-width: 0;
+  padding: 12px;
+}
+
+.md-card--editing .md-card__content {
+  padding: 0;
+}
+
 .md-card__preview {
   min-height: 32px;
   overflow-wrap: anywhere;
 }
 
 .md-card__editor {
-  height: 240px;
-  min-height: 0;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
   border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
   border-radius: 6px;
   background: var(--md-sys-color-surface-container-high, #ece6f0);
@@ -254,6 +304,7 @@ onDeactivated(() => {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
+  margin: 32px 0 0 32px;
 }
 
 .md-card__probe:hover .md-card__edit-btn,
