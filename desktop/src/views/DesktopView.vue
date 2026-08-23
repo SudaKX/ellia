@@ -44,7 +44,7 @@
  * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
  */
 
-import { computed, markRaw, onBeforeUnmount, onMounted, provide, reactive, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -668,18 +668,51 @@ function handleDockAppClick(target: DockClickTarget) {
   }
 }
 
+/**
+ * 浏览器标签页标题管理：
+ * - 聚焦虚拟窗口时显示该窗口标题栏文本（与 WindowFrame 的展示逻辑一致）
+ * - 整个浏览器标签页被隐藏/失焦（切后台、被覆盖）时显示等待文案
+ * - 无聚焦窗口时显示默认标题
+ */
+const DEFAULT_TAB_TITLE = 'Ellia'
+const HIDDEN_TAB_TITLE = 'Ellia：我在这等你'
+
+/** 当前聚焦窗口的标题栏文本，供标签页标题复用 */
+const activeWindowTabTitle = computed(() => {
+  const win = windowService.activeWindow.value
+  if (!win) return null
+  return win.title ?? (win.id === aiWindowId.value ? aiTitle.value : undefined) ?? t(win.titleKey)
+})
+
+/** 同步 document.title：隐藏/失焦时显示等待文案，否则显示聚焦窗口标题 */
+function syncTabTitle() {
+  const isHidden = document.visibilityState === 'hidden' || !document.hasFocus()
+  document.title = isHidden ? HIDDEN_TAB_TITLE : (activeWindowTabTitle.value ?? DEFAULT_TAB_TITLE)
+}
+
 onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
   void creditsStore.fetchBalances()
   initAiWindow()
   // initLive2dWindow() — Live2D 暂时隐藏
+
+  // 标签页标题：监听焦点/可见性变化 + 聚焦窗口变化
+  window.addEventListener('focus', syncTabTitle)
+  window.addEventListener('blur', syncTabTitle)
+  document.addEventListener('visibilitychange', syncTabTitle)
+  watch(activeWindowTabTitle, syncTabTitle)
+  syncTabTitle()
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
   if (restartTimer) clearTimeout(restartTimer)
   filterService.destroy(windowGlitchFilter.instanceId)
+
+  window.removeEventListener('focus', syncTabTitle)
+  window.removeEventListener('blur', syncTabTitle)
+  document.removeEventListener('visibilitychange', syncTabTitle)
 })
 </script>
 

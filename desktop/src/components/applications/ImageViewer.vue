@@ -18,7 +18,7 @@ const props = defineProps<{
 }>()
 
 const MIN_SCALE = 0.25
-const MAX_SCALE = 16
+const MAX_SCALE = 32
 const WHEEL_FACTOR = 1.1
 const BUTTON_FACTOR = 1.25
 

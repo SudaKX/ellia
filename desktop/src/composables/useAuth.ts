@@ -38,6 +38,7 @@
 
 import { computed, ref } from 'vue'
 import { useDesktopStore } from '@/stores/desktop'
+import { startMediaPrecache } from '@/utils/mediaPrecache'
 import { AUTH_ENDPOINTS, USE_REAL_API } from '@/config/api'
 
 const TOKEN_KEY = 'ell_auth_token'
@@ -96,6 +97,9 @@ function createAuth() {
     desktop.currentUser = user
     desktop.accountType = type
     desktop.privilegeClass = type === 'admin' ? 'ADMIN' : 'LIMITED'
+
+    // 登录成功后后台预缓存多媒体资源到用户侧（fire-and-forget，见 utils/mediaPrecache）
+    void startMediaPrecache()
   }
 
   /** 退出登录：清除所有认证状态；真实模式额外通知后端删除 refresh Cookie */
