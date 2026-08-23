@@ -378,6 +378,160 @@ describe('entities service', () => {
     )
   })
 
+  it('questionnaire 使用 source 命名空间并校验 questions/sort', () => {
+    const questionnaire = createEntity(
+      projectId,
+      {
+        kind: 'questionnaire',
+        ui_kind: 'questionnaire',
+        resource_id: 'source:survey',
+        state: {
+          description: '# Survey',
+          sort: ['q1', 'q2'],
+          questions: {
+            q1: {
+              id: 'q1',
+              type: 'choice',
+              description: '请选择',
+              data: { single: true, options: ['A', 'B'] },
+            },
+            q2: {
+              id: 'q2',
+              type: 'text',
+              description: '请填空',
+              data: { format: '^[0-9]{4}$' },
+            },
+          },
+        },
+      },
+      adminId,
+    )
+    assert.equal(questionnaire.state.questions.q1.type, 'choice')
+    assert.deepEqual(questionnaire.state.sort, ['q1', 'q2'])
+
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'source:bad',
+            state: {
+              description: '',
+              sort: ['q1'],
+              questions: {
+                q1: { id: 'q1', type: 'unknown', description: '', data: { single: true, options: ['A'] } },
+              },
+            },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('type'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'source:bad',
+            state: {
+              description: '',
+              sort: ['q1'],
+              questions: {
+                q1: { id: 'q1', type: 'choice', description: '', data: { single: true } },
+              },
+            },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('options'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'source:bad',
+            state: {
+              description: '',
+              sort: ['q1', 'q1'],
+              questions: {
+                q1: { id: 'q1', type: 'text', description: '', data: { format: null } },
+              },
+            },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('重复'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'source:bad',
+            state: {
+              description: '',
+              sort: ['q1'],
+              questions: {
+                q1: { id: 'q1', type: 'text', description: '', data: { format: null } },
+                q2: { id: 'q2', type: 'text', description: '', data: { format: null } },
+              },
+            },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('完整覆盖'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'source:bad',
+            state: {
+              description: '',
+              sort: ['q1'],
+              questions: {
+                q1: { id: 'other', type: 'text', description: '', data: { format: null } },
+              },
+            },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('必须与键一致'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'questionnaire',
+            ui_kind: 'questionnaire',
+            resource_id: 'script:bad',
+            state: { description: '', sort: [], questions: {} },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION',
+    )
+  })
+
   it('file-tree / dag 容器持有拓扑，节点不携带拓扑', () => {
     const tree = createEntity(
       projectId,

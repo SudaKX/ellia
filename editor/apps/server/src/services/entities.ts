@@ -87,7 +87,7 @@ export function toEntityRecord(entity: Entity): EntityRecord {
 
 export function assertKind(value: unknown): EntityKind {
   if (typeof value !== 'string' || !(ENTITY_KINDS as readonly string[]).includes(value)) {
-    throw new ApiError(400, 'VALIDATION', `kind 必须是 16 种实体种类之一`)
+    throw new ApiError(400, 'VALIDATION', `kind 必须是 17 种实体种类之一`)
   }
   return value as EntityKind
 }
@@ -379,6 +379,56 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
         }
         if (typeof segment.content !== 'string') {
           throw new ApiError(400, 'VALIDATION', `markdown.segments[${segmentId}].content 必须是字符串`)
+        }
+      }
+      return
+    }
+    case 'questionnaire': {
+      requiredString('description', 'questionnaire.description')
+      assertStringArray(s.sort, 'questionnaire.sort')
+      if (!isRecord(s.questions)) {
+        throw new ApiError(400, 'VALIDATION', 'questionnaire.questions 必须是 QuestionId → QuestionnaireQuestion 映射')
+      }
+      const sort = s.sort as string[]
+      if (new Set(sort).size !== sort.length) {
+        throw new ApiError(400, 'VALIDATION', 'questionnaire.sort 不能包含重复 UUID')
+      }
+      const questionIds = Object.keys(s.questions)
+      if (sort.length !== questionIds.length || questionIds.some((id) => !sort.includes(id))) {
+        throw new ApiError(400, 'VALIDATION', 'questionnaire.sort 必须完整覆盖 questions 的所有 key')
+      }
+      for (const [questionId, rawQuestion] of Object.entries(s.questions)) {
+        if (!isRecord(rawQuestion)) {
+          throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}] 必须是对象`)
+        }
+        const question = rawQuestion as Record<string, unknown>
+        if (question.id !== questionId) {
+          throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].id 必须与键一致`)
+        }
+        if (question.type !== 'choice' && question.type !== 'text') {
+          throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].type 必须为 choice 或 text`)
+        }
+        if (typeof question.description !== 'string') {
+          throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].description 必须是字符串`)
+        }
+        if (!isRecord(question.data)) {
+          throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].data 必须是对象`)
+        }
+        const data = question.data as Record<string, unknown>
+        if (question.type === 'choice') {
+          if (typeof data.single !== 'boolean') {
+            throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].data.single 必须为布尔`)
+          }
+          if (
+            !Array.isArray(data.options) ||
+            !data.options.every((option) => typeof option === 'string')
+          ) {
+            throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].data.options 必须是字符串数组`)
+          }
+        } else {
+          if (data.format !== null && typeof data.format !== 'string') {
+            throw new ApiError(400, 'VALIDATION', `questionnaire.questions[${questionId}].data.format 必须为字符串或 null`)
+          }
         }
       }
       return
