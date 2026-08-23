@@ -35,6 +35,7 @@ export const ENTITY_KINDS = [
   'asset',
   'hint',
   'script',
+  'markdown',
   'validation',
   'artifact',
   'artifact-node',
@@ -57,6 +58,7 @@ export const REGISTRY_OF_KIND: Record<EntityKind, RegistryName | 'code'> = {
   asset: 'files',
   hint: 'hints',
   script: 'scripts',
+  markdown: 'files',
   validation: 'validations',
   artifact: 'artifacts',
   'artifact-node': 'artifacts',
@@ -75,6 +77,7 @@ export const UI_KINDS = [
   'dag',
   'asset',
   'script',
+  'markdown',
   'code',
   'form',
 ] as const
@@ -83,7 +86,7 @@ export type UiKind = (typeof UI_KINDS)[number]
 
 /** resource_id 的命名空间（内嵌在 resource_id 前缀中，不单独建列） */
 export const RESOURCE_NAMESPACES = [
-  'stable-id',
+  'script',
   'hint',
   'asset',
   'artifact',
@@ -112,6 +115,7 @@ const UI_KIND_OF_KIND: Record<EntityKind, UiKind> = {
   asset: 'asset',
   hint: 'form',
   script: 'script',
+  markdown: 'markdown',
   validation: 'form',
   artifact: 'form',
   'artifact-node': 'form',
@@ -128,7 +132,8 @@ const NAMESPACE_OF_KIND: Record<EntityKind, ResourceNamespace> = {
   'progress-node': 'pnode',
   'file-node': 'inode',
   hint: 'hint',
-  script: 'stable-id',
+  script: 'script',
+  markdown: 'source',
   validation: 'validation',
   'artifact-node': 'inode',
   asset: 'asset',
@@ -229,7 +234,7 @@ export interface DagState {
 
 /** 资产：文件引用 + 可选的 source 引用；命名空间为 asset */
 export interface AssetState {
-  /** source 引用（后续使用；可选） */
+  /** source 命名空间源文件实体（如 markdown）；导出时保存为实际文件并加入 FileReference */
   source_reference?: EntityId
   /** 指向 files 表（UUID）；可选，与 source_reference 至少填一个 */
   file_reference?: string
@@ -275,6 +280,22 @@ export interface ScriptState {
   body: ScriptBody
   /** 访问规则 code 实体（entity id） */
   access_rule?: EntityId
+}
+
+/** Markdown 源文件中的一个连续文本段 */
+export interface MarkdownSegment {
+  /** 内部 UUID，与 segments 的 key 一致 */
+  id: string
+  /** markdown 文本内容 */
+  content: string
+}
+
+/** Markdown 源文件：显式 sort 数组 + segments 映射 */
+export interface MarkdownState {
+  /** 显式顺序：segments key 的完整排列 */
+  sort: string[]
+  /** SegmentId → MarkdownSegment */
+  segments: Record<string, MarkdownSegment>
 }
 
 export interface ValidationState {
@@ -388,6 +409,7 @@ export type EntityState =
   | AssetState
   | HintState
   | ScriptState
+  | MarkdownState
   | ValidationState
   | ArtifactTemplateState
   | ArtifactNodeState
@@ -407,6 +429,7 @@ export interface KindStateMap {
   asset: AssetState
   hint: HintState
   script: ScriptState
+  markdown: MarkdownState
   validation: ValidationState
   'artifact': ArtifactTemplateState
   'artifact-node': ArtifactNodeState

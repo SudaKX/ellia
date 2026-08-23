@@ -72,12 +72,21 @@
     }
   },
   "script": {
-    "namespace": "stable-id",
+    "namespace": "script",
     "fixed": { "enable": false, "value": "" },
     "default": { "revision": 1, "body": { "kind": "script", "lines": [] } },
     "comment": {
       "description": "终端交互脚本，包含脚本行与可选校验引用。",
       "format": "kebab-case，例如 script-1"
+    }
+  },
+  "markdown": {
+    "namespace": "source",
+    "fixed": { "enable": false, "value": "" },
+    "default": { "sort": [], "segments": {} },
+    "comment": {
+      "description": "连续 markdown 文本段，导出时作为源文件保存。",
+      "format": "kebab-case，例如 guide"
     }
   },
   "validation": {
