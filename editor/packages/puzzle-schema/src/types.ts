@@ -31,7 +31,7 @@ export const ENTITY_KINDS = [
   'progress-node',
   'file-node',
   'file-tree',
-  'progress-dag',
+  'dag',
   'asset',
   'hint',
   'script',
@@ -51,7 +51,7 @@ export type EntityKind = (typeof ENTITY_KINDS)[number]
 /** kind → 注册表 映射（实体树分组用）；code 是代码实体，不属于任何注册表 */
 export const REGISTRY_OF_KIND: Record<EntityKind, RegistryName | 'code'> = {
   'progress-node': 'progress',
-  'progress-dag': 'progress',
+  'dag': 'progress',
   'file-node': 'files',
   'file-tree': 'files',
   asset: 'files',
@@ -72,7 +72,7 @@ export const REGISTRY_OF_KIND: Record<EntityKind, RegistryName | 'code'> = {
 export const UI_KINDS = [
   'dag-node',
   'file-tree',
-  'progress-dag',
+  'dag',
   'asset',
   'script',
   'code',
@@ -98,7 +98,7 @@ export const RESOURCE_NAMESPACES = [
   'listener',
   'code',
   'file-tree',
-  'progress-dag',
+  'dag',
 ] as const
 
 export type ResourceNamespace = (typeof RESOURCE_NAMESPACES)[number]
@@ -108,7 +108,7 @@ const UI_KIND_OF_KIND: Record<EntityKind, UiKind> = {
   'progress-node': 'dag-node',
   'file-node': 'form',
   'file-tree': 'file-tree',
-  'progress-dag': 'progress-dag',
+  'dag': 'dag',
   asset: 'asset',
   hint: 'form',
   script: 'script',
@@ -140,7 +140,7 @@ const NAMESPACE_OF_KIND: Record<EntityKind, ResourceNamespace> = {
   listener: 'listener',
   code: 'code',
   'file-tree': 'file-tree',
-  'progress-dag': 'progress-dag',
+  'dag': 'dag',
 }
 
 export function uiKindFor(kind: EntityKind): UiKind {
@@ -163,7 +163,7 @@ export interface DisplayField {
 
 export type ProgressNodeMode = 'and' | 'or'
 
-/** 进度节点：纯节点数据，拓扑在 progress-dag 容器中 */
+/** 进度节点：纯节点数据，拓扑在 dag 容器中 */
 export interface ProgressNodeState {
   /** branch 目标选择 code 实体（entity id）；可选，导出器决定如何使用 */
   how?: EntityId
@@ -208,11 +208,23 @@ export interface FileTreeState {
   nodes: Record<string, FileTreeNode>
 }
 
-/** 进度 DAG 容器：持有全部拓扑与入口；节点只按 stable_id 引用 */
-export interface ProgressDagState {
-  entry_stable_ids: StableId[]
-  /** from stable_id → 有序 to stable_id 列表 */
-  successors: Record<StableId, StableId[]>
+/** DAG 内部节点：独立于 progress-node 实体，id 是图内 UUID */
+export interface DagNode {
+  /** 图节点 UUID */
+  id: string
+  /** 可读名称，必填 */
+  name: string
+  /** 链接到 pnode:xxx 的 progress-node 实体 id；可为空 */
+  pnode: EntityId | null
+  /** 后继图节点 id 列表（有序） */
+  successors: string[]
+}
+
+/** DAG 容器：扁平节点表，直接以 DagNodeId 寻址 */
+export interface DagState {
+  entryIds: string[]
+  /** DagNodeId → DagNode */
+  nodes: Record<string, DagNode>
 }
 
 /** 资产：文件引用 + 可选的 source 引用；命名空间为 asset */
@@ -372,7 +384,7 @@ export type EntityState =
   | ProgressNodeState
   | FileTreeNodeState
   | FileTreeState
-  | ProgressDagState
+  | DagState
   | AssetState
   | HintState
   | ScriptState
@@ -391,7 +403,7 @@ export interface KindStateMap {
   'progress-node': ProgressNodeState
   'file-node': FileTreeNodeState
   'file-tree': FileTreeState
-  'progress-dag': ProgressDagState
+  'dag': DagState
   asset: AssetState
   hint: HintState
   script: ScriptState
