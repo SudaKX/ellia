@@ -13,6 +13,7 @@ import FallbackEditor from './panes/FallbackEditor.vue'
 import FileTreeEditor from './panes/FileTreeEditor.vue'
 import FormEditor from './panes/FormEditor.vue'
 import MarkdownEditor from './panes/markdown/MarkdownEditor.vue'
+import QuestionnaireEditor from './panes/questionnaire/QuestionnaireEditor.vue'
 
 const kindRegistry = new Map<EntityKind, Component>()
 const uiKindRegistry = new Map<UiKind, Component>()
@@ -22,6 +23,7 @@ registerKindEditor('file-tree', FileTreeEditor)
 registerKindEditor('dag', DagEditor)
 registerKindEditor('asset', FormEditor)
 registerKindEditor('markdown', MarkdownEditor)
+registerKindEditor('questionnaire', QuestionnaireEditor)
 registerKindEditor('code', CodeBlockEditor)
 
 registerUiKindEditor('dag-node', FormEditor)
@@ -29,6 +31,7 @@ registerUiKindEditor('file-tree', FileTreeEditor)
 registerUiKindEditor('dag', DagEditor)
 registerUiKindEditor('asset', FormEditor)
 registerUiKindEditor('markdown', MarkdownEditor)
+registerUiKindEditor('questionnaire', QuestionnaireEditor)
 registerUiKindEditor('code', CodeBlockEditor)
 registerUiKindEditor('form', FormEditor)
 

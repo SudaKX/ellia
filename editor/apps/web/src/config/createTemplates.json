@@ -89,6 +89,15 @@
       "format": "kebab-case，例如 guide"
     }
   },
+  "questionnaire": {
+    "namespace": "source",
+    "fixed": { "enable": false, "value": "" },
+    "default": { "description": "", "sort": [], "questions": {} },
+    "comment": {
+      "description": "问卷，包含选择题/填空题，导出时作为源文件保存。",
+      "format": "kebab-case，例如 survey"
+    }
+  },
   "validation": {
     "namespace": "validation",
     "fixed": { "enable": false, "value": "" },
