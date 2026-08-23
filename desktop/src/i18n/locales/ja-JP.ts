@@ -22,6 +22,7 @@ export const jaJP = {
       previewTitle: 'ファイルプレビュー',
       cannotOpen: 'このファイルを開けません。',
       emptyDir: '空のディレクトリ',
+      loading: '読み込み中…',
     },
     archive: {
       title: 'アーカイブビューア',
@@ -55,6 +56,10 @@ export const jaJP = {
     deniedTitle: 'アクセス拒否',
     vtbReward: '謎のサイトを発見！{amount} VTB を追加しました。',
   },
+  /** 画像ビューア */
+  imageViewer: {
+    title: '画像ビューア',
+  },
   /** テキストエディタ */
   textEditor: {
     title: 'テキストエディタ',
@@ -71,6 +76,8 @@ export const jaJP = {
     savePromptDiscard: '保存しない',
     savePromptCancel: 'キャンセル',
     permissionTitle: 'アクセス権限がありません',
+    preview: 'プレビュー',
+    source: 'ソース編集',
   },
   /** ストーリーダイアログ（E ↔ プレイヤー） */
   story: {
@@ -78,6 +85,7 @@ export const jaJP = {
       title: 'メッセージ',
       continue: 'クリックして続行',
       submit: '決定',
+      auto: 'AUTO',
     },
   },
   settings: {

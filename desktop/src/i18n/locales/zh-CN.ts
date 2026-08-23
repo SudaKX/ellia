@@ -22,6 +22,7 @@ export const zhCN = {
       previewTitle: '文件预览',
       cannotOpen: '无法打开此文件。',
       emptyDir: '空目录',
+      loading: '加载中…',
     },
     archive: {
       title: '归档查看器',
@@ -55,6 +56,10 @@ export const zhCN = {
     deniedTitle: '禁止访问',
     vtbReward: '发现神秘网址彩蛋！已为你增加 {amount} VTB。',
   },
+  /** 图片查看器 */
+  imageViewer: {
+    title: '图片查看器',
+  },
   /** 文本编辑器 */
   textEditor: {
     title: '文本编辑器',
@@ -71,6 +76,8 @@ export const zhCN = {
     savePromptDiscard: '不保存',
     savePromptCancel: '取消',
     permissionTitle: '权限不足',
+    preview: '渲染预览',
+    source: '编辑源码',
   },
   /** 剧情对话 */
   story: {
@@ -78,6 +85,7 @@ export const zhCN = {
       title: '消息',
       continue: '点击继续',
       submit: '确认',
+      auto: '自动',
     },
   },
   settings: {

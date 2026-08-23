@@ -8,7 +8,7 @@
  * ## 双状态机
  *
  * - **离开态（detached，默认）**：现有彩蛋浮窗行为——
- *   点击人物图轮换 kei 表情/台词/语音；拖动结束若靠近某普通窗口边缘 → 贴合。
+ *   点击人物图轮换 ellia 表情/台词/语音；拖动结束若靠近某普通窗口边缘 → 贴合。
  * - **贴合态（attached）**：贴到目标窗口边上（一起移动），切换为对话模式——
  *   表情差分 + 打字机文字 + ≤4 个选项；监听目标窗口联动事件（如谜题输错）。
  *
@@ -44,7 +44,7 @@ import { useCreditsStore } from '@/stores/credits'
 import type { WindowInstance } from '@/types/desktop'
 
 const props = defineProps<{
-  /** kei 表情图片 URL 数组，点击轮换（离开态） */
+  /** ellia 表情图片 URL 数组，点击轮换（离开态） */
   images: string[]
   /** 标题栏台词数组，与图片同步轮换 */
   titles: string[]
@@ -63,7 +63,20 @@ defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' })
 const audioService = useAudioService()
-const halftone = useHalftone({ dotSpacing: 3, maxRadius: 2.5, minRadius: 0.6 })
+/**
+ * ellia 立绘头部裁切（正方形区域，相对原图比例 0~1）：
+ * 原图 1668×2388；头部内容范围像素约 426,172 → 1270,906（宽 844 × 高 734）。
+ * 正方形 734×734 无法同时容纳头部左右缘（844 宽），裁切窗口整体向左收
+ * （左缘 481→428、右缘 1215→1162），使头部在窗口内视觉居中：
+ * 等效于画面右移约 40 CSS px，同时消除左侧立绘留白，不产生平移空白。
+ */
+const ELLIA_HEAD_CROP = {
+  x: 428 / 1668,
+  y: 172 / 2388,
+  width: 734 / 1668,
+  height: 734 / 2388,
+}
+const halftone = useHalftone({ dotSpacing: 3, maxRadius: 2.5, minRadius: 0.6, crop: ELLIA_HEAD_CROP })
 const windowService = inject<WindowService | null>('windowService', null)
 const selfWindowId = inject<string | null>(WINDOW_FRAME_ID, null)
 const creditsStore = useCreditsStore()

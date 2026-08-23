@@ -22,6 +22,7 @@ export const zhTW = {
       previewTitle: '檔案預覽',
       cannotOpen: '無法開啟此檔案。',
       emptyDir: '空目錄',
+      loading: '載入中…',
     },
     archive: {
       title: '歸檔檢視器',
@@ -55,6 +56,10 @@ export const zhTW = {
     deniedTitle: '禁止訪問',
     vtbReward: '發現神秘網址彩蛋！已為你增加 {amount} VTB。',
   },
+  /** 圖片檢視器 */
+  imageViewer: {
+    title: '圖片檢視器',
+  },
   /** 文字編輯器 */
   textEditor: {
     title: '文字編輯器',
@@ -71,6 +76,8 @@ export const zhTW = {
     savePromptDiscard: '不儲存',
     savePromptCancel: '取消',
     permissionTitle: '權限不足',
+    preview: '渲染預覽',
+    source: '編輯原始碼',
   },
   /** 劇情對話 */
   story: {
@@ -78,6 +85,7 @@ export const zhTW = {
       title: '訊息',
       continue: '點擊繼續',
       submit: '確認',
+      auto: 'AUTO',
     },
   },
   settings: {

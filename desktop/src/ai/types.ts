@@ -16,7 +16,7 @@
  * - 选项数量 1 ~ 4，超出部分忽略
  */
 
-/** kei 表情差分语义 key */
+/** AI 表情差分语义 key */
 export type AiExpression =
   | 'normal'        // 常态
   | 'smile'         // 微笑

@@ -22,6 +22,7 @@ export const deDE = {
       previewTitle: 'Dateivorschau',
       cannotOpen: 'Diese Datei kann nicht geöffnet werden.',
       emptyDir: 'Leeres Verzeichnis',
+      loading: 'Wird geladen…',
     },
     archive: {
       title: 'Archivbetrachter',
@@ -55,6 +56,10 @@ export const deDE = {
     deniedTitle: 'ZUGRIFF VERWEIGERT',
     vtbReward: 'Geheimnisvolle Seite gefunden! {amount} VTB wurden gutgeschrieben.',
   },
+  /** Bildbetrachter */
+  imageViewer: {
+    title: 'Bildbetrachter',
+  },
   /** Texteditor */
   textEditor: {
     title: 'Texteditor',
@@ -71,6 +76,8 @@ export const deDE = {
     savePromptDiscard: 'Nicht speichern',
     savePromptCancel: 'Abbrechen',
     permissionTitle: 'Zugriff verweigert',
+    preview: 'Vorschau',
+    source: 'Quelltext bearbeiten',
   },
   /** Story-Dialog (E ↔ Spieler) */
   story: {
@@ -78,6 +85,7 @@ export const deDE = {
       title: 'Nachricht',
       continue: 'Klicken, um fortzufahren',
       submit: 'Bestätigen',
+      auto: 'AUTO',
     },
   },
   settings: {

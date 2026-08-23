@@ -20,6 +20,7 @@ export const enUS = {
       previewTitle: 'File Preview',
       cannotOpen: 'Cannot open this file.',
       emptyDir: 'Empty directory',
+      loading: 'Loading…',
     },
     archive: {
       title: 'Archive Viewer',
@@ -53,6 +54,10 @@ export const enUS = {
     deniedTitle: 'ACCESS DENIED',
     vtbReward: 'Mysterious site found! +{amount} VTB credited to your balance.',
   },
+  /** Image viewer */
+  imageViewer: {
+    title: 'Image Viewer',
+  },
   /** Text editor (FakeOS Notepad) */
   textEditor: {
     title: 'Text Editor',
@@ -69,6 +74,8 @@ export const enUS = {
     savePromptDiscard: "Don't Save",
     savePromptCancel: 'Cancel',
     permissionTitle: 'Permission Denied',
+    preview: 'Render Preview',
+    source: 'Edit Source',
   },
   /** Story dialogue (E ↔ player) */
   story: {
@@ -76,6 +83,7 @@ export const enUS = {
       title: 'Message',
       continue: 'Click to continue',
       submit: 'Confirm',
+      auto: 'AUTO',
     },
   },
   settings: {
