@@ -60,7 +60,7 @@
 import { markRaw } from 'vue'
 import { Bot } from 'lucide-vue-next'
 
-import StoryDialog from '@/components/desktop/StoryDialog.vue'
+import GalStoryDialog from '@/components/desktop/GalStoryDialog.vue'
 import type { WindowService } from '@/composables/useWindowService'
 
 /** 玩家选项（1 ~ 4 个） */
@@ -93,6 +93,27 @@ export interface StorySlider {
   effect?: (value: number) => void
 }
 
+export interface StoryStageCharacter {
+  id: string
+  image: string
+  position: 'left' | 'center' | 'right'
+  speakerNames: string[]
+  animation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
+  /** 从图像顶部开始、与对话栏上沿对齐的比例，范围 0 ~ 1（anchorTop 存在时忽略） */
+  anchorY?: number
+  /**
+   * 顶部对齐：图片**顶部**相对窗口顶部的偏移比例（相对图片高度）。
+   * 0 = 图片顶部贴窗口顶；0.1 = 图片顶部超出窗口顶部 10% 图片高度（顶部 10% 被遮住）；
+   * 负值 = 图片顶部沉入窗口内部（顶部留空）。
+   * 存在时优先于 anchorY，立绘向下自然沉入对话栏后方。
+   */
+  anchorTop?: number
+  /** 角色级视觉滤镜（可选） */
+  effect?: 'hologram'
+  /** 立绘宽度倍率：1 = 默认（舞台宽 32%），2 = 放大一倍；放大后垂直对齐仍按实际渲染高度计算 */
+  scale?: number
+}
+
 /** 剧情节点（对白 / 多选 / 滑杆） */
 export interface StoryNode {
   /** 节点唯一 id（跳转目标）；缺省由播放器生成 */
@@ -101,6 +122,16 @@ export interface StoryNode {
   speaker?: string
   /** 台词正文（内容数据，不参与 i18n） */
   text?: string
+  /** 节点配图 URL（如 /images/...） */
+  image?: string
+  /** 舞台图像位置；缺省为 center */
+  imagePosition?: 'left' | 'center' | 'right'
+  /** 舞台图像的入场演出；缺省为 fade */
+  imageAnimation?: 'fade' | 'slide-left' | 'slide-right' | 'rise' | 'none'
+  /** 节点进入时并行播放的音频 URL */
+  audio?: string
+  /** 持续显示于舞台中的角色立绘；缺省时继承之前节点的设置 */
+  stageCharacters?: StoryStageCharacter[]
   /** 玩家选项（1~4 个）；与 slider 互斥 */
   choices?: StoryChoice[]
   /** 滑杆调节；与 choices 互斥 */
@@ -117,6 +148,8 @@ export interface StoryDialogOptions {
   glitch?: boolean
   /** 打字速度（每字符毫秒）；默认 30 */
   charDelay?: number
+  /** 自动播放下每句完整台词停留时间（ms） */
+  autoDelay?: number
 }
 
 /** 选项数量上限（创作者约束：不超过 4 个） */
@@ -164,13 +197,17 @@ export function playStoryScript(script: StoryNode[], options: StoryDialogOptions
     payload: {
       titleKey: 'story.dialog.title',
       icon: markRaw(Bot),
-      component: markRaw(StoryDialog),
-      componentProps: { nodes, charDelay: options.charDelay ?? 30 },
-      defaultWidth: 520,
-      defaultHeight: 300,
+      component: markRaw(GalStoryDialog),
+      componentProps: { nodes, charDelay: options.charDelay ?? 30, autoDelay: options.autoDelay ?? 1100 },
+      defaultWidth: 860,
+      defaultHeight: 560,
       placement: 'center',
       mode: 'modal',
-      resizable: false,
+      resizable: true,
+      minWidth: 640,
+      minHeight: 440,
+      maxWidth: Math.max(640, window.innerWidth),
+      maxHeight: Math.max(440, window.innerHeight - 40),
       filters: options.glitch ? { glitch: true } : undefined,
       controls: { minimize: false, close: true },
       maximizable: false,

@@ -70,6 +70,11 @@ import type {
 const NORMAL_Z_INDEX_BASE = 200
 /** 模态窗口 z-index 起点，高于普通窗口和 overlay(1100)，确保弹窗不被遮挡 */
 const MODAL_Z_INDEX_BASE = 1200
+/**
+ * AI 助手窗口 z-index 起点，介于普通窗口与模态窗口之间。
+ * 语义："第二层级"——高于普通窗口、低于警告提示栏/模态弹窗。
+ */
+const AI_Z_INDEX_BASE = 1000
 /** 顶部状态栏高度，用于居中计算时扣除偏移 */
 const STATUS_BAR_HEIGHT = 40
 /** 默认窗口模式 */
@@ -172,7 +177,9 @@ export function useWindowService() {
 
   function createWindow(payload: CreateWindowPayload): WindowInstance | null {
     const mode = payload.mode ?? DEFAULT_WINDOW_MODE
-    if (mode === 'normal' && hasModalWindow.value) return null
+    const layer = payload.layer ?? (mode === 'modal' ? 'modal' : 'normal')
+    // AI 层窗口不受模态阻断影响（常驻于普通窗口之上、模态之下）
+    if (mode === 'normal' && hasModalWindow.value && layer !== 'ai') return null
 
     const position = resolvePosition(payload)
 
@@ -188,10 +195,15 @@ export function useWindowService() {
       controls: {
         ...DEFAULT_WINDOW_CONTROLS,
         ...payload.controls,
-        minimize: mode === 'modal' ? false : (payload.controls?.minimize ?? true),
+        minimize: layer === 'ai' ? false : (mode === 'modal' ? false : (payload.controls?.minimize ?? true)),
       },
       mode,
+      layer,
       resizable: payload.resizable ?? DEFAULT_WINDOW_RESIZABLE,
+      minWidth: payload.minWidth,
+      minHeight: payload.minHeight,
+      maxWidth: payload.maxWidth,
+      maxHeight: payload.maxHeight,
       filters: { ...payload.filters },
       dockable: payload.dockable ?? false,
       dockTitle: payload.dockTitle,
@@ -202,13 +214,20 @@ export function useWindowService() {
       height: payload.defaultHeight,
       x: position.x,
       y: position.y,
-      zIndex: mode === 'modal' ? MODAL_Z_INDEX_BASE : NORMAL_Z_INDEX_BASE,
+      zIndex: layer === 'ai'
+        ? AI_Z_INDEX_BASE
+        : (mode === 'modal' ? MODAL_Z_INDEX_BASE : NORMAL_Z_INDEX_BASE),
       isMinimized: false,
     }
 
     windows.value.push(windowInstance)
-    promoteToFront(id)
-    activeWindowId.value = id
+    if (layer === 'ai') {
+      // AI 层窗口 z-index 固定，不参与层级重排，直接聚焦
+      activeWindowId.value = id
+    } else {
+      promoteToFront(id)
+      activeWindowId.value = id
+    }
     return windowInstance
   }
 
@@ -258,6 +277,16 @@ export function useWindowService() {
     const idx = windows.value.findIndex((w) => w.id === windowId)
     if (idx === -1) return
     const window = windows.value[idx]
+
+    // AI 层窗口：恢复最小化后直接聚焦，不参与层级重排（z-index 固定）
+    if (window.layer === 'ai') {
+      if (window.isMinimized) {
+        // splice 创建新对象以触发 shallowRef 响应式（直接 mutate 属性无效）
+        windows.value.splice(idx, 1, { ...window, isMinimized: false })
+      }
+      activeWindowId.value = windowId
+      return
+    }
 
     const topModalWindow = findTopModalWindow()
     if (topModalWindow && topModalWindow.id !== windowId) return

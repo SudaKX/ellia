@@ -22,6 +22,7 @@ export const zhCN = {
       previewTitle: '文件预览',
       cannotOpen: '无法打开此文件。',
       emptyDir: '空目录',
+      loading: '加载中…',
     },
     archive: {
       title: '归档查看器',
@@ -55,6 +56,10 @@ export const zhCN = {
     deniedTitle: '禁止访问',
     vtbReward: '发现神秘网址彩蛋！已为你增加 {amount} VTB。',
   },
+  /** 图片查看器 */
+  imageViewer: {
+    title: '图片查看器',
+  },
   /** 文本编辑器 */
   textEditor: {
     title: '文本编辑器',
@@ -71,6 +76,8 @@ export const zhCN = {
     savePromptDiscard: '不保存',
     savePromptCancel: '取消',
     permissionTitle: '权限不足',
+    preview: '渲染预览',
+    source: '编辑源码',
   },
   /** 剧情对话 */
   story: {
@@ -78,6 +85,7 @@ export const zhCN = {
       title: '消息',
       continue: '点击继续',
       submit: '确认',
+      auto: '自动',
     },
   },
   settings: {
@@ -170,18 +178,54 @@ export const zhCN = {
       2: '真是无聊呢',
     },
   },
-  /** Live2D 助手 */
-  live2d: {
-    title: 'Live2D 助手',
-    loading: 'Live2D 加载中...',
-    containerError: 'Live2D 容器初始化失败',
-    loadFailed: '加载失败',
-    motionFailed: '动作播放失败',
-    motionPlaying: '动作播放中',
-    idle: '待机中',
-    mainMotion: '主动作 {n}',
-    touchBody: '摸身体',
-    touchHead: '摸头',
+  /** 贴边 AI 对话窗 */
+  aiChat: {
+    attach: '贴合',
+    attachTip: '贴合到上一个焦点窗口',
+    detach: '分离',
+    attached: '贴合中：{title}',
+    attachedTitle: '贴合中 · {title}',
+    continue: '继续 ▸',
+  },
+  /** 贴边 AI 对话窗剧本台词（AiNode.text / AiChoice.label 的 i18n key） */
+  aiScripts: {
+    default: {
+      hello: '……你把我拖过来了。怎么，需要帮忙？',
+      helloChat: '随便聊聊',
+      helloQuiet: '你先安静待着',
+      chat: '这个系统里的文件、谜题、终端……我都能看得见。你卡住了可以随时问我。',
+      quiet: '……好。我闭嘴。不过你摇一摇我，我就走。',
+      end: '……我盯着你。别乱翻不该翻的东西。',
+    },
+    files: {
+      hello: '你在翻文件。……学姐的文件系统里，藏着不少东西。双击就能打开，有些文件会触发剧情。',
+      helloWorth: '有哪些值得看？',
+      helloOk: '知道了',
+      tip: '带 .puz 后缀的是谜题，双击能打开。init.exe 别乱动——那是开场剧情。',
+      end: '……去吧。卡住了叫我。',
+    },
+    terminal: {
+      hello: '终端？有意思。用 help 看看命令，sil 可以打开谜题。',
+      helloLs: '帮我看看文件',
+      helloOk: '知道了',
+      ls: 'ls 列出当前目录，cat 读文件内容。这里的虚拟文件系统和剧情联动。',
+      end: '……小心输入。别让命令跑进不该去的地方。',
+    },
+    caesar: {
+      hello: '凯撒密码？……字母移位而已。密文 "khoor zruog" 每个字母往前移 3 位。',
+      helloHow: '具体怎么移？',
+      helloTry: '我先自己试试',
+      tip: 'k→h，h→e，o→l……按字母表逐个回退 3 位。你要是输错太多次，我也可以帮你。',
+      end: '……加油。实在不行再喊我。',
+    },
+    wrong2: '……看你卡了半天。要不要我帮你把提示打开？一次 30 个 TVB。',
+    wrong2Open: '帮我打开提示（-30 TVB）',
+    wrong2Think: '我再想想',
+    wrong2After: '提示给你了。剩下你自己琢磨。',
+    wrong2Quiet: '……行，我看着。',
+    wrong3: '……我受够了。答案我帮你填好了，你自己核对一下再提交。',
+    wrong3End: '下次别这么磨蹭。',
+    noCredits: '……你的 TVB 不够。先想办法赚点吧。',
   },
   /** 交互式命令终端 */
   terminal: {
@@ -296,6 +340,7 @@ export const zhCN = {
       placeholder: '输入解密文本...',
       hint1: '提示 1：每个字母都被向前偏移了相同位数。"k" 变成了 "h"——偏移了多少？',
       hint2: '提示 2：偏移量是向后 3 位。"khoor" → "hello"。试试补全剩余部分。',
+      aiHint: '（AI 提示）字母表向前回退 3 位：k→h，h→e，o→l。答案是 "hello world"。',
     },
     noPuzzles: '暂无可用谜题。',
   },

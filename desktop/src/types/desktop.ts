@@ -55,6 +55,8 @@ export interface DesktopApplication {
 export type WindowPlacement = 'cascade' | 'center'
 /** 窗口模式：normal（普通）| modal（模态弹窗） */
 export type WindowMode = 'normal' | 'modal'
+/** 窗口所在层级：normal（普通）| modal（模态）| ai（AI 助手层，介于二者之间） */
+export type WindowLayer = 'normal' | 'modal' | 'ai'
 /** 窗口滤镜开关：FilterType → 是否启用 */
 export type WindowFilters = Partial<Record<FilterType, boolean>>
 
@@ -76,6 +78,10 @@ export interface WindowDefinition {
   placement?: WindowPlacement
   mode?: WindowMode
   resizable?: boolean
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   filters?: WindowFilters
   /**
    * 自定义窗口标题文本。提供后直接显示（不走 i18n），覆盖 titleKey。
@@ -94,6 +100,11 @@ export interface WindowDefinition {
    * 默认 true。AI 表演窗口、拒绝访问弹窗等"演出型"窗口禁用。
    */
   maximizable?: boolean
+  /**
+   * 窗口所在层级。缺省按 mode 判定（normal/modal）；
+   * AI 助手层由 layer: 'ai' 显式指定（常驻于普通窗口之上、模态之下，z-index 固定）。
+   */
+  layer?: WindowLayer
 }
 
 /** 应用注册表中的条目：WindowDefinition + 唯一 id */
@@ -133,6 +144,10 @@ export interface WindowInstance {
   controls: WindowControls
   mode: WindowMode
   resizable: boolean
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
   filters: WindowFilters
   x: number
   y: number
@@ -148,6 +163,8 @@ export interface WindowInstance {
   dockTitle?: string
   /** 是否允许双击标题栏切换全屏（默认 true，演出型窗口可禁用） */
   maximizable: boolean
+  /** 窗口所在层级；AI 助手层（'ai'）z-index 固定，不随 focus 重排 */
+  layer: WindowLayer
   /** 是否处于全屏态（双击标题栏切换） */
   isMaximized: boolean
   /** 进入全屏前的几何，用于退出全屏时恢复 */

@@ -59,13 +59,20 @@
  * 3. 找到 → 通过 windowService.send() 创建谜题窗口
  */
 
-import { computed, defineAsyncComponent, inject, ref } from 'vue'
-import { ChevronRight, File, FileText, Folder } from 'lucide-vue-next'
+import { computed, defineAsyncComponent, inject, onMounted, ref } from 'vue'
+import { ChevronRight, File, FileText, Folder, Image as ImageIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { unlockAchievementById } from '@/composables/useAchievementUnlocks'
 import { playStoryScript } from '@/composables/useStoryDialog'
 import { storyScripts } from '@/story'
 import { puzzleRegistry } from '@/registries/puzzles'
+import { USE_REAL_API } from '@/config/api'
+import {
+  fetchRemoteFileContent,
+  listRemoteDirectory,
+  remoteEntryName,
+} from '@/composables/useRemoteFiles'
+import type { RemoteFileSummary } from '@/composables/useRemoteFiles'
 import {
   getEffectiveContent,
   getRootTree,
@@ -80,6 +87,7 @@ const windowService = inject<WindowService>('windowService')
 
 /** 文本编辑器（异步加载，双击 .txt/.log 时打开） */
 const TextEditor = defineAsyncComponent(() => import('@/components/applications/TextEditor.vue'))
+const ImageViewer = defineAsyncComponent(() => import('@/components/applications/ImageViewer.vue'))
 
 // ─── 状态 ──────────────────────────────────────────
 
@@ -92,25 +100,98 @@ const pathStack = computed(() => {
   return ['/', ...currentPath.value.slice(1).split('/')]
 })
 
-/** 当前选中的文件节点，驱动底部预览区显示 */
-const selectedFile = ref<FileNode | null>(null)
+/** 文件/目录条目（双模式统一形状，模板按 name/type 渲染） */
+interface ExplorerEntry {
+  name: string
+  type: 'dir' | 'file'
+  /** Mock 模式：前端静态文件节点（预览/打开内容用） */
+  node?: FileNode
+  /** Mock 模式：图片文件预览 URL（立绘 .png 等，node.image 的便捷引用） */
+  image?: string
+  /** 真实模式：后端文件摘要（content-url 读取用） */
+  remote?: RemoteFileSummary
+}
 
-/** 选中文件的有效内容（已合并玩家本地覆盖层，本地版本优先） */
+/** 当前选中的条目，驱动底部预览区显示 */
+const selectedFile = ref<ExplorerEntry | null>(null)
+
+/** 选中文件的有效内容（mock 模式，已合并玩家本地覆盖层） */
 const selectedContent = ref<string | null>(null)
+/** 选中文件的远程内容（真实模式，经 content-url 拉取） */
+const remoteSelectedContent = ref<string | null>(null)
+/** 选中文件的图片预览 URL（mock 模式图片文件，如立绘 .png） */
+const selectedImage = ref<string | null>(null)
+
+// ─── 真实模式远程状态（USE_REAL_API=true 时使用） ──
+
+/** 根目录一级子目录名（侧边栏，真实模式） */
+const remoteRoot = ref<string[]>([])
+/** 当前目录条目（主区域，真实模式） */
+const remoteEntries = ref<ExplorerEntry[]>([])
+/** 远程目录加载中 */
+const remoteLoading = ref(false)
+/** 远程目录加载错误信息 */
+const remoteError = ref<string | null>(null)
+
+/** 是否启用真实模式（文件系统走后端 /files 接口） */
+const isRemote = USE_REAL_API
+
+/** 拉取远程目录并刷新主区域（真实模式） */
+async function loadRemoteDirectory(path: string): Promise<void> {
+  remoteLoading.value = true
+  remoteError.value = null
+  try {
+    const listing = await listRemoteDirectory(path)
+    remoteEntries.value = [
+      ...listing.directories.map((d) => ({ name: remoteEntryName(d.path), type: 'dir' as const })),
+      ...listing.files.map((f) => ({ name: remoteEntryName(f.path), type: 'file' as const, remote: f })),
+    ]
+  } catch (cause) {
+    remoteError.value = cause instanceof Error ? cause.message : String(cause)
+    remoteEntries.value = []
+  } finally {
+    remoteLoading.value = false
+  }
+}
+
+/** 拉取根目录一级子目录（侧边栏，真实模式） */
+async function loadRemoteRoot(): Promise<void> {
+  try {
+    const listing = await listRemoteDirectory('/')
+    remoteRoot.value = listing.directories.map((d) => remoteEntryName(d.path))
+  } catch (cause) {
+    remoteError.value = cause instanceof Error ? cause.message : String(cause)
+    remoteRoot.value = []
+  }
+}
 
 /**
- * 选中文件并刷新底部预览内容。
+ * 选中条目并刷新底部预览内容。
  *
- * 必须用 getEffectiveContent 合并玩家本地覆盖层：玩家保存后的版本在
- * localStorage（见 usePlayerFiles），不能直接显示静态基线 file.content，
- * 否则预览不会反映玩家修改。每次选中都重新计算，保证读到最新本地版本。
+ * - **真实模式**：异步经 content-url 拉取对象存储内容（remoteSelectedContent）。
+ * - **Mock 模式**：用 getEffectiveContent 合并玩家本地覆盖层（localStorage 优先）。
  *
- * @param file - 被单击/双击选中的文件节点
+ * @param file - 被单击/双击选中的条目
  */
-function setSelection(file: FileNode) {
+function setSelection(file: ExplorerEntry) {
   selectedFile.value = file
-  const path = currentPath.value === '/' ? `/${file.name}` : `${currentPath.value}/${file.name}`
-  selectedContent.value = getEffectiveContent(path, file.content)
+  selectedImage.value = null
+  if (isRemote && file.remote) {
+    remoteSelectedContent.value = null
+    void fetchRemoteFileContent(file.remote)
+      .then((text) => { remoteSelectedContent.value = text })
+      .catch(() => { remoteSelectedContent.value = null })
+    return
+  }
+  // 图片文件（mock 模式，如立绘 .png）：直接显示图片预览
+  if (file.image) {
+    selectedImage.value = file.image
+    return
+  }
+  if (file.node) {
+    const path = currentPath.value === '/' ? `/${file.node.name}` : `${currentPath.value}/${file.node.name}`
+    selectedContent.value = getEffectiveContent(path, file.node.content)
+  }
 }
 
 // ─── 数据：从统一文件系统获取 ─────────────────────
@@ -124,8 +205,14 @@ const player = buildPlayerSnapshot()
  * 最后只保留 type === 'dir' 的节点。
  */
 const rootDirs = computed(() => {
+  if (isRemote) {
+    return remoteRoot.value.map((name) => ({ name, type: 'dir' as const }))
+  }
   const children = getRootTree() as unknown as FileNode[]
-  return getVisibleChildren(children, player).filter((n) => n.type === 'dir')
+  return getVisibleChildren(children, player)
+    .filter((n) => n.type === 'dir')
+    // 包装成统一 ExplorerEntry（node 携带原始 FileNode，供 setSelection/双击打开使用）
+    .map((n) => ({ name: n.name, type: 'dir' as const, node: n }))
 })
 
 /**
@@ -152,8 +239,11 @@ function findDir(nodes: readonly FileNode[], path: string): FileNode[] {
 
 /** 当前路径下的可见内容（目录 + 文件） */
 const currentEntries = computed(() => {
+  if (isRemote) return remoteEntries.value
   const entries = findDir(getRootTree(), currentPath.value)
   return getVisibleChildren(entries as FileNode[], player)
+    // 包装成统一 ExplorerEntry（node 携带原始 FileNode，image 供图片预览）
+    .map((n) => ({ name: n.name, type: n.type, node: n, image: n.image }))
 })
 
 /** 分离目录和文件，分别渲染（目录在前，文件在后） */
@@ -172,6 +262,9 @@ function navigateTo(path: string) {
   currentPath.value = path
   selectedFile.value = null
   selectedContent.value = null
+  remoteSelectedContent.value = null
+  selectedImage.value = null
+  if (isRemote) void loadRemoteDirectory(path)
 }
 
 /**
@@ -207,10 +300,30 @@ function handleDirClick(dirName: string) {
  * - 主区域列的是当前目录里的子目录 → 必须拼当前路径，
  *   否则从 /home 双击 PLAYER 会错误跳到根下不存在的 /PLAYER（显示空目录）
  *
- * @param dir - 被双击的目录节点
+ * @param dir - 被双击的目录条目（仅用 name，兼容 mock FileNode 与远程条目）
  */
-function handleDirDblClick(dir: FileNode) {
+function handleDirDblClick(dir: ExplorerEntry) {
+  // 目录首次打开触发绑定剧情（只播一次；真实模式远程目录无 storyId，天然跳过）。
+  // 与文件节点 storyId 语义一致，仅触发时机不同：文件=双击文件，目录=首次双击进入。
+  const storyId = dir.node?.storyId
+  if (storyId && !storyPlayed(storyId)) {
+    const script = storyScripts[storyId]
+    if (script) {
+      markStoryPlayed(storyId)
+      playStoryScript(script)
+    }
+  }
   navigateTo(currentPath.value === '/' ? `/${dir.name}` : `${currentPath.value}/${dir.name}`)
+}
+
+/** 目录绑定剧情是否已播放过（localStorage 标记，保证"第一次"语义） */
+function storyPlayed(storyId: string): boolean {
+  return localStorage.getItem(`ellia.desktop.story.played.${storyId}`) === '1'
+}
+
+/** 标记目录绑定剧情已播放 */
+function markStoryPlayed(storyId: string): void {
+  localStorage.setItem(`ellia.desktop.story.played.${storyId}`, '1')
 }
 
 /**
@@ -218,95 +331,180 @@ function handleDirDblClick(dir: FileNode) {
  *
  * 行为：
  * - `.puz` 文件 → 查找 puzzleRegistry，创建谜题窗口
- * - `.txt` / `.log` 文件 → 用文本编辑器打开（独立窗口，文件名命名的 Dock 条目）
+ * - `.txt` / `.log` / `.md` 文件 → 用文本编辑器打开（独立窗口，文件名命名的 Dock 条目；
+ *   .md 默认进入 Markdown 渲染预览模式）
  * - 无后缀文件 → 选中并显示预览
  * - 其他文件   → 选中并显示预览
  *
- * @param file - 被双击的文件节点
+ * 真实模式（USE_REAL_API=true）下行为见下方「双击条目处理」。
  */
-function handleFileDblClick(file: FileNode) {
+/**
+ * 双击条目处理。
+ *
+ * - **真实模式**：后端文件无本地成就/剧情绑定；`.puz` 打开谜题窗口，
+ *   `.txt`/`.log`/`.md` 经 content-url 拉取内容后打开文本编辑器。
+ * - **Mock 模式**：现有逻辑（成就解锁、剧情文件、谜题、文本编辑器）。
+ *
+ * @param file - 被双击的条目
+ */
+async function handleFileDblClick(file: ExplorerEntry) {
+  // ── 真实模式（后端文件系统） ──
+  if (isRemote) {
+    const dotIndex = file.name.lastIndexOf('.')
+    if (dotIndex > 0) {
+      const ext = file.name.slice(dotIndex)
+      if (ext === '.puz') {
+        openPuzzleWindow(file.name)
+        return
+      }
+      if (ext === '.txt' || ext === '.log' || ext === '.md') {
+        if (!file.remote) return
+        try {
+          const content = await fetchRemoteFileContent(file.remote)
+          const filePath = currentPath.value === '/' ? `/${file.name}` : `${currentPath.value}/${file.name}`
+          openTextEditorWindow(file.name, filePath, content, ext === '.md')
+        } catch {
+          // 拉取失败：保持选中，不打开（错误已在预览区体现）
+        }
+        return
+      }
+    }
+    setSelection(file)
+    return
+  }
+
+  // ── Mock 模式（现有逻辑） ──
+  const node = file.node
+  if (!node) return
+
   // 通用剧情机制：文件节点绑定成就 id（FileNode.achievementId）时，
   // 首次打开自动解锁，不写死文件名/路径（终端 cat 同样按节点触发）
-  unlockAchievementById(file.achievementId)
+  unlockAchievementById(node.achievementId)
 
   // 可执行剧情文件（如 init.exe）：双击即播放绑定脚本
-  if (file.storyId) {
-    const script = storyScripts[file.storyId]
+  if (node.storyId) {
+    const script = storyScripts[node.storyId]
     if (script) {
       playStoryScript(script)
     }
     return
   }
 
-  const dotIndex = file.name.lastIndexOf('.')
+  // 图片文件（立绘 .png 等）：双击打开独立图片浏览窗口（缩放查看）
+  if (file.image) {
+    openImageViewerWindow(file)
+    return
+  }
+
+  const dotIndex = node.name.lastIndexOf('.')
   if (dotIndex <= 0) {
     setSelection(file)
     return
   }
 
-  const ext = file.name.slice(dotIndex)
+  const ext = node.name.slice(dotIndex)
   if (ext === '.puz') {
-    const puzzleId = file.name.slice(0, dotIndex)
-    const puzzle = puzzleRegistry.get(puzzleId)
-    if (puzzle && windowService) {
-      windowService.send({
-        type: 'create-window',
-        payload: {
-          titleKey: puzzle.nameKey,
-          title: puzzle.definition?.title,
-          icon: File,
-          component: puzzle.component,
-          componentProps: { puzzleId: puzzle.id },
-          defaultWidth: puzzle.defaultWidth,
-          defaultHeight: puzzle.defaultHeight,
-          placement: 'center',
-          resizable: puzzle.resizable ?? true,
-        },
-      })
-    }
+    openPuzzleWindow(node.name)
     return
   }
 
-  if (ext === '.txt' || ext === '.log') {
-    openTextEditor(file)
+  if (ext === '.txt' || ext === '.log' || ext === '.md') {
+    const filePath = currentPath.value === '/' ? `/${node.name}` : `${currentPath.value}/${node.name}`
+    openTextEditorWindow(
+      node.name,
+      filePath,
+      getEffectiveContent(filePath, node.content) ?? '',
+      ext === '.md',
+    )
     return
   }
 
   setSelection(file)
 }
 
+/** 按谜题 id（文件名去 `.puz` 后缀）打开谜题窗口 */
+function openPuzzleWindow(fileName: string) {
+  if (!windowService) return
+  const puzzleId = fileName.slice(0, fileName.lastIndexOf('.'))
+  const puzzle = puzzleRegistry.get(puzzleId)
+  if (!puzzle) return
+  windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: puzzle.nameKey,
+      title: puzzle.definition?.title,
+      icon: File,
+      component: puzzle.component,
+      componentProps: { puzzleId: puzzle.id },
+      defaultWidth: puzzle.defaultWidth,
+      defaultHeight: puzzle.defaultHeight,
+      placement: 'center',
+      resizable: puzzle.resizable ?? true,
+    },
+  })
+}
+
 /**
- * 打开文本编辑器窗口。
+ * 打开文本编辑器窗口（双模式共用）。
  *
  * 关键点：
  * - 窗口 ID 由 windowService.createWindow 内部分配，创建成功后回填给编辑器
  *   组件（componentProps.windowId），供其注册关闭会话。
  * - `dockable: true` → DesktopView 按"每个窗口一个条目"渲染到 Dock 栏，
  *   `dockTitle` 取文件名，因此打开多个文件会出现多个命名条目。
- * - 传入绝对路径 `filePath`（编辑器保存时判断是否可写）；
- *   内容用 getEffectiveContent 合并玩家本地覆盖层（本地版本优先）。
+ * - 真实模式内容已由调用方经 content-url 拉取后传入；mock 模式为本地覆盖层优先。
  *
- * @param file - 被双击的 .txt / .log 文件节点
+ * @param name       - 文件名（窗口标题 / Dock 条目名共用）
+ * @param filePath   - 文件绝对路径（编辑器保存时判断是否可写）
+ * @param content    - 文件内容
+ * @param isMarkdown - 是否 Markdown（默认渲染预览）
  */
-function openTextEditor(file: FileNode) {
+function openTextEditorWindow(name: string, filePath: string, content: string, isMarkdown: boolean) {
   if (!windowService) return
-  // 由当前导航路径拼出文件绝对路径
-  const filePath = currentPath.value === '/' ? `/${file.name}` : `${currentPath.value}/${file.name}`
   const result = windowService.send({
     type: 'create-window',
     payload: {
       titleKey: 'textEditor.title',
-      title: file.name,
+      title: name,
       icon: FileText,
       component: TextEditor,
       componentProps: {
-        fileName: file.name,
+        fileName: name,
         filePath,
-        fileContent: getEffectiveContent(filePath, file.content) ?? '',
+        fileContent: content,
+        isMarkdown,
       },
       defaultWidth: 480,
       defaultHeight: 340,
       placement: 'cascade',
+      resizable: true,
+      dockable: true,
+      dockTitle: name,
+    },
+  })
+  if (result) {
+    result.componentProps = { ...result.componentProps, windowId: result.id }
+  }
+}
+
+/**
+ * 打开图片浏览窗口（独立窗口查看立绘等图片，支持缩放）。
+ *
+ * @param file - 被双击的图片条目（image 为图片 URL）
+ */
+function openImageViewerWindow(file: ExplorerEntry) {
+  if (!windowService || !file.image) return
+  const result = windowService.send({
+    type: 'create-window',
+    payload: {
+      titleKey: 'imageViewer.title',
+      title: file.name,
+      icon: ImageIcon,
+      component: ImageViewer,
+      componentProps: { imageUrl: file.image, fileName: file.name },
+      defaultWidth: 560,
+      defaultHeight: 640,
+      placement: 'center',
       resizable: true,
       dockable: true,
       dockTitle: file.name,
@@ -318,13 +516,21 @@ function openTextEditor(file: FileNode) {
 }
 
 /**
- * 单击文件：选中并在底部预览区显示简要信息（内容为本地覆盖层优先）。
+ * 单击文件：选中并在底部预览区显示简要信息（mock 为本地覆盖层优先，真实模式为远程内容）。
  *
- * @param file - 被单击的文件节点
+ * @param file - 被单击的条目
  */
-function handleFileClick(file: FileNode) {
+function handleFileClick(file: ExplorerEntry) {
   setSelection(file)
 }
+
+// 真实模式：挂载时初始化根目录与当前目录
+onMounted(() => {
+  if (isRemote) {
+    void loadRemoteRoot()
+    void loadRemoteDirectory('/')
+  }
+})
 </script>
 
 <template>
@@ -365,7 +571,13 @@ function handleFileClick(file: FileNode) {
 
       <!-- 文件列表：目录在前，文件在后 -->
       <div class="explorer__files">
-        <p v-if="currentEntries.length === 0" class="explorer__empty">
+        <p v-if="isRemote && remoteLoading" class="explorer__empty">
+          {{ t('applications.files.loading') }}
+        </p>
+        <p v-else-if="isRemote && remoteError" class="explorer__empty explorer__empty--error">
+          {{ remoteError }}
+        </p>
+        <p v-else-if="currentEntries.length === 0" class="explorer__empty">
           {{ t('applications.files.emptyDir') }}
         </p>
 
@@ -394,12 +606,18 @@ function handleFileClick(file: FileNode) {
         </div>
       </div>
 
-      <!-- 底部预览区：选中文件时显示文件名和内容 -->
+      <!-- 底部预览区：选中文件时显示文件名和内容（图片文件直接预览图片） -->
       <div v-if="selectedFile" class="explorer__preview">
         <div class="explorer__preview-header">
           <span>{{ t('applications.files.previewTitle') }}: {{ selectedFile.name }}</span>
         </div>
-        <pre class="explorer__preview-content">{{ selectedContent ?? t('applications.files.cannotOpen') }}</pre>
+        <img
+          v-if="selectedImage"
+          :src="selectedImage"
+          :alt="selectedFile.name"
+          class="explorer__preview-image"
+        />
+        <pre v-else class="explorer__preview-content">{{ (selectedContent ?? remoteSelectedContent) ?? t('applications.files.cannotOpen') }}</pre>
       </div>
     </div>
   </div>
@@ -546,6 +764,11 @@ function handleFileClick(file: FileNode) {
   font: 12px var(--font-ui);
 }
 
+/* 真实模式加载失败（后端不可达 / 目录不可见等） */
+.explorer__empty--error {
+  color: var(--signal-red-soft);
+}
+
 /* ── 预览区 ── */
 .explorer__preview {
   border-top: 1px solid var(--line-subtle);
@@ -572,5 +795,16 @@ function handleFileClick(file: FileNode) {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 图片预览（立绘 .png 等）：等比缩放铺满预览区 */
+.explorer__preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 8px auto;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 </style>

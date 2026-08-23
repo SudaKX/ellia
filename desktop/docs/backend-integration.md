@@ -7,6 +7,9 @@
 - `mythos/` 是 FastAPI 后端，全部业务路由挂在 `/api/v1` 前缀下（`GET /health` 除外）。
 - `desktop/` 目前所有数据均为 mock / 本地实现，唯一总开关是 [api.ts](../src/config/api.ts)：`API_BASE` 与 `USE_REAL_API`。
 - 前端现有 mock 与后端契约存在**不一致点**（详见下方各模块），对接时应一并修正，而非照抄现有 `api.ts`。
+- **进度（2026-08-22）**：已完成**鉴权**（login / refresh / logout + 统一请求封装 `src/utils/http.ts`）
+  与**文件系统浏览**（FileExplorer 真实模式异步浏览后端动态树）对接；
+  保留 `USE_REAL_API` 开关支持 mock 单独部署；待接入：终端命令 `ls`/`cat` 真实化、档案 / 进度、谜题验证。
 
 ## 对接点清单
 
@@ -31,6 +34,19 @@
 
 - `login` 返回 `{access_token, token_type, expires_in}`（`expires_in` 默认 900s）；注册重复用户名为 `409`，密码错误为 `401`。
 - 所有认证响应 `Cache-Control: no-store`。
+
+**已实现（2026-08-22）**
+
+- [config/api.ts](../src/config/api.ts)：端点已对齐 `/api/v1/auth/{login,refresh,logout}`，移除不存在的 `validate` / `token-login`；文件头含完整部署/鉴权/错误格式说明。
+- [composables/useAuth.ts](../src/composables/useAuth.ts)：`validateWithBackend()` 真实分支改调 `POST /auth/refresh` 换新 token；新增 `refreshToken()`；`logout()` 真实模式异步通知后端删除 refresh Cookie。
+- [views/LoginView.vue](../src/views/LoginView.vue)：登录解析后端 `{access_token,...}`；"密钥登录"真实模式 = `refreshToken()` 续期进桌面。
+- [utils/http.ts](../src/utils/http.ts)（新建）：统一请求封装 —— 自动带 `Authorization: Bearer`、写操作自动生成 `Request-ID`、错误统一解析 RFC 9457 ProblemDetails 抛 `ApiError`；文件头说明 401 刷新策略（调用方先 `refreshToken()` 再重放）。
+- [stores/credits.ts](../src/stores/credits.ts)：真实分支改用 `apiFetch` 拉 `GET /api/v1/credits`；标注后端无增减端点、本地增减仅展示。
+
+**已知偏差（有意保留，供后续收紧）**
+
+- access token 仍写入 localStorage（与 mock 双模式保持一致，刷新后经 `/refresh` 自动换新）；按后端安全文档，生产建议改为**仅存内存**（`useAuth` 单例）。
+- `apiFetch` 刻意**不自动重放 401**（避免与 useAuth 循环依赖），刷新编排由调用方负责：收到 `ApiError.status === 401` → `refreshToken()` → 重放原请求 → 失败清会话回登录页。
 
 ### 2. 玩家档案
 
@@ -67,6 +83,17 @@
 | `404` | 文件未知 / 目录不可见 | 移除对应本地缓存 |
 | `412` | content token 过期 | 刷新 tree/version 后**仅重试一次** |
 | `502` / `503` | 对象存储未配置/URL 签发失败 | 保留目录状态，显示“暂不可用” |
+
+**已实现（2026-08-22）**
+
+- [config/api.ts](../src/config/api.ts)：新增 `FILES_ENDPOINTS`（动态列表 / 动态树 / 动态版本 / content-url）。
+- [composables/useRemoteFiles.ts](../src/composables/useRemoteFiles.ts)（新建）：远程文件服务 —— `listRemoteDirectory(path)` 拉动态目录列表、`fetchRemoteFileContent(file)` 两步走（content-url → 对象存储）、错误状态判断 `isRemoteStatus`。
+- [components/applications/FileExplorer.vue](../src/components/applications/FileExplorer.vue)：真实模式（`USE_REAL_API=true`）下**异步浏览后端动态树**（侧边栏根目录 + 主区域导航）、选中文件经 content-url 拉取预览、双击 `.md/.txt/.log` 拉内容后打开文本编辑器（含 Markdown 预览）、`.puz` 打开谜题窗口；含 loading / 错误态。Mock 模式逻辑完全不变（单独部署能力保留）。
+
+**待接入（后续阶段）**
+
+- 终端命令 `ls` / `cat` 真实模式化：当前命令执行链路是同步签名（`execute(args, ctx) => string[]`，见 [registries/commands.ts](../src/registries/commands.ts)），需先将 `Command.execute` 与 [Terminal.vue](../src/components/applications/Terminal.vue) 执行循环改为支持 `Promise<string[]>`，再让 `ls` 调 `listRemoteDirectory`、`cat` 调 `fetchRemoteFileContent`。
+- 动态树版本协商（`/files/d/version` + `If-None-Match` → 304 增量刷新）当前未使用。
 
 ### 4. 谜题验证（核心玩法闭环）
 

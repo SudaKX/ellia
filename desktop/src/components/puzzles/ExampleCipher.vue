@@ -28,9 +28,12 @@
  * ```
  */
 
-import { computed, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+
+import { notifyAi, onHostAction } from '@/ai/useAiLiaison'
 import { usePuzzle } from '@/composables/usePuzzle'
+import { WINDOW_FRAME_ID } from '@/composables/windowFrameId'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -59,10 +62,46 @@ const hasAttempted = ref(false)
 /** 是否已解决 */
 const isSolved = computed(() => state.value === 'solved')
 
+/** 连续输错次数（联动 AI：输错 2 次 AI 可帮开提示，3 次自动填答案） */
+const wrongCount = ref(0)
+
+/** 自身窗口 id（由 WindowFrame provide），用于 AI 联动路由 */
+const selfWindowId = inject<string | null>(WINDOW_FRAME_ID, null)
+
+/** 订阅 AI 操作（AI 侧已扣 TVB） */
+const offHostAction = selfWindowId
+  ? onHostAction(selfWindowId, (action) => {
+      if (action === 'ai-open-hint') {
+        const aiHint = t('puzzles.caesarCipher.aiHint')
+        if (!displayedHints.value.includes(aiHint)) {
+          displayedHints.value.push(aiHint)
+        }
+      } else if (action === 'ai-fill-answer') {
+        // AI 自动填入答案（不自动提交，由玩家核对后提交）
+        userInput.value = 'hello world'
+      }
+    })
+  : null
+
+onBeforeUnmount(() => {
+  offHostAction?.()
+})
+
 function handleSubmit() {
   const correct = submitAnswer(userInput.value)
   if (!correct) {
     hasAttempted.value = true
+    // 上报输错事件（AI 感知：2 次给提示选项，3 次自动填答案）
+    wrongCount.value += 1
+    if (selfWindowId) {
+      notifyAi(selfWindowId, 'puzzle-wrong', { count: wrongCount.value })
+    }
+    return
+  }
+  // 解谜成功：重置错误计数并通知 AI
+  wrongCount.value = 0
+  if (selfWindowId) {
+    notifyAi(selfWindowId, 'puzzle-solved')
   }
 }
 

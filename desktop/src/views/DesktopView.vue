@@ -44,11 +44,13 @@
  * 窗口根据自身的 `filters` 配置决定是否启用对应滤镜。
  */
 
-import { computed, markRaw, onBeforeUnmount, onMounted, provide, reactive, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { Bot, Info } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { AiAttachIcon, AiDetachIcon } from '@/ai/icons'
+import { getAiLiaisonState, requestAiAttach, requestAiDetach, requestAiDragEnd, requestAiDragMove } from '@/ai/useAiLiaison'
 import { useAuth } from '@/composables/useAuth'
 
 import DesktopStatusBar from '@/components/desktop/DesktopStatusBar.vue'
@@ -61,7 +63,7 @@ import MessageBox from '@/components/desktop/MessageBox.vue'
 import PermissionDenied from '@/components/desktop/PermissionDenied.vue'
 import WindowFrame from '@/components/desktop/WindowFrame.vue'
 import AiAssistant from '@/components/applications/AiAssistant.vue'
-// Live2D 暂时隐藏 — 取消注释以下行 + initLive2dWindow() 即可恢复
+// Live2D 已归档至 desktop/archive/live2d — 恢复时先移回组件与资源，再取消下方注释 + initLive2dWindow()
 // import Live2DAssistant from '@/components/applications/Live2DAssistant.vue'
 import { initAchievementAudio } from '@/composables/useAchievementUnlocks'
 import { useAudioService, type AudioCue } from '@/composables/useAudioService'
@@ -199,11 +201,11 @@ const askAiOverrideImage = ref<string | null>(null)
 /** Live2D 窗口的运行时 ID — 暂时隐藏 */
 // const live2dWindowId = ref<string | null>(null)
 
-/** kei 表情图片列表：与语音/台词一一对应 */
-const KEI_IMAGES = [
-  '/console/images/kei/kei_awkward2.webp',    // 对应 ogg1 + 台词1
-  '/console/images/kei/kei_veryawkward.webp', // 对应 ogg2 + 台词2
-  '/console/images/kei/kei_大急.webp',         // 对应 ogg3 + 台词3
+/** ellia 表情图片列表：与语音/台词一一对应（形象统一为 ellia，语音仍用 kei） */
+const ELLIA_IMAGES = [
+  '/console/images/ellia_little/ellia_normal.png',  // 对应 ogg1 + 台词1
+  '/console/images/ellia_little/ellia_happy.png',   // 对应 ogg2 + 台词2
+  '/console/images/ellia_little/ellia_angry.png',   // 对应 ogg3 + 台词3
 ]
 
 /** 标题栏轮换台词：基于 i18n 的 reactive 数组 */
@@ -289,7 +291,7 @@ function initAiWindow() {
       icon: markRaw(Bot),
       component: markRaw(AiAssistant),
       componentProps: {
-        images: KEI_IMAGES,
+        images: ELLIA_IMAGES,
         titles: KEI_TITLES.value,
         voices: KEI_VOICES,
         onSetTitle: (text: string) => { aiTitle.value = text },
@@ -304,6 +306,7 @@ function initAiWindow() {
         close: false,
       },
       maximizable: false,     // AI 助手为演出型窗口，不允许双击标题栏全屏
+      layer: 'ai',            // AI 助手层：常驻于普通窗口之上、模态之下（z-index 固定）
     },
   })
 
@@ -316,8 +319,9 @@ function initAiWindow() {
 }
 
 /**
- * 初始化 Live2D 虚拟形象窗口 — 暂时隐藏。
- * 取消此注释块 + 恢复导入 + 恢复配置常量即可重新启用。
+ * 初始化 Live2D 虚拟形象窗口 — 已归档至 desktop/archive/live2d。
+ * 恢复时先移回组件（Live2DAssistant.vue）与资源（public/live2d），
+ * 再取消此注释块 + 恢复导入 + 恢复配置常量即可重新启用。
  *
 function initLive2dWindow() {
   const windowWidth = 400
@@ -356,8 +360,27 @@ function initLive2dWindow() {
 }
  */
 
-/** AI 窗口 X 按钮 → 播放关闭语音 + 修改标题栏 + 随机漂移 */
+/** AI 窗口是否处于贴合态（贴合跟随需禁用位置过渡，保证跟手） */
+const isAiAttached = computed(() => getAiLiaisonState().value === 'attached')
+
+/** AI 窗口标题栏右侧的贴合/分离切换按钮（图标与行为随状态切换） */
+const aiTitlebarActions = computed(() => {
+  const attached = getAiLiaisonState().value === 'attached'
+  return [
+    {
+      key: 'ai-liaison-toggle',
+      label: attached ? t('aiChat.detach') : t('aiChat.attach'),
+      icon: attached ? AiDetachIcon : AiAttachIcon,
+      onClick: attached ? () => { requestAiDetach() } : () => { requestAiAttach() },
+    },
+  ]
+})
+
+/** AI 窗口 X 按钮 → 贴合态分离；离开态播放关闭语音 + 修改标题栏 + 随机漂移 */
 function handleAiCloseRequest() {
+  // 贴合态：关闭键语义 = 分离（由 AiAssistant 处理），不走随机漂移
+  if (requestAiDetach()) return
+
   const aiWin = windowService.windows.value.find((w) => w.id === aiWindowId.value)
   if (!aiWin) return
 
@@ -410,15 +433,37 @@ function handleRestart() {
     }
     restartTimer = null
   }, 60_000)
+
+  // 重启也重置"第一次"标记（与关机一致）：清除目录剧情已播放记录，
+  // 下次进入绑定剧情的目录（如 home/形象工程）可重新触发剧情。
+  // 成就解锁记录（ellia.desktop.achievement.*）为永久进度，不受影响。
+  resetFirstTimeMarkers()
 }
 
-/** 电源菜单 → 关机：播放音效 + 弹出权限拒绝弹窗 */
+/** 电源菜单 → 关机：播放音效 + 弹出权限拒绝弹窗 + 重置"第一次"标记 */
 function handleShutdown() {
   // 通过音频通道播放关机音效，10 秒后停止
   audioService.playFile('/console/sounds/shihuai/关羽之歌.mp3')
   setTimeout(() => audioService.stopFile(), 10_000)
 
   handleAiCloseRequest()
+
+  // 重置"第一次"标记：清除目录剧情已播放记录（localStorage 前缀 ellia.desktop.story.played.）。
+  // 关机即视为"新的一天"——下次进入绑定剧情的目录（如 home/形象工程）可重新触发剧情。
+  // 注意：该标记存在 localStorage（浏览器 HTTP 缓存禁用不影响它），故单独在此处显式重置；
+  // 成就解锁记录（ellia.desktop.achievement.*）为永久进度，不受关机影响。
+  resetFirstTimeMarkers()
+}
+
+/** 重置"第一次"标记：删除所有 `ellia.desktop.story.played.*` 键 */
+function resetFirstTimeMarkers() {
+  const prefix = 'ellia.desktop.story.played.'
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith(prefix)) keys.push(key)
+  }
+  for (const key of keys) localStorage.removeItem(key)
 }
 
 // ─── 右键上下文菜单 ────────────────────────────────────
@@ -459,8 +504,8 @@ function handleAskAi() {
   // console.log('[ContextMenu] 所在窗口元素:', windowEl)
 
   // 强制切换 AI 窗口差分和台词
-  askAiOverrideImage.value = '/console/images/kei/kei_smile1.webp'
-  aiTitle.value = 'kei不知道哦'
+  askAiOverrideImage.value = '/console/images/ellia_little/ellia_happy.png'
+  aiTitle.value = 'ellia不知道哦'
 }
 
 /** 点击菜单外部关闭 */
@@ -623,18 +668,51 @@ function handleDockAppClick(target: DockClickTarget) {
   }
 }
 
+/**
+ * 浏览器标签页标题管理：
+ * - 聚焦虚拟窗口时显示该窗口标题栏文本（与 WindowFrame 的展示逻辑一致）
+ * - 整个浏览器标签页被隐藏/失焦（切后台、被覆盖）时显示等待文案
+ * - 无聚焦窗口时显示默认标题
+ */
+const DEFAULT_TAB_TITLE = 'Ellia'
+const HIDDEN_TAB_TITLE = 'Ellia：我在这等你'
+
+/** 当前聚焦窗口的标题栏文本，供标签页标题复用 */
+const activeWindowTabTitle = computed(() => {
+  const win = windowService.activeWindow.value
+  if (!win) return null
+  return win.title ?? (win.id === aiWindowId.value ? aiTitle.value : undefined) ?? t(win.titleKey)
+})
+
+/** 同步 document.title：隐藏/失焦时显示等待文案，否则显示聚焦窗口标题 */
+function syncTabTitle() {
+  const isHidden = document.visibilityState === 'hidden' || !document.hasFocus()
+  document.title = isHidden ? HIDDEN_TAB_TITLE : (activeWindowTabTitle.value ?? DEFAULT_TAB_TITLE)
+}
+
 onMounted(() => {
   updateTime()
   clockTimer = window.setInterval(updateTime, 1000)
   void creditsStore.fetchBalances()
   initAiWindow()
   // initLive2dWindow() — Live2D 暂时隐藏
+
+  // 标签页标题：监听焦点/可见性变化 + 聚焦窗口变化
+  window.addEventListener('focus', syncTabTitle)
+  window.addEventListener('blur', syncTabTitle)
+  document.addEventListener('visibilitychange', syncTabTitle)
+  watch(activeWindowTabTitle, syncTabTitle)
+  syncTabTitle()
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
   if (restartTimer) clearTimeout(restartTimer)
   filterService.destroy(windowGlitchFilter.instanceId)
+
+  window.removeEventListener('focus', syncTabTitle)
+  window.removeEventListener('blur', syncTabTitle)
+  document.removeEventListener('visibilitychange', syncTabTitle)
 })
 </script>
 
@@ -653,10 +731,10 @@ onBeforeUnmount(() => {
         :is-active="windowService.activeWindowId.value === window.id"
         :filter-ids="windowFilterIds"
         :body-aspect-ratio="window.id === aiWindowId ? 1 : undefined"
-        :min-width="window.id === aiWindowId ? aiMinSize : undefined"
-        :min-height="window.id === aiWindowId ? aiMinSize : undefined"
-        :max-width="window.id === aiWindowId ? aiMaxSize : undefined"
-        :max-height="window.id === aiWindowId ? aiMaxSize : undefined"
+        :min-width="window.id === aiWindowId ? aiMinSize : window.minWidth"
+        :min-height="window.id === aiWindowId ? aiMinSize : window.minHeight"
+        :max-width="window.id === aiWindowId ? aiMaxSize : window.maxWidth"
+        :max-height="window.id === aiWindowId ? aiMaxSize : window.maxHeight"
         :title="window.title ?? (window.id === aiWindowId ? aiTitle : undefined)"
         :close-action="
           window.dockable
@@ -667,6 +745,10 @@ onBeforeUnmount(() => {
         "
         :translucent="window.id === aiWindowId ? true : undefined"
         :skip-enter-animation="window.id === aiWindowId ? true : undefined"
+        :on-drag-move="window.id === aiWindowId ? requestAiDragMove : undefined"
+        :on-drag-end="window.id === aiWindowId ? requestAiDragEnd : undefined"
+        :titlebar-actions="window.id === aiWindowId ? aiTitlebarActions : undefined"
+        :instant-move="window.id === aiWindowId ? isAiAttached : undefined"
         @close="handleWindowClose(window.id)"
         @focus="handleWindowFocus(window.id)"
         @minimize="handleWindowMinimize(window.id)"

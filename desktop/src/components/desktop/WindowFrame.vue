@@ -41,9 +41,10 @@
  */
 
 import { Minus, X } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { WINDOW_FRAME_ID } from '@/composables/windowFrameId'
 import type { FilterType } from '@/registries/filters'
 import type { WindowInstance } from '@/types/desktop'
 
@@ -118,6 +119,36 @@ const props = defineProps<{
    * 不传时默认播放入场动画，现有窗口不受影响。
    */
   skipEnterAnimation?: boolean
+  /**
+   * 拖动中每帧回调（传入当前窗口本地位置）。
+   * 用于摇动检测等需要采样拖拽轨迹的场景（如 AI 窗口贴合系统）。
+   * 不传时无额外开销，现有窗口不受影响。
+   */
+  onDragMove?: (pos: { x: number; y: number }) => void
+  /**
+   * 拖动结束回调（在回写 window 几何之后触发）。
+   * 用于贴合检测等拖动结束判定场景。
+   * 不传时不影响现有窗口。
+   */
+  onDragEnd?: () => void
+  /**
+   * 标题栏右侧的自定义控制按钮（渲染在最小化/关闭按钮之前）。
+   * 用于需要标题栏提供额外操作的窗口（如 AI 助手的贴合/分离切换）。
+   * 不传时不影响现有窗口。
+   */
+  titlebarActions?: {
+    key: string
+    label: string
+    icon: Component
+    onClick: () => void
+  }[]
+  /**
+   * 禁用 left/top 的缓动过渡（位置即时跳变）。
+   * 用于需要高频跟随其他窗口的场景（如 AI 助手贴合跟随），
+   * 避免 0.3s ease-out 造成"空开一截"的延迟感。
+   * 不传时保留默认过渡，现有窗口不受影响。
+   */
+  instantMove?: boolean
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -169,6 +200,9 @@ const isHiding = ref(false)
 const isEntering = ref(false)
 /** 入场动画是否已完成（transitionend 触发），用于解除 inline transition 屏蔽 */
 const enterDone = ref(false)
+
+// 提供给内容组件：当前窗口 id（用于 AI 联动、自我定位等）
+provide(WINDOW_FRAME_ID, props.window.id)
 
 onMounted(() => {
   // 非特殊窗口（skipEnterAnimation 未设置）且当前为显示态 → 播放入场动画
@@ -313,6 +347,10 @@ function onDrag(event: MouseEvent) {
   const deltaY = event.clientY - dragStartY.value
   x.value = Math.max(0, windowStartX.value + deltaX)
   y.value = Math.max(0, windowStartY.value + deltaY)
+  // 实时回写几何，供其他窗口（如 AI 助手贴合跟随）读取；stopDrag 会再次回写终值
+  props.window.x = x.value
+  props.window.y = y.value
+  props.onDragMove?.({ x: x.value, y: y.value })
 }
 
 function stopDrag() {
@@ -321,6 +359,7 @@ function stopDrag() {
   props.window.y = y.value
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  props.onDragEnd?.()
 }
 
 function startResize(event: MouseEvent, corner: ResizeCorner) {
@@ -365,6 +404,11 @@ function onResize(event: MouseEvent) {
     }
     width.value = newWidth
     height.value = newHeight
+    // 实时回写几何，供其他窗口（如 AI 助手贴合跟随）读取；stopResize 会再次回写终值
+    props.window.x = x.value
+    props.window.y = y.value
+    props.window.width = width.value
+    props.window.height = height.value
     return
   }
 
@@ -434,6 +478,11 @@ function onResize(event: MouseEvent) {
   if (resizeCorner.value.includes('t')) {
     y.value = windowStartY.value + (windowStartHeight.value - height.value)
   }
+  // 实时回写几何，供其他窗口（如 AI 助手贴合跟随）读取；stopResize 会再次回写终值
+  props.window.x = x.value
+  props.window.y = y.value
+  props.window.width = width.value
+  props.window.height = height.value
 }
 
 function stopResize() {
@@ -468,8 +517,8 @@ function stopResize() {
       height: `${height}px`,
       zIndex: window.zIndex,
       filter: filterValue,
-      // 拖拽中/缩放中/隐藏动画中/入场未完成 → 不输出 inline transition
-      ...(isDragging || isResizing || isHiding || !enterDone ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
+      // 拖拽中/缩放中/隐藏动画中/入场未完成/即时跟随 → 不输出 inline transition
+      ...(isDragging || isResizing || isHiding || !enterDone || props.instantMove ? {} : { transition: 'left 0.3s ease-out, top 0.3s ease-out' }),
     }"
     :role="window.mode === 'modal' ? 'dialog' : undefined"
     :aria-modal="window.mode === 'modal' ? 'true' : undefined"
@@ -486,7 +535,18 @@ function stopResize() {
         <component :is="window.icon" :size="14" :stroke-width="1.8" />
         <span>{{ title ?? t(window.titleKey) }}</span>
       </span>
-      <span v-if="window.controls.minimize || window.controls.close || closeAction" class="window-frame__controls">
+      <span v-if="window.controls.minimize || window.controls.close || closeAction || (titlebarActions && titlebarActions.length)" class="window-frame__controls">
+        <button
+          v-for="action in titlebarActions"
+          :key="action.key"
+          class="window-frame__control"
+          type="button"
+          :aria-label="action.label"
+          :title="action.label"
+          @click.stop="action.onClick"
+        >
+          <component :is="action.icon" :size="14" :stroke-width="1.8" />
+        </button>
         <button
           v-if="window.controls.minimize && window.mode === 'normal'"
           class="window-frame__control"

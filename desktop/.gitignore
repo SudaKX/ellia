@@ -41,3 +41,8 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# 避免DMCA
+public/*
+!public/.gitkeep
+/public/

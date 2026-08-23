@@ -22,6 +22,7 @@ export const deDE = {
       previewTitle: 'Dateivorschau',
       cannotOpen: 'Diese Datei kann nicht geöffnet werden.',
       emptyDir: 'Leeres Verzeichnis',
+      loading: 'Wird geladen…',
     },
     archive: {
       title: 'Archivbetrachter',
@@ -55,6 +56,10 @@ export const deDE = {
     deniedTitle: 'ZUGRIFF VERWEIGERT',
     vtbReward: 'Geheimnisvolle Seite gefunden! {amount} VTB wurden gutgeschrieben.',
   },
+  /** Bildbetrachter */
+  imageViewer: {
+    title: 'Bildbetrachter',
+  },
   /** Texteditor */
   textEditor: {
     title: 'Texteditor',
@@ -71,6 +76,8 @@ export const deDE = {
     savePromptDiscard: 'Nicht speichern',
     savePromptCancel: 'Abbrechen',
     permissionTitle: 'Zugriff verweigert',
+    preview: 'Vorschau',
+    source: 'Quelltext bearbeiten',
   },
   /** Story-Dialog (E ↔ Spieler) */
   story: {
@@ -78,6 +85,7 @@ export const deDE = {
       title: 'Nachricht',
       continue: 'Klicken, um fortzufahren',
       submit: 'Bestätigen',
+      auto: 'AUTO',
     },
   },
   settings: {
@@ -170,18 +178,54 @@ export const deDE = {
       2: 'Wie langweilig',
     },
   },
-  /** Live2D-Assistent */
-  live2d: {
-    title: 'Live2D-Assistent',
-    loading: 'Live2D wird geladen...',
-    containerError: 'Live2D-Container-Init fehlgeschlagen',
-    loadFailed: 'Laden fehlgeschlagen',
-    motionFailed: 'Animationswiedergabe fehlgeschlagen',
-    motionPlaying: 'Animation wird abgespielt',
-    idle: 'Bereit',
-    mainMotion: 'Hauptanimation {n}',
-    touchBody: 'Körper berühren',
-    touchHead: 'Kopf berühren',
+  /** Angedocktes AI-Chatfenster */
+  aiChat: {
+    attach: 'Andocken',
+    attachTip: 'Am letzten fokussierten Fenster andocken',
+    detach: 'Lösen',
+    attached: 'Angedockt: {title}',
+    attachedTitle: 'Angedockt · {title}',
+    continue: 'Weiter ▸',
+  },
+  /** Skriptzeilen des AI-Chats (i18n-Keys für AiNode.text / AiChoice.label) */
+  aiScripts: {
+    default: {
+      hello: '...Du hast mich hierhergezerrt. Brauchst du Hilfe?',
+      helloChat: 'Nur so plaudern',
+      helloQuiet: 'Bleib erst mal still',
+      chat: 'Ich sehe alles in diesem System—Dateien, Rätsel, Terminals. Frag mich, wenn du feststeckst.',
+      quiet: '...Na gut. Ich schweige. Schüttel mich, dann bin ich weg.',
+      end: '...Ich beobachte dich. Wühl nicht da herum, wo du nicht solltest.',
+    },
+    files: {
+      hello: 'Du kramst in Dateien herum. ...Das Dateisystem der Senpai verbirgt einiges. Doppelklick zum Öffnen—manche Dateien lösen Story-Events aus.',
+      helloWorth: 'Was lohnt sich?',
+      helloOk: 'Verstanden',
+      tip: 'Dateien mit .puz sind Rätsel—per Doppelklick öffnen. Fass init.exe nicht an—das ist das Eröffnungs-Event.',
+      end: '...Los. Ruf mich, wenn du feststeckst.',
+    },
+    terminal: {
+      hello: 'Ein Terminal? Interessant. Mit help siehst du die Befehle, sil öffnet Rätsel.',
+      helloLs: 'Sieh dir die Dateien an',
+      helloOk: 'Verstanden',
+      ls: 'ls listet das aktuelle Verzeichnis, cat liest Dateien. Dieses virtuelle Dateisystem hängt mit der Story zusammen.',
+      end: '...Tippe vorsichtig. Lass keine Befehle laufen, wo sie nicht hingehören.',
+    },
+    caesar: {
+      hello: 'Eine Caesar-Chiffre? ...Nur Buchstaben verschieben. Bei "khoor zruog" jedes Zeichen um 3 zurück.',
+      helloHow: 'Wie genau?',
+      helloTry: 'Ich versuch\'s erst selbst',
+      tip: 'k→h, h→e, o→l ... Schritt für Schritt 3 zurück im Alphabet. Wenn du zu oft danebenliegst, kann ich helfen.',
+      end: '...Viel Glück. Ruf mich, wenn\'s hoffnungslos wird.',
+    },
+    wrong2: '...Ich sehe, du steckst schon länger fest. Soll ich den Hinweis für dich öffnen? 30 TVB pro Versuch.',
+    wrong2Open: 'Hinweis öffnen (-30 TVB)',
+    wrong2Think: 'Ich denke noch mal nach',
+    wrong2After: 'Hinweis ist offen. Den Rest knackst du selbst.',
+    wrong2Quiet: '...Na gut. Ich schaue zu.',
+    wrong3: '...Ich hab\'s satt. Die Antwort ist eingetragen—prüf sie selbst, bevor du abgibst.',
+    wrong3End: 'Nächstes Mal nicht so trödeln.',
+    noCredits: '...Deine TVB reichen nicht. Erst mal was verdienen.',
   },
   /** Interaktives Befehlsterminal */
   terminal: {
@@ -296,6 +340,7 @@ export const deDE = {
       placeholder: 'Entschlüsselten Text eingeben...',
       hint1: 'Hinweis 1: Jeder Buchstabe wurde um den gleichen Betrag vorwärts verschoben. "k" wird zu "h" — was ist die Verschiebung?',
       hint2: 'Hinweis 2: Die Verschiebung beträgt 3 Positionen rückwärts. "khoor" → "hello". Versuchen Sie den Rest zu vervollständigen.',
+      aiHint: '(KI-Hinweis) Jeden Buchstaben 3 Positionen zurückverschieben: k→h, h→e, o→l. Die Antwort ist "hello world".',
     },
     noPuzzles: 'Keine Rätsel verfügbar.',
   },

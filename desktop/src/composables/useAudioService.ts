@@ -73,6 +73,8 @@ export interface AudioService {
   playFile: (url: string, bus?: AudioBus) => void
   /** 停止当前正在播放的文件 */
   stopFile: () => void
+  /** 并行播放音频文件，并返回用于停止该实例的函数 */
+  playParallelFile: (url: string, bus?: AudioBus) => () => void
   readSpectrumData: (samples: Uint8Array<ArrayBuffer>) => boolean
   setMuted: (muted: boolean) => void
   setMasterVolume: (volume: number) => void
@@ -292,6 +294,39 @@ export function createAudioService(): AudioService {
     }
   }
 
+  function playParallelFile(url: string, bus: AudioBus = 'ui') {
+    const audioEl = new Audio(url)
+    let source: MediaElementAudioSourceNode | null = null
+    let stopped = false
+
+    const stop = () => {
+      if (stopped) return
+      stopped = true
+      audioEl.pause()
+      source?.disconnect()
+      audioEl.remove()
+    }
+
+    void unlock().then((ready) => {
+      if (stopped) return
+      if (ready && context && !isMuted.value && masterVolume.value > 0) {
+        try {
+          source = context.createMediaElementSource(audioEl)
+          source.connect(busGains.get(bus)!)
+        } catch {
+          source = null
+          audioEl.volume = masterVolume.value * (busVolumes.value[bus] ?? 0.8)
+        }
+      } else {
+        audioEl.volume = isMuted.value ? 0 : masterVolume.value * (busVolumes.value[bus] ?? 0.8)
+      }
+      audioEl.play().catch(() => {})
+    })
+
+    audioEl.addEventListener('ended', stop, { once: true })
+    return stop
+  }
+
   async function suspend() {
     if (context?.state === 'running') {
       await context.suspend()
@@ -325,6 +360,7 @@ export function createAudioService(): AudioService {
     play,
     playFile,
     stopFile,
+    playParallelFile,
     readSpectrumData,
     setMuted,
     setMasterVolume,
