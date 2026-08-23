@@ -1,10 +1,4 @@
-# Entity-Editor-Lock-Overlay Specification
-
-## Purpose
-
-将字段编辑时的锁定覆盖层提取为独立可复用组件，供表单字段、ActionBar 的 resource_id 和注释区共用。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: LockOverlay 可复用组件
 

@@ -325,14 +325,19 @@ ActionBar 第二行 SHALL 展示完整多行注释。无注释时 surface 使用
 - **WHEN** 其他用户删除了当前选中节点的父节点
 - **THEN** 编辑器按记录路径段回退到第一个仍存在的祖先，并显示 toast
 
-### Requirement: 编辑中节点警告描边
+### Requirement: 编辑中节点提示
 
-所有正在被编辑的 file-tree 节点卡片 SHALL 使用 `--app-warning` 颜色描边，不区分锁持有者。
+所有正在被编辑的 file-tree 节点卡片 SHALL 显示 `block: false` 的 `LockOverlay`，展示锁定者用户名，不区分锁持有者。系统 SHALL NOT 再使用 `--app-warning` 描边或降低亮度 filter 标记这些卡片；该覆盖层 SHALL 不阻挡鼠标事件、不改变光标。
 
-#### Scenario: 他人编辑节点时显示警告描边
+#### Scenario: 他人编辑节点时显示非阻塞覆盖层
 
 - **WHEN** 其他用户持有某个树节点路径的锁
-- **THEN** 该节点卡片显示 `--app-warning` 描边
+- **THEN** 该节点卡片显示 `LockOverlay` 用户名标签，且不阻挡点击、不降低亮度
+
+#### Scenario: 自己编辑节点时同样显示覆盖层
+
+- **WHEN** 当前用户持有某个树节点路径的锁
+- **THEN** 该节点卡片同样显示 `LockOverlay` 用户名标签，且不阻挡点击
 
 ### Requirement: 下部信息面板
 

@@ -87,7 +87,7 @@
 
 - **仓库**：editor 根为 pnpm workspace（`pnpm-workspace.yaml`: `apps/*`, `packages/*`）；现有 `src/`、`index.html`、`vite.config.*` 移入 `apps/web/`。
 - **共享包** `@ellia/puzzle-schema`：`types.ts`（16 种实体 kind + 11 注册表 + UI_KINDS/RESOURCE_NAMESPACES + KindStateMap）、`sync.ts`（WS v2 协议消息）、`python.ts`（Python 名称规则）、`validate.ts`（module_id/resource_id/group/data_path 校验）、`exporter/`（导出占位，延后）。
-- **实体种类**：`progress-node`、`file-node`、`file-tree`、`progress-dag`、`asset`、`hint`、`script`、`validation`、`artifact`、`artifact-node`、`account`、`credit`、`achievement`、`task`、`listener`、`code`。节点只存数据，树/DAG 拓扑在 `file-tree`/`progress-dag` 容器中；`asset.state={source_reference?,file_reference?,media_type}`，命名空间为 `asset`。
+- **实体种类**：`progress-node`、`file-node`、`file-tree`、`dag`、`asset`、`hint`、`script`、`validation`、`artifact`、`artifact-node`、`account`、`credit`、`achievement`、`task`、`listener`、`code`。节点只存数据，树/DAG 拓扑在 `file-tree`/`dag` 容器中；`asset.state={source_reference?,file_reference?,media_type}`，命名空间为 `asset`。
 - **SQLite 表**：`users`、`invite_codes`、`sessions`、`projects`、`entities`（revision/version 双计数器 + JSON state）、`entity_history`（每实体 ≤N 快照，N 固化在 app_meta）、`files`（UUID 主键元数据；字节在 `FILE_DATA_DIR/<uuid>`）。
 - **WS 协议 v2**：`/ws/projects/:id` 经 cookie 会话认证；`join{vector}`→`sync`（revision 向量全量 diff + removed_ids）；`create/patch/delete/rollback/history`；`lock/unlock` 字段锁（每连接 1 把、断线清理）；`focus/presence` 在场；`ping/pong`。
 - **REST**：auth（register/login/logout/me）、admin（invites/users）、projects（CRUD）、files（POST/GET/DELETE `/api/files`，手动删除无条件、允许悬空 file_id）；`/export` 延后。

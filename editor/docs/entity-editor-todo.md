@@ -1,7 +1,7 @@
 # 实体编辑器细化 TODO
 
 > 目标：按实体类型逐个细化“字段定义 / 创建表单 / 专用编辑器”，提升字段级锁、在场提示和创建体验。
-> 状态：进行中；hint 已完成字段/结构检查；validation 已完成字段/后端检查、创建表单/编辑器调整；task 已完成字段/后端检查；listener 已完成字段/后端检查；achievement 已完成字段/后端检查；account 已完成字段/后端检查；credit 已完成字段/后端检查、创建表单/编辑器调整；artifact 已完成字段/后端检查、创建表单/编辑器调整；artifact-node 已完成字段/后端检查、创建表单/编辑器调整；progress-node 已完成字段/后端检查、创建表单/编辑器调整；file-node 已完成字段/后端检查、创建表单/编辑器调整；asset 已完成字段/后端检查、创建表单/编辑器调整；code 已完成字段/后端检查、创建表单/编辑器调整；file-tree 已完成字段/后端检查、创建表单/编辑器调整；当前推进 script 检查（progress-dag 仍暂缓）。
+> 状态：进行中；hint 已完成字段/结构检查；validation 已完成字段/后端检查、创建表单/编辑器调整；task 已完成字段/后端检查；listener 已完成字段/后端检查；achievement 已完成字段/后端检查；account 已完成字段/后端检查；credit 已完成字段/后端检查、创建表单/编辑器调整；artifact 已完成字段/后端检查、创建表单/编辑器调整；artifact-node 已完成字段/后端检查、创建表单/编辑器调整；progress-node 已完成字段/后端检查、创建表单/编辑器调整；file-node 已完成字段/后端检查、创建表单/编辑器调整；asset 已完成字段/后端检查、创建表单/编辑器调整；code 已完成字段/后端检查、创建表单/编辑器调整；file-tree 已完成字段/后端检查、创建表单/编辑器调整；当前推进 dag 编辑器初版（progress-dag 已重命名为 dag，图内节点与 pnode 实体解耦）。
 
 ## 推荐处理顺序
 
@@ -19,7 +19,7 @@
 | 10 | `progress-node` | `dag-node` | FormEditor | 节点字段 + 后续 DAG 拓扑联动 |
 | 11 | `file-node` | `form` | FormEditor | 节点字段 + 后续 file-tree 拓扑联动 |
 | 12 | `file-tree` | `file-tree` | FileTreeEditor（专用拓扑编辑器） | 容器拓扑编辑器 |
-| 13 | `progress-dag` | `progress-dag` | ProgressDagEditor（FormEditor 封装） | 容器拓扑编辑器 |
+| 13 | `dag` | `dag` | DagEditor（专用拓扑编辑器） | 容器拓扑编辑器 |
 | 14 | `asset` | `asset` | FormEditor | 文件引用与上传替换 |
 | 15 | `script` | `script` | ScriptEditor | 脚本行编辑 |
 | 16 | `code` | `code` | CodeEditor | 代码块编辑 |
@@ -122,7 +122,7 @@
 
 - [x] 字段：`how`、`mode`、`triggers_checkpoint`
 - [x] 创建表单：how/mode 可选配置 + triggers_checkpoint
-- [x] 编辑器：节点基础表单，后续与 progress-dag 联动高亮
+- [x] 编辑器：节点基础表单，后续与 dag 容器联动高亮
 
 ### 11. file-node
 
@@ -136,11 +136,11 @@
 - [x] 创建表单：默认 `{ rootId: "root", nodes: { root: ... } }`
 - [x] 编辑器：专用拓扑容器编辑（横向层级、节点卡片、添加/删除、下部信息面板）
 
-### 13. progress-dag
+### 13. dag
 
-- [ ] 字段：`entry_stable_ids`、`successors`
-- [ ] 创建表单：默认 `{ entry_stable_ids: [], successors: {} }`
-- [ ] 编辑器：DAG 入口/边编辑
+- [x] 字段：`entryIds`、`nodes`（扁平 DagNode 表：id/name/pnode/successors）
+- [x] 创建表单：默认 `{ entryIds: [], nodes: {} }`
+- [x] 编辑器：专用拓扑容器编辑（dagre 布局、孤立节点独立行、节点卡片、添加/编辑/删除、下部信息面板）
 
 ### 14. asset
 
