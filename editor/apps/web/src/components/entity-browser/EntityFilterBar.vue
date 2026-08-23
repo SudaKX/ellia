@@ -26,28 +26,30 @@ function onGroupChange(value: string | number): void {
 
 <template>
   <div class="entity-filter-bar">
-    <label class="entity-filter">
-      <span>类型</span>
-      <DropdownSelect
-        :options="[{ label: '全部', value: '' }, ...optionList(kinds)]"
-        :model-value="filter.kind"
-        placeholder="全部"
-        searchable
-        search-placeholder="搜索类型..."
-        @update:model-value="onKindChange"
-      />
-    </label>
-    <label class="entity-filter">
-      <span>分组</span>
-      <DropdownSelect
-        :options="[{ label: '全部', value: '' }, ...optionList(groups)]"
-        :model-value="filter.group"
-        placeholder="全部"
-        searchable
-        search-placeholder="搜索分组..."
-        @update:model-value="onGroupChange"
-      />
-    </label>
+    <div class="entity-filter-row">
+      <label class="entity-filter">
+        <span>类型</span>
+        <DropdownSelect
+          :options="[{ label: '全部', value: '' }, ...optionList(kinds)]"
+          :model-value="filter.kind"
+          placeholder="全部"
+          searchable
+          search-placeholder="搜索类型..."
+          @update:model-value="onKindChange"
+        />
+      </label>
+      <label class="entity-filter">
+        <span>分组</span>
+        <DropdownSelect
+          :options="[{ label: '全部', value: '' }, ...optionList(groups)]"
+          :model-value="filter.group"
+          placeholder="全部"
+          searchable
+          search-placeholder="搜索分组..."
+          @update:model-value="onGroupChange"
+        />
+      </label>
+    </div>
     <label class="entity-filter entity-filter--search">
       <span>资源标识符</span>
       <TextField v-model="filter.search" placeholder="搜索资源标识符..." />
@@ -58,11 +60,17 @@ function onGroupChange(value: string | number): void {
 <style scoped>
 .entity-filter-bar {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  flex-direction: column;
   gap: 10px;
   padding: 8px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
+}
+
+.entity-filter-row {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .entity-filter {
@@ -75,7 +83,7 @@ function onGroupChange(value: string | number): void {
 }
 
 .entity-filter--search {
-  flex: 1 1 100%;
+  width: 100%;
   max-width: none;
 }
 
