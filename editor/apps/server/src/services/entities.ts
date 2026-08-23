@@ -356,6 +356,33 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
       }
       return
     }
+    case 'markdown': {
+      assertStringArray(s.sort, 'markdown.sort')
+      if (!isRecord(s.segments)) {
+        throw new ApiError(400, 'VALIDATION', 'markdown.segments 必须是 SegmentId → MarkdownSegment 映射')
+      }
+      const sort = s.sort as string[]
+      if (new Set(sort).size !== sort.length) {
+        throw new ApiError(400, 'VALIDATION', 'markdown.sort 不能包含重复 UUID')
+      }
+      const segmentIds = Object.keys(s.segments)
+      if (sort.length !== segmentIds.length || segmentIds.some((id) => !sort.includes(id))) {
+        throw new ApiError(400, 'VALIDATION', 'markdown.sort 必须完整覆盖 segments 的所有 key')
+      }
+      for (const [segmentId, rawSegment] of Object.entries(s.segments)) {
+        if (!isRecord(rawSegment)) {
+          throw new ApiError(400, 'VALIDATION', `markdown.segments[${segmentId}] 必须是对象`)
+        }
+        const segment = rawSegment as Record<string, unknown>
+        if (segment.id !== segmentId) {
+          throw new ApiError(400, 'VALIDATION', `markdown.segments[${segmentId}].id 必须与键一致`)
+        }
+        if (typeof segment.content !== 'string') {
+          throw new ApiError(400, 'VALIDATION', `markdown.segments[${segmentId}].content 必须是字符串`)
+        }
+      }
+      return
+    }
     case 'validation': {
       requiredString('validation_id', 'validation.validation_id')
       return

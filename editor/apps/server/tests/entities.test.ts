@@ -296,6 +296,88 @@ describe('entities service', () => {
     )
   })
 
+  it('markdown 使用 source 命名空间并校验 segments/sort', () => {
+    const markdown = createEntity(
+      projectId,
+      {
+        kind: 'markdown',
+        ui_kind: 'markdown',
+        resource_id: 'source:guide',
+        state: {
+          sort: ['s1', 's2'],
+          segments: {
+            s1: { id: 's1', content: '# 标题' },
+            s2: { id: 's2', content: '正文' },
+          },
+        },
+      },
+      adminId,
+    )
+    assert.equal(markdown.state.segments.s1.content, '# 标题')
+    assert.deepEqual(markdown.state.sort, ['s1', 's2'])
+
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'markdown',
+            ui_kind: 'markdown',
+            resource_id: 'source:bad',
+            state: { sort: ['s1'], segments: { s1: { id: 's1', content: 'x' }, s2: { id: 's2', content: 'y' } } },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('完整覆盖'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'markdown',
+            ui_kind: 'markdown',
+            resource_id: 'source:bad',
+            state: { sort: ['s1', 's1'], segments: { s1: { id: 's1', content: 'x' } } },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('重复'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'markdown',
+            ui_kind: 'markdown',
+            resource_id: 'source:bad',
+            state: { sort: ['s1'], segments: { s1: { id: 'other', content: 'x' } } },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION' && error.message.includes('必须与键一致'),
+    )
+    assert.throws(
+      () =>
+        createEntity(
+          projectId,
+          {
+            kind: 'markdown',
+            ui_kind: 'markdown',
+            resource_id: 'script:bad',
+            state: { sort: [], segments: {} },
+          },
+          adminId,
+        ),
+      (error: unknown) =>
+        error instanceof ApiError && error.code === 'VALIDATION',
+    )
+  })
+
   it('file-tree / dag 容器持有拓扑，节点不携带拓扑', () => {
     const tree = createEntity(
       projectId,
