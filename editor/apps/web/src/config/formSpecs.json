@@ -139,7 +139,7 @@
   "asset": {
     "source_reference": {
       "type": "ref",
-      "description": "source 引用（后续使用）。",
+      "description": "引用 source 命名空间下的源文件实体（如 markdown），导出时保存为实际文件并加入 FileReference。",
       "optional": true,
       "namespace": "source"
     },

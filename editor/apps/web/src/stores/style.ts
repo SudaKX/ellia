@@ -135,6 +135,35 @@ function buildPythonHighlight(variant: 'light' | 'dark'): Extension {
   )
 }
 
+function buildMarkdownHighlight(variant: 'light' | 'dark'): Extension {
+  const isDarkVariant = variant === 'dark'
+  const primary = cssVar('--md-sys-color-primary', isDarkVariant ? '#d0bcff' : '#6750a4')
+  const secondary = cssVar('--md-sys-color-secondary', isDarkVariant ? '#ccc2dc' : '#625b71')
+  const tertiary = cssVar('--md-sys-color-tertiary', isDarkVariant ? '#efb8c8' : '#7d5260')
+  const error = cssVar('--md-sys-color-error', isDarkVariant ? '#f2b8b5' : '#b3261e')
+  const onSurface = cssVar('--md-sys-color-on-surface', isDarkVariant ? '#e6e1e5' : '#1c1b1f')
+  const onSurfaceVariant = cssVar(
+    '--md-sys-color-on-surface-variant',
+    isDarkVariant ? '#cac4d0' : '#49454f',
+  )
+
+  return syntaxHighlighting(
+    HighlightStyle.define([
+      { tag: tags.heading, color: primary, fontWeight: 'bold' },
+      { tag: tags.strong, color: onSurface, fontWeight: 'bold' },
+      { tag: tags.emphasis, color: tertiary, fontStyle: 'italic' },
+      { tag: tags.link, color: primary, textDecoration: 'underline' },
+      { tag: tags.url, color: secondary },
+      { tag: tags.monospace, color: tertiary },
+      { tag: tags.quote, color: secondary, fontStyle: 'italic' },
+      { tag: tags.list, color: primary },
+      { tag: tags.contentSeparator, color: onSurfaceVariant },
+      { tag: [tags.meta, tags.processingInstruction], color: onSurfaceVariant, fontStyle: 'italic' },
+      { tag: tags.invalid, color: error, textDecoration: 'underline', fontWeight: 'bold' },
+    ]),
+  )
+}
+
 function buildJsonHighlight(variant: 'light' | 'dark'): Extension {
   const isDarkVariant = variant === 'dark'
   const primary = cssVar('--md-sys-color-primary', isDarkVariant ? '#d0bcff' : '#6750a4')
@@ -172,6 +201,8 @@ export const useStyleStore = defineStore('style', () => {
   const darkPythonHighlight = ref<unknown>([])
   const lightJsonHighlight = ref<unknown>([])
   const darkJsonHighlight = ref<unknown>([])
+  const lightMarkdownHighlight = ref<unknown>([])
+  const darkMarkdownHighlight = ref<unknown>([])
   let observer: MutationObserver | null = null
   let initialized = false
 
@@ -183,6 +214,9 @@ export const useStyleStore = defineStore('style', () => {
   )
   const jsonHighlight = computed(
     () => (isDark.value ? darkJsonHighlight.value : lightJsonHighlight.value) as Extension,
+  )
+  const markdownHighlight = computed(
+    () => (isDark.value ? darkMarkdownHighlight.value : lightMarkdownHighlight.value) as Extension,
   )
 
   function readTokens(): void {
@@ -203,6 +237,8 @@ export const useStyleStore = defineStore('style', () => {
     darkPythonHighlight.value = buildPythonHighlight('dark')
     lightJsonHighlight.value = buildJsonHighlight('light')
     darkJsonHighlight.value = buildJsonHighlight('dark')
+    lightMarkdownHighlight.value = buildMarkdownHighlight('light')
+    darkMarkdownHighlight.value = buildMarkdownHighlight('dark')
   }
 
   function init(): void {
@@ -228,6 +264,9 @@ export const useStyleStore = defineStore('style', () => {
     lightJsonHighlight,
     darkJsonHighlight,
     jsonHighlight,
+    lightMarkdownHighlight,
+    darkMarkdownHighlight,
+    markdownHighlight,
     refresh,
     init,
   }

@@ -12,6 +12,7 @@ import DagEditor from './panes/DagEditor.vue'
 import FallbackEditor from './panes/FallbackEditor.vue'
 import FileTreeEditor from './panes/FileTreeEditor.vue'
 import FormEditor from './panes/FormEditor.vue'
+import MarkdownEditor from './panes/markdown/MarkdownEditor.vue'
 
 const kindRegistry = new Map<EntityKind, Component>()
 const uiKindRegistry = new Map<UiKind, Component>()
@@ -20,12 +21,14 @@ registerKindEditor('progress-node', FormEditor)
 registerKindEditor('file-tree', FileTreeEditor)
 registerKindEditor('dag', DagEditor)
 registerKindEditor('asset', FormEditor)
+registerKindEditor('markdown', MarkdownEditor)
 registerKindEditor('code', CodeBlockEditor)
 
 registerUiKindEditor('dag-node', FormEditor)
 registerUiKindEditor('file-tree', FileTreeEditor)
 registerUiKindEditor('dag', DagEditor)
 registerUiKindEditor('asset', FormEditor)
+registerUiKindEditor('markdown', MarkdownEditor)
 registerUiKindEditor('code', CodeBlockEditor)
 registerUiKindEditor('form', FormEditor)
 

@@ -13,6 +13,7 @@
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
     "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.4",
     "@codemirror/state": "^6.4.1",
@@ -21,6 +22,7 @@
     "@ellia/puzzle-schema": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "codemirror": "^6.0.1",
+    "markdown-it": "^15.0.0",
     "mediasoup-client": "^3.22.0",
     "pinia": "^4.0.2",
     "thememirror": "^2.0.1",
