@@ -10,7 +10,7 @@ import {
 import CodeBlockEditor from './panes/CodeBlockEditor.vue'
 import FileTreeEditor from './panes/FileTreeEditor.vue'
 import FormEditor from './panes/FormEditor.vue'
-import ProgressDagEditor from './panes/ProgressDagEditor.vue'
+import DagEditor from './panes/DagEditor.vue'
 import ScriptEditor from './panes/ScriptEditor.vue'
 
 const kindRegistry = new Map<EntityKind, Component>()
@@ -18,14 +18,14 @@ const uiKindRegistry = new Map<UiKind, Component>()
 
 registerKindEditor('progress-node', FormEditor)
 registerKindEditor('file-tree', FileTreeEditor)
-registerKindEditor('progress-dag', ProgressDagEditor)
+registerKindEditor('dag', DagEditor)
 registerKindEditor('asset', FormEditor)
 registerKindEditor('script', ScriptEditor)
 registerKindEditor('code', CodeBlockEditor)
 
 registerUiKindEditor('dag-node', FormEditor)
 registerUiKindEditor('file-tree', FileTreeEditor)
-registerUiKindEditor('progress-dag', ProgressDagEditor)
+registerUiKindEditor('dag', DagEditor)
 registerUiKindEditor('asset', FormEditor)
 registerUiKindEditor('script', ScriptEditor)
 registerUiKindEditor('code', CodeBlockEditor)

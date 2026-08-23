@@ -11,11 +11,13 @@ const props = withDefaults(
     disabled?: boolean
     valueAsId?: boolean
     placeholder?: string
+    searchable?: boolean
   }>(),
   {
     disabled: false,
     valueAsId: false,
     placeholder: '选择引用',
+    searchable: false,
   },
 )
 
@@ -41,6 +43,7 @@ const options = computed(() =>
     :model-value="modelValue"
     :disabled="disabled"
     :placeholder="placeholder"
+    :searchable="searchable"
     @update:model-value="(value) => emit('update:modelValue', String(value))"
   />
 </template>

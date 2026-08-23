@@ -34,12 +34,12 @@
       "format": "固定为 main"
     }
   },
-  "progress-dag": {
-    "namespace": "progress-dag",
+  "dag": {
+    "namespace": "dag",
     "fixed": { "enable": true, "value": "main" },
-    "default": { "entry_stable_ids": [], "successors": {} },
+    "default": { "entryIds": [], "nodes": {} },
     "comment": {
-      "description": "进度 DAG 容器，保存入口节点与边关系。",
+      "description": "进度 DAG 容器，保存图内节点与后继关系。",
       "format": "固定为 main"
     }
   },
