@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import type { VoiceChannelDto } from '@ellia/puzzle-schema'
+
 import { useVoiceStore } from '../../stores/voice'
+import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import TextField from '../ui/TextField.vue'
 
 const voice = useVoiceStore()
@@ -9,6 +12,32 @@ const voice = useVoiceStore()
 const newChannelName = ref('')
 const busy = ref(false)
 const error = ref<string | null>(null)
+const deleteTarget = ref<VoiceChannelDto | null>(null)
+const deleteBusy = ref(false)
+
+function askDeleteChannel(channel: VoiceChannelDto): void {
+  deleteTarget.value = channel
+}
+
+function cancelDeleteChannel(): void {
+  if (deleteBusy.value) return
+  deleteTarget.value = null
+}
+
+async function confirmDeleteChannel(): Promise<void> {
+  const target = deleteTarget.value
+  if (!target) return
+  deleteBusy.value = true
+  error.value = null
+  try {
+    await voice.deleteChannel(target.id)
+    deleteTarget.value = null
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除频道失败'
+  } finally {
+    deleteBusy.value = false
+  }
+}
 
 async function createChannel(): Promise<void> {
   const name = newChannelName.value.trim()
@@ -128,23 +157,33 @@ function isFull(channel: { participant_count: number; max_participants: number }
                   <span class="voice-channel__name">{{ channel.name }}</span>
                   <span class="voice-channel__count">{{ channel.participant_count }}/{{ channel.max_participants }}</span>
                 </div>
-                <button
-                  v-if="voice.currentChannelId === channel.id"
-                  class="btn btn--text"
-                  type="button"
-                  disabled
-                >
-                  已加入
-                </button>
-                <button
-                  v-else
-                  class="btn btn--primary"
-                  type="button"
-                  :disabled="busy || isFull(channel)"
-                  @click="joinChannel(channel.id)"
-                >
-                  {{ isFull(channel) ? '已满' : '加入' }}
-                </button>
+                <div class="voice-channel__actions">
+                  <button
+                    class="btn btn--small btn--danger"
+                    type="button"
+                    :disabled="busy || deleteBusy"
+                    @click="askDeleteChannel(channel)"
+                  >
+                    删除
+                  </button>
+                  <button
+                    v-if="voice.currentChannelId === channel.id"
+                    class="btn btn--text"
+                    type="button"
+                    disabled
+                  >
+                    已加入
+                  </button>
+                  <button
+                    v-else
+                    class="btn btn--primary"
+                    type="button"
+                    :disabled="busy || isFull(channel)"
+                    @click="joinChannel(channel.id)"
+                  >
+                    {{ isFull(channel) ? '已满' : '加入' }}
+                  </button>
+                </div>
               </li>
             </ul>
             <form class="voice-create" @submit.prevent="createChannel">
@@ -186,6 +225,18 @@ function isFull(channel: { participant_count: number; max_participants: number }
       </div>
     </div>
   </Teleport>
+
+  <ConfirmDialog
+    :open="!!deleteTarget"
+    title="删除频道"
+    :message="deleteTarget ? `确定删除频道“${deleteTarget.name}”？频道内成员会被移出。` : ''"
+    confirm-label="删除"
+    cancel-label="取消"
+    danger
+    :busy="deleteBusy"
+    @confirm="confirmDeleteChannel"
+    @cancel="cancelDeleteChannel"
+  />
 </template>
 
 <style scoped>
@@ -380,6 +431,18 @@ function isFull(channel: { participant_count: number; max_participants: number }
   min-width: 0;
 }
 
+.voice-channel__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.voice-channel__actions .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
 .voice-channel__name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -395,6 +458,11 @@ function isFull(channel: { participant_count: number; max_participants: number }
   display: flex;
   gap: 8px;
   margin-top: 10px;
+}
+
+.voice-create .btn {
+  flex: none;
+  white-space: nowrap;
 }
 
 .voice-create :deep(.text-field) {
