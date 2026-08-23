@@ -1,5 +1,5 @@
 // @ellia/puzzle-schema — 核心数据类型（plan-v2 §3）
-// 16 种实体 kind 的声明数据 TS 类型 + 编辑器实体模型。
+// 17 种实体 kind 的声明数据 TS 类型 + 编辑器实体模型。
 // 实体是同步、版本号、历史快照的基本单位；state 为权威当前状态。
 
 
@@ -9,7 +9,7 @@ export type EntityId = string
 /** 项目内唯一的稳定 id（节点、hint、script、validation、artifact-node 等） */
 export type StableId = string
 
-/** Mythos 全部 11 个注册表名 */
+/** 实体树分组注册表名（含前端分组扩展，不直接等同 Mythos 注册表） */
 export const REGISTRY_NAMES = [
   'files',
   'progress',
@@ -22,6 +22,8 @@ export const REGISTRY_NAMES = [
   'events',
   'tasks',
   'achievements',
+  'markdown',
+  'questionnaire',
 ] as const
 
 export type RegistryName = (typeof REGISTRY_NAMES)[number]
@@ -36,6 +38,7 @@ export const ENTITY_KINDS = [
   'hint',
   'script',
   'markdown',
+  'questionnaire',
   'validation',
   'artifact',
   'artifact-node',
@@ -58,7 +61,8 @@ export const REGISTRY_OF_KIND: Record<EntityKind, RegistryName | 'code'> = {
   asset: 'files',
   hint: 'hints',
   script: 'scripts',
-  markdown: 'files',
+  markdown: 'markdown',
+  questionnaire: 'questionnaire',
   validation: 'validations',
   artifact: 'artifacts',
   'artifact-node': 'artifacts',
@@ -78,6 +82,7 @@ export const UI_KINDS = [
   'asset',
   'script',
   'markdown',
+  'questionnaire',
   'code',
   'form',
 ] as const
@@ -116,6 +121,7 @@ const UI_KIND_OF_KIND: Record<EntityKind, UiKind> = {
   hint: 'form',
   script: 'script',
   markdown: 'markdown',
+  questionnaire: 'questionnaire',
   validation: 'form',
   artifact: 'form',
   'artifact-node': 'form',
@@ -134,6 +140,7 @@ const NAMESPACE_OF_KIND: Record<EntityKind, ResourceNamespace> = {
   hint: 'hint',
   script: 'script',
   markdown: 'source',
+  questionnaire: 'source',
   validation: 'validation',
   'artifact-node': 'inode',
   asset: 'asset',
@@ -298,6 +305,40 @@ export interface MarkdownState {
   segments: Record<string, MarkdownSegment>
 }
 
+/** 问卷题目类型：选择题 / 填空题 */
+export type QuestionType = 'choice' | 'text'
+
+/** 选择题 data：single 为 true 表示单选，false 表示多选 */
+export interface ChoiceQuestionData {
+  single: boolean
+  options: string[]
+}
+
+/** 填空题 data：format 为空/null 时不校验格式 */
+export interface TextQuestionData {
+  format: string | null
+}
+
+/** 问卷中的一道题 */
+export interface QuestionnaireQuestion {
+  /** 内部 UUID，与 questions 的 key 一致 */
+  id: string
+  type: QuestionType
+  /** markdown 文本 */
+  description: string
+  data: ChoiceQuestionData | TextQuestionData
+}
+
+/** 问卷源文件：显式 sort 数组 + questions 映射 */
+export interface QuestionnaireState {
+  /** 问卷整体说明，markdown 文本 */
+  description: string
+  /** 显式顺序：questions key 的完整排列 */
+  sort: string[]
+  /** QuestionId → QuestionnaireQuestion */
+  questions: Record<string, QuestionnaireQuestion>
+}
+
 export interface ValidationState {
   /** @deprecated 由 resource_id 提供，导出时解析 */
   stable_id?: StableId
@@ -410,6 +451,7 @@ export type EntityState =
   | HintState
   | ScriptState
   | MarkdownState
+  | QuestionnaireState
   | ValidationState
   | ArtifactTemplateState
   | ArtifactNodeState
@@ -430,6 +472,7 @@ export interface KindStateMap {
   hint: HintState
   script: ScriptState
   markdown: MarkdownState
+  questionnaire: QuestionnaireState
   validation: ValidationState
   'artifact': ArtifactTemplateState
   'artifact-node': ArtifactNodeState
