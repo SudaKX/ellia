@@ -296,7 +296,7 @@ describe('entities service', () => {
     )
   })
 
-  it('file-tree / progress-dag 容器持有拓扑，节点不携带拓扑', () => {
+  it('file-tree / dag 容器持有拓扑，节点不携带拓扑', () => {
     const tree = createEntity(
       projectId,
       {
@@ -350,17 +350,20 @@ describe('entities service', () => {
     const dag = createEntity(
       projectId,
       {
-        kind: 'progress-dag',
-        ui_kind: 'progress-dag',
-        resource_id: 'progress-dag:main',
+        kind: 'dag',
+        ui_kind: 'dag',
+        resource_id: 'dag:main',
         state: {
-          entry_stable_ids: ['start'],
-          successors: { start: ['end'] },
+          entryIds: ['n1'],
+          nodes: {
+            n1: { id: 'n1', name: 'Start', pnode: null, successors: ['n2'] },
+            n2: { id: 'n2', name: 'End', pnode: null, successors: [] },
+          },
         },
       },
       adminId,
     )
-    assert.deepEqual(dag.state.successors, { start: ['end'] })
+    assert.deepEqual(dag.state.nodes.n1.successors, ['n2'])
     assert.throws(
       () =>
         createEntity(

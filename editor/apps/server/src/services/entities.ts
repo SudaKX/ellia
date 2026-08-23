@@ -272,14 +272,46 @@ export function validateStateShape(kind: EntityKind, state: unknown): void {
       }
       return
     }
-    case 'progress-dag': {
-      assertStringArray(s.entry_stable_ids, 'progress-dag.entry_stable_ids')
-      if (!isRecord(s.successors)) {
-        throw new ApiError(400, 'VALIDATION', 'progress-dag.successors 必须是 from → to[] 映射')
+    case 'dag': {
+      assertStringArray(s.entryIds, 'dag.entryIds')
+      if (!isRecord(s.nodes)) {
+        throw new ApiError(400, 'VALIDATION', 'dag.nodes 必须是 DagNodeId → DagNode 映射')
       }
-      for (const [from, targets] of Object.entries(s.successors)) {
-        if (!from) throw new ApiError(400, 'VALIDATION', 'progress-dag.successors 的键不能为空')
-        assertStringArray(targets, `progress-dag.successors[${from}]`)
+      for (const [nodeId, rawNode] of Object.entries(s.nodes)) {
+        if (!isRecord(rawNode)) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}] 必须是对象`)
+        }
+        const node = rawNode as Record<string, unknown>
+        if (node.id !== nodeId) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].id 必须与键一致`)
+        }
+        if (typeof node.id !== 'string' || node.id.length === 0) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].id 必须为非空字符串`)
+        }
+        if (typeof node.name !== 'string' || node.name.trim().length === 0) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].name 必须为非空字符串`)
+        }
+        if (node.pnode !== null && (typeof node.pnode !== 'string' || node.pnode.length === 0)) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].pnode 必须为字符串或 null`)
+        }
+        assertStringArray(node.successors, `dag.nodes[${nodeId}].successors`)
+        const successors = node.successors as string[]
+        if (new Set(successors).size !== successors.length) {
+          throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].successors 不能包含重复后继`)
+        }
+        for (const successor of successors) {
+          if (successor === nodeId) {
+            throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}] 不能指向自身`)
+          }
+          if (!(successor in s.nodes)) {
+            throw new ApiError(400, 'VALIDATION', `dag.nodes[${nodeId}].successors 引用了不存在的节点: ${successor}`)
+          }
+        }
+      }
+      for (const entryId of s.entryIds as string[]) {
+        if (!(entryId in s.nodes)) {
+          throw new ApiError(400, 'VALIDATION', `dag.entryIds 引用了不存在的节点: ${entryId}`)
+        }
       }
       return
     }

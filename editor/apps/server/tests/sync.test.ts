@@ -526,7 +526,7 @@ describe('WS v2 sync', () => {
     assert.equal((rolled.state as { file_reference: string }).file_reference, fileId)
   })
 
-  it('file-tree / progress-dag 容器整容器加锁 patch', async () => {
+  it('file-tree / dag 容器整容器加锁 patch', async () => {
     const tree = await createEntityWs('file-tree', 'file-tree:main', {
       rootId: 'root',
       nodes: {
@@ -550,12 +550,15 @@ describe('WS v2 sync', () => {
     const applied = await admin.waitFor('applied')
     assert.equal(applied.revision, 2)
 
-    const dag = await createEntityWs('progress-dag', 'progress-dag:main', {
-      entry_stable_ids: ['start'],
-      successors: { start: ['end'] },
+    const dag = await createEntityWs('dag', 'dag:main', {
+      entryIds: ['n1'],
+      nodes: {
+        n1: { id: 'n1', name: 'Start', pnode: null, successors: ['n2'] },
+        n2: { id: 'n2', name: 'End', pnode: null, successors: [] },
+      },
     })
     const dagId = (dag.entity as { id: string }).id
-    const dagPath = `${dagId}@state:/successors`
+    const dagPath = `${dagId}@state:/nodes`
     admin.send({ type: 'lock', ref: ref(), entity_id: dagId, data_path: dagPath })
     await admin.waitFor('locked')
     admin.send({
@@ -563,7 +566,10 @@ describe('WS v2 sync', () => {
       ref: 'd',
       entity_id: dagId,
       data_path: dagPath,
-      value: { start: ['end', 'bonus'] },
+      value: {
+        n1: { id: 'n1', name: 'Start', pnode: null, successors: ['n2'] },
+        n2: { id: 'n2', name: 'End', pnode: null, successors: [] },
+      },
     })
     await admin.waitFor('applied')
   })
@@ -579,7 +585,7 @@ describe('WS v2 sync', () => {
       ref: requestRef,
       group: 'main',
       kind,
-      ui_kind: kind === 'asset' ? 'asset' : kind === 'file-tree' ? 'file-tree' : 'progress-dag',
+      ui_kind: kind === 'asset' ? 'asset' : kind === 'file-tree' ? 'file-tree' : 'dag',
       resource_id: resourceId,
       state,
     })
