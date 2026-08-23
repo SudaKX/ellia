@@ -8,7 +8,7 @@ Adds a markdown source-file entity type with ordered segments, server-side state
 
 ### Requirement: Markdown entity state is a source-namespaced ordered segment collection
 
-The system SHALL support a `markdown` entity kind with `ui_kind` `markdown` and resource_id namespace `source`. Its state SHALL contain `sort`, an explicit array of segment UUIDs, and `segments`, a record keyed by segment UUID where each segment has an `id` matching its key and a `content` string.
+The system SHALL support a `markdown` entity kind with `ui_kind` `markdown`, registry grouping `markdown`, and resource_id namespace `source`. Its state SHALL contain `sort`, an explicit array of segment UUIDs, and `segments`, a record keyed by segment UUID where each segment has an `id` matching its key and a `content` string.
 
 #### Scenario: Create an empty markdown entity
 

@@ -1,7 +1,7 @@
 # 实体编辑器细化 TODO
 
 > 目标：按实体类型逐个细化“字段定义 / 创建表单 / 专用编辑器”，提升字段级锁、在场提示和创建体验。
-> 状态：进行中；hint 已完成字段/结构检查；validation 已完成字段/后端检查、创建表单/编辑器调整；task 已完成字段/后端检查；listener 已完成字段/后端检查；achievement 已完成字段/后端检查；account 已完成字段/后端检查；credit 已完成字段/后端检查、创建表单/编辑器调整；artifact 已完成字段/后端检查、创建表单/编辑器调整；artifact-node 已完成字段/后端检查、创建表单/编辑器调整；progress-node 已完成字段/后端检查、创建表单/编辑器调整；file-node 已完成字段/后端检查、创建表单/编辑器调整；asset 已完成字段/后端检查、创建表单/编辑器调整；code 已完成字段/后端检查、创建表单/编辑器调整；file-tree 已完成字段/后端检查、创建表单/编辑器调整；dag 已完成字段/后端检查、专用拓扑编辑器初版；script 已简化 namespace 为 `script`，注册表直接 fallback 到 FallbackEditor（编辑时锁定整个 state）；markdown 已增加 source namespace、分段 state 与专属 MarkdownEditor 初版。
+> 状态：进行中；hint 已完成字段/结构检查；validation 已完成字段/后端检查、创建表单/编辑器调整；task 已完成字段/后端检查；listener 已完成字段/后端检查；achievement 已完成字段/后端检查；account 已完成字段/后端检查；credit 已完成字段/后端检查、创建表单/编辑器调整；artifact 已完成字段/后端检查、创建表单/编辑器调整；artifact-node 已完成字段/后端检查、创建表单/编辑器调整；progress-node 已完成字段/后端检查、创建表单/编辑器调整；file-node 已完成字段/后端检查、创建表单/编辑器调整；asset 已完成字段/后端检查、创建表单/编辑器调整；code 已完成字段/后端检查、创建表单/编辑器调整；file-tree 已完成字段/后端检查、创建表单/编辑器调整；dag 已完成字段/后端检查、专用拓扑编辑器初版；script 已简化 namespace 为 `script`，注册表直接 fallback 到 FallbackEditor（编辑时锁定整个 state）；markdown 已增加 source namespace、分段 state 与专属 MarkdownEditor 初版，注册表分组独立为 `markdown`；questionnaire 已增加 source namespace、问卷 state 与专属 QuestionnaireEditor 初版。
 
 ## 推荐处理顺序
 
@@ -22,8 +22,9 @@
 | 13 | `dag` | `dag` | DagEditor（专用拓扑编辑器） | 容器拓扑编辑器 |
 | 14 | `asset` | `asset` | FormEditor | 文件引用与上传替换 |
 | 15 | `script` | `script` | FallbackEditor（注册表直接 fallback） | 脚本 JSON 编辑（整 state 锁） |
-| 16 | `markdown` | `markdown` | MarkdownEditor | 分段 markdown 源文件编辑 |
-| 17 | `code` | `code` | CodeEditor | 代码块编辑 |
+| 16 | `markdown` | `markdown` | MarkdownEditor | 分段 markdown 源文件编辑（注册表独立为 `markdown`） |
+| 17 | `questionnaire` | `questionnaire` | QuestionnaireEditor | 问卷题目编辑（选择题/填空题，题目级锁） |
+| 18 | `code` | `code` | CodeEditor | 代码块编辑 |
 
 ## 每个实体类型的通用 TODO 模板
 
@@ -160,8 +161,16 @@
 - [x] 字段：`sort`（显式 UUID 顺序）、`segments`（UUID → { id, content }）
 - [x] 创建表单：默认 `{ sort: [], segments: {} }`，namespace 为 `source`
 - [x] 编辑器：专属 MarkdownEditor（纵向 flex + TransitionGroup 卡片、markdown-it 渲染、CodeMirror markdown 高亮、段级锁）
+- [x] 注册表：`REGISTRY_OF_KIND.markdown` 独立为 `markdown`，不再与 files 共用
 
-### 17. code
+### 17. questionnaire
+
+- [x] 字段：`description`（markdown 说明）、`sort`（显式 UUID 顺序）、`questions`（UUID → { id, type, description, data }）
+- [x] 创建表单：默认 `{ description: "", sort: [], questions: {} }`，namespace 为 `source`
+- [x] 编辑器：专属 QuestionnaireEditor（说明卡片 + TransitionGroup 题目卡片、markdown-it 渲染、CodeMirror markdown 编辑、题目级锁、选择题/填空题预览与编辑组件）
+- [x] 注册表：`REGISTRY_OF_KIND.questionnaire` 独立为 `questionnaire`
+
+### 18. code
 
 - [x] 字段：`name`、`content`
 - [x] 创建表单：默认 content 空
