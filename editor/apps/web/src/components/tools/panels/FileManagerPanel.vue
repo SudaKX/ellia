@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import type { ApiFileRecord } from '@ellia/puzzle-schema'
 
@@ -29,6 +29,8 @@ const filteredFiles = computed(() => {
 })
 
 const selectedFile = ref<ApiFileRecord | null>(null)
+const copied = ref(false)
+let copyTimer: ReturnType<typeof setTimeout> | null = null
 
 const uploadInput = ref<HTMLInputElement | null>(null)
 const pendingUpload = ref<File | null>(null)
@@ -37,6 +39,10 @@ const uploadBusy = ref(false)
 
 onMounted(() => {
   void refresh()
+})
+
+onBeforeUnmount(() => {
+  if (copyTimer) clearTimeout(copyTimer)
 })
 
 async function refresh(): Promise<void> {
@@ -97,6 +103,25 @@ async function onDownload(file: ApiFileRecord): Promise<void> {
     URL.revokeObjectURL(url)
   } catch (err) {
     error.value = err instanceof Error ? err.message : '下载失败'
+  }
+}
+
+function fileAccessLink(fileId: string): string {
+  return `${window.location.origin}/api/files/${encodeURIComponent(fileId)}`
+}
+
+async function copyAccessLink(file: ApiFileRecord): Promise<void> {
+  error.value = null
+  try {
+    await navigator.clipboard.writeText(fileAccessLink(file.file_id))
+    copied.value = true
+    if (copyTimer) clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => {
+      copied.value = false
+      copyTimer = null
+    }, 1500)
+  } catch {
+    error.value = '复制链接失败'
   }
 }
 
@@ -185,6 +210,16 @@ async function performDelete(): Promise<void> {
           <div><dt>创建时间</dt><dd>{{ selectedFile.created_at }}</dd></div>
           <div><dt>file_id</dt><dd><code>{{ selectedFile.file_id }}</code></dd></div>
         </dl>
+        <div class="file-manager__details-actions">
+          <button
+            class="btn btn--tonal btn--small"
+            type="button"
+            @click="copyAccessLink(selectedFile)"
+          >
+            {{ copied ? '已复制' : '复制访问链接' }}
+          </button>
+          <span class="muted">访问需登录鉴权（同源会话 Cookie）</span>
+        </div>
       </template>
       <p v-else class="file-manager__details-empty">选择一个文件查看详情</p>
     </section>
@@ -354,5 +389,12 @@ async function performDelete(): Promise<void> {
   margin: 0;
   color: var(--md-sys-color-on-surface-variant, #49454f);
   font-size: 0.8rem;
+}
+
+.file-manager__details-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>
