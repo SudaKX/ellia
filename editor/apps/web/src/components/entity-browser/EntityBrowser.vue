@@ -16,7 +16,11 @@ const presenceStore = usePresenceStore()
 const voiceStore = useVoiceStore()
 const router = useRouter()
 
-const filters = ref<{ kind: string; group: string }>({ kind: '', group: '' })
+const filters = ref<{ kind: string; group: string; search: string }>({
+  kind: '',
+  group: '',
+  search: '',
+})
 const menuOpen = ref(false)
 const menuContainer = ref<HTMLElement | null>(null)
 
@@ -27,6 +31,10 @@ const filteredEntities = computed(() =>
   entitiesStore.entityList.filter((entity) => {
     if (filters.value.kind && entity.kind !== filters.value.kind) return false
     if (filters.value.group && entity.group !== filters.value.group) return false
+    if (filters.value.search) {
+      const query = filters.value.search.trim().toLowerCase()
+      if (!entity.resource_id.toLowerCase().includes(query)) return false
+    }
     return true
   }),
 )
