@@ -39,7 +39,7 @@ const colors = computed(() => getHashColorPair(props.username))
 .lock-overlay {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 100;
   padding: 0;
   border: 2px solid transparent;
   border-radius: 8px;
