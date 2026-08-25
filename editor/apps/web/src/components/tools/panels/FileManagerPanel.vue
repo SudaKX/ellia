@@ -5,6 +5,7 @@ import type { ApiFileRecord } from '@ellia/puzzle-schema'
 
 import { deleteFile, downloadFile, uploadFile } from '../../../client/rest/files'
 import { useFilesStore } from '../../../stores/files'
+import { buildFileAccessUrl, buildMarkdownImageReference } from '../../../utils/fileReferences'
 import ConfirmDialog from '../../ui/ConfirmDialog.vue'
 import TextField from '../../ui/TextField.vue'
 import UploadFileDialog from './UploadFileDialog.vue'
@@ -30,7 +31,9 @@ const filteredFiles = computed(() => {
 
 const selectedFile = ref<ApiFileRecord | null>(null)
 const copied = ref(false)
+const markdownCopied = ref(false)
 let copyTimer: ReturnType<typeof setTimeout> | null = null
+let markdownCopyTimer: ReturnType<typeof setTimeout> | null = null
 
 const uploadInput = ref<HTMLInputElement | null>(null)
 const pendingUpload = ref<File | null>(null)
@@ -43,6 +46,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (copyTimer) clearTimeout(copyTimer)
+  if (markdownCopyTimer) clearTimeout(markdownCopyTimer)
 })
 
 async function refresh(): Promise<void> {
@@ -107,7 +111,7 @@ async function onDownload(file: ApiFileRecord): Promise<void> {
 }
 
 function fileAccessLink(fileId: string): string {
-  return `${window.location.origin}/api/files/${encodeURIComponent(fileId)}`
+  return buildFileAccessUrl(fileId)
 }
 
 async function copyAccessLink(file: ApiFileRecord): Promise<void> {
@@ -122,6 +126,21 @@ async function copyAccessLink(file: ApiFileRecord): Promise<void> {
     }, 1500)
   } catch {
     error.value = '复制链接失败'
+  }
+}
+
+async function copyMarkdownImageReference(file: ApiFileRecord): Promise<void> {
+  error.value = null
+  try {
+    await navigator.clipboard.writeText(buildMarkdownImageReference(file.original_name, file.file_id))
+    markdownCopied.value = true
+    if (markdownCopyTimer) clearTimeout(markdownCopyTimer)
+    markdownCopyTimer = setTimeout(() => {
+      markdownCopied.value = false
+      markdownCopyTimer = null
+    }, 1500)
+  } catch {
+    error.value = '复制 Markdown 图片引用失败'
   }
 }
 
@@ -217,6 +236,13 @@ async function performDelete(): Promise<void> {
             @click="copyAccessLink(selectedFile)"
           >
             {{ copied ? '已复制' : '复制访问链接' }}
+          </button>
+          <button
+            class="btn btn--tonal btn--small"
+            type="button"
+            @click="copyMarkdownImageReference(selectedFile)"
+          >
+            {{ markdownCopied ? '已复制' : '复制 Markdown 图片引用' }}
           </button>
           <span class="muted">访问需登录鉴权（同源会话 Cookie）</span>
         </div>
