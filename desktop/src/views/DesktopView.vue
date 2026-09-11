@@ -672,19 +672,19 @@ function handleDockAppClick(target: DockClickTarget) {
  * 浏览器标签页标题管理：
  * - 聚焦虚拟窗口时显示该窗口标题栏文本（与 WindowFrame 的展示逻辑一致）
  * - 整个浏览器标签页被隐藏/失焦（切后台、被覆盖）时显示等待文案
- * - 无聚焦窗口时显示默认标题
+ * - 桌面无聚焦窗口时显示问候文案
  */
-const DEFAULT_TAB_TITLE = 'Ellia'
-const HIDDEN_TAB_TITLE = 'Ellia：我在这等你'
+const DEFAULT_TAB_TITLE = '你好：我是Ellia！'
+const HIDDEN_TAB_TITLE = '我会等你的~'
 
 /** 当前聚焦窗口的标题栏文本，供标签页标题复用 */
 const activeWindowTabTitle = computed(() => {
   const win = windowService.activeWindow.value
   if (!win) return null
-  return win.title ?? (win.id === aiWindowId.value ? aiTitle.value : undefined) ?? t(win.titleKey)
+  return win.title ?? (win.id === aiWindowId.value ? aiTitle.value || undefined : undefined) ?? t(win.titleKey)
 })
 
-/** 同步 document.title：隐藏/失焦时显示等待文案，否则显示聚焦窗口标题 */
+/** 同步 document.title：隐藏/失焦时显示等待文案，否则显示聚焦窗口标题或问候文案 */
 function syncTabTitle() {
   const isHidden = document.visibilityState === 'hidden' || !document.hasFocus()
   document.title = isHidden ? HIDDEN_TAB_TITLE : (activeWindowTabTitle.value ?? DEFAULT_TAB_TITLE)
